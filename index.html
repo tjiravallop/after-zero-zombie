@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101613">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>AFTER ZERO — ตื่นหลังความตาย</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#"><span class="brand-mark" aria-hidden="true">Z<span>0</span></span><span>AFTER <b>ZERO</b><small>ตื่นหลังความตาย</small></span></a>
+      <div class="build"><i></i> PLAYABLE PROTOTYPE <span>0.2</span></div>
+      <button id="menu-toggle" class="icon-button" aria-label="เปิดเมนูบันทึก" aria-expanded="false">☰</button>
+    </header>
+    <section id="save-menu" class="save-menu" hidden aria-label="เมนูเกม"><button id="save-button">บันทึก</button><button id="export-button">ส่งออกเซฟ</button><button id="import-button">นำเข้าเซฟ</button><button id="restart-button" class="danger-text">เริ่มชีวิตใหม่</button><input id="import-file" type="file" accept=".json,application/json" hidden></section>
+    <div class="edition-line"><span>ONE DEAD BODY. STILL YOUR CHOICE.</span><span>1 การกระทำ = 1 วัน</span></div>
+    <main>
+      <div class="play-column">
+        <section class="scene-panel">
+          <div class="scene-head"><span id="scene-tag">SAFEHOUSE</span><span class="day-number">DAY <b id="day-number">01</b><small>/ 60</small></span></div>
+          <div class="scene-frame"><canvas id="world-canvas" width="320" height="144" aria-label="ฉากเมืองร้างและซอมบี้พิกเซล 8-bit"></canvas><div class="scene-overlay"><span id="species-label">ผู้ตายที่ยังมีสติ</span><span id="location-label">ที่หลบภัย</span></div></div>
+          <div class="scene-copy"><div><span class="eyebrow">YOU ARE HERE</span><h1 id="place-name">ห้องที่เคยเรียกว่าบ้าน</h1></div><p id="place-description"></p></div>
+        </section>
+        <section class="vitals" aria-label="ค่าสถานะหลัก">
+          <article class="vital health"><div><span>✚ สุขภาพ</span><b id="hp-value">85<small>/100</small></b></div><div class="meter" role="progressbar" aria-label="สุขภาพ" aria-valuemin="0" aria-valuemax="100" id="hp-meter"><i></i></div><small>ร่างพัง = ตายอีกครั้ง</small></article>
+          <article class="vital hunger"><div><span>▰ ความหิว</span><b id="hunger-value">30<small>/100</small></b></div><div class="meter" role="progressbar" aria-label="ความหิว" aria-valuemin="0" aria-valuemax="100" id="hunger-meter"><i></i></div><small>0 คืออิ่ม · 85+ ร่างกายเริ่มพัง</small></article>
+          <article class="vital mind"><div><span>◇ สติ</span><b id="sanity-value">72<small>/100</small></b></div><div class="meter" role="progressbar" aria-label="สติ" aria-valuemin="0" aria-valuemax="100" id="sanity-meter"><i></i></div><small>คิดและควบคุมตัวเอง · กินคนไม่ได้ลดสติโดยตรง</small></article>
+        </section>
+        <p id="body-note" class="body-note" role="status"></p>
+        <div id="warning" class="warning" role="status" hidden></div>
+        <section class="action-panel">
+          <div class="section-heading"><div><span class="eyebrow">TODAY'S CHOICE</span><h2>วันนี้จะอยู่รอดอย่างไร</h2></div><span class="small-badge">กดแล้วเริ่มวันทันที</span></div>
+          <div id="actions" class="actions"></div><details class="other-actions"><summary>ทำเรื่องอื่นวันนี้ — ยังเลือกทนหิวไปทำอย่างอื่นได้</summary><div id="other-actions" class="actions"></div></details>
+          <p class="daily-rule">ทุกวันที่ผ่านไป: ความหิว +8 · สติ -1 · เกมไม่เลือกกินแทนเจ้า <span>เหตุการณ์และกิจกรรมอาจเปลี่ยนค่าเพิ่ม</span></p>
+        </section>
+        <section class="map-panel"><div class="section-heading"><div><span class="eyebrow">FIVE PLACES. MANY WAYS OUT.</span><h2>เมืองที่ยังเดินต่อได้</h2></div></div><div id="places" class="places"></div><p class="muted">เดินทางตามเส้นเชื่อม ใช้ 1 วันต่อครั้ง · ไม่มีเวลาเดินเองขณะปิดเกม</p></section>
+        <section class="journal-panel"><details open><summary><span class="eyebrow">THE DEAD REMEMBER</span>บันทึกของคนที่ยังเลือกได้</summary><ol id="journal"></ol></details></section>
+      </div>
+      <aside class="side-column">
+        <section class="inventory-panel"><div class="section-heading"><h2>สิ่งที่ยังเหลือ</h2><span class="eyebrow">INVENTORY</span></div><div id="inventory" class="inventory"></div><p id="save-status" class="save-status" role="status">บันทึกอัตโนมัติในเบราว์เซอร์นี้</p></section>
+        <section class="route-panel"><span class="eyebrow">WHAT WILL YOU BECOME?</span><h2>ทางที่เจ้าอยากลองเดิน</h2><div id="route-tabs" class="route-tabs"></div><p id="route-subtitle"></p><div id="route-requirements" class="route-requirements"></div><button id="finale-button" class="primary-button" disabled>ยังไม่พร้อม</button><p id="finale-reason" class="muted"></p></section>
+        <section class="evolution-panel"><div class="section-heading"><h2>ร่องรอยที่เปลี่ยนเจ้า</h2><span class="eyebrow">EVOLUTION</span></div><details><summary>สำรวจร่างกายและความสัมพันธ์</summary><div id="secondary-stats"></div></details><p id="campaign-label" class="campaign-label"></p></section>
+        <section class="collection-panel"><div class="section-heading"><h2>เรื่องที่จบไปแล้ว</h2><span id="ending-count" class="small-badge">0 / 7</span></div><div id="ending-collection"></div></section>
+        <p class="prototype-note">ต้นแบบเพื่อทดลองจังหวะการเล่นและเส้นทางบทจบ<br>ฉากพิกเซลวาดในเกม · ไม่ต้องเชื่อมต่อบัญชี</p>
+      </aside>
+    </main>
+    <footer><span>AFTER ZERO / A CONSCIOUS ZOMBIE STORY</span><span>ชีวิตหยุดแล้ว แต่การเลือกยังไม่หยุด</span></footer>
+  </div>
+  <dialog id="event-dialog" aria-labelledby="event-title"><div class="dialog-art" aria-hidden="true"><span>◆</span><i></i><span>◇</span></div><div class="dialog-content"><span id="event-kicker" class="eyebrow"></span><h2 id="event-title"></h2><p id="event-text"></p><div id="event-choices"></div><small id="event-time-note" class="muted"></small></div></dialog>
+  <dialog id="ending-dialog" aria-labelledby="ending-title"><div class="ending-art"><span id="ending-seal">Z</span><span class="eyebrow">YOUR STORY ENDS HERE</span></div><div class="dialog-content"><span id="ending-tag" class="eyebrow"></span><h2 id="ending-title"></h2><p id="ending-text"></p><div id="ending-summary" class="ending-summary"></div><button id="ending-restart" class="primary-button">ลืมตาขึ้นอีกครั้ง</button><button id="ending-close" class="plain-button">ดูบันทึกชีวิตนี้</button></div></dialog>
+  <dialog id="restart-dialog" aria-labelledby="restart-title"><div class="dialog-content"><span class="eyebrow">A NEW BODY</span><h2 id="restart-title">เริ่มชีวิตใหม่?</h2><p>เซฟชีวิตปัจจุบันจะถูกแทนที่ บทจบที่เคยค้นพบยังอยู่ ส่งออกเซฟเก็บไว้ก่อนได้จากเมนูเกม</p><button id="confirm-restart" class="primary-button">เริ่มชีวิตใหม่</button><button id="cancel-restart" class="plain-button">กลับไปเล่นต่อ</button></div></dialog>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="data/catalog.js"></script><script src="engine.js"></script><script src="app.js"></script>
+</body>
+</html>
