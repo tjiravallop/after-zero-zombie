@@ -1,0 +1,102 @@
+[
+  {
+    "name": "authored IDs and references are valid",
+    "passed": true
+  },
+  {
+    "name": "opening choice consumes no day; action consumes exactly one",
+    "passed": true
+  },
+  {
+    "name": "invalid location and missing costs mutate nothing",
+    "passed": true
+  },
+  {
+    "name": "pending event roundtrip neither replays rewards nor taxes twice",
+    "passed": true
+  },
+  {
+    "name": "same seed and choices are reproducible",
+    "passed": true
+  },
+  {
+    "name": "from a fresh life to human",
+    "passed": true,
+    "detail": {
+      "day": 19,
+      "ending": "human",
+      "actions": 19
+    }
+  },
+  {
+    "name": "from a fresh life to king",
+    "passed": true,
+    "detail": {
+      "day": 9,
+      "ending": "king",
+      "actions": 9
+    }
+  },
+  {
+    "name": "from a fresh life to evolved",
+    "passed": true,
+    "detail": {
+      "day": 15,
+      "ending": "evolved",
+      "actions": 15
+    }
+  },
+  {
+    "name": "from a fresh life to extinction",
+    "passed": true,
+    "detail": {
+      "day": 22,
+      "ending": "extinction",
+      "actions": 22
+    }
+  },
+  {
+    "name": "low sanity changes choices; remembering can recover before feral ending",
+    "passed": true
+  },
+  {
+    "name": "three days without sanity ends the conscious life, not immediately",
+    "passed": true
+  },
+  {
+    "name": "fatal body damage resolves death and prevents further actions",
+    "passed": true
+  },
+  {
+    "name": "sixty daily actions reach the survivor ending",
+    "passed": true
+  },
+  {
+    "name": "save validation rejects broken types and preserves plain text logs",
+    "passed": true
+  },
+  {
+    "name": "looking for prey never eats before an explicit decision",
+    "passed": true
+  },
+  {
+    "name": "eating a human does not directly damage sanity",
+    "passed": true
+  },
+  {
+    "name": "enduring severe hunger never forces feeding",
+    "passed": true
+  },
+  {
+    "name": "blood is finite and leaving the empty bank remains possible",
+    "passed": true
+  },
+  {
+    "name": "helping while hungry is costly but remains a player choice",
+    "passed": true
+  },
+  {
+    "name": "old provisions migrate to human supplies and preserve pending choices",
+    "passed": true
+  }
+]

@@ -1,0 +1,54 @@
+[
+  {
+    "name": "intro and one-day action UI",
+    "passed": true
+  },
+  {
+    "name": "pending event reload is atomic",
+    "passed": true
+  },
+  {
+    "name": "travel costs a day and location actions follow the body",
+    "passed": true
+  },
+  {
+    "name": "prey encounter waits for consent and permits retreat",
+    "passed": true
+  },
+  {
+    "name": "hunger pressure is explained and enduring remains available",
+    "passed": true
+  },
+  {
+    "name": "secondary actions and numbers stay accessible on demand",
+    "passed": true
+  },
+  {
+    "name": "import displays untrusted journal as text",
+    "passed": true
+  },
+  {
+    "name": "corrupt save is backed up without touching sect storage",
+    "passed": true
+  },
+  {
+    "name": "earned ending survives reload and collection is idempotent",
+    "passed": true
+  },
+  {
+    "name": "mobile 320px",
+    "passed": true
+  },
+  {
+    "name": "mobile 390px",
+    "passed": true
+  },
+  {
+    "name": "standalone file URL is playable",
+    "passed": true
+  },
+  {
+    "name": "desktop pixel scene",
+    "passed": true
+  }
+]
