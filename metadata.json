@@ -1,0 +1,8 @@
+{
+  "name": "AFTER ZERO",
+  "description": "เกมเล่าเรื่องและเอาชีวิตรอดในกรุงเทพฯ ปี 2026 เมื่อซอมบี้ยังมีสติและเลือกเส้นทางของตัวเองได้",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

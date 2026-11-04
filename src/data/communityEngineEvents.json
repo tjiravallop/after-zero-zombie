@@ -1,0 +1,13 @@
+[
+  {
+    "id":"community.clinic.blood_sample",
+    "title":"ข้อต่อรองหลังกระจกห้องแล็บ",
+    "text":"หมอวิชัยวางหลอดเก็บตัวอย่างไว้หลังช่องรับส่งของ “อยากเทียบเชื้อในเลือดกับอาการของนาย ถ้ายอมให้เก็บตัวอย่าง ฉันมีเวชภัณฑ์ให้แลก” เขาวางเข็มลง รอให้เจ้าตัดสินใจโดยไม่เร่ง",
+    "location":"hospital","tags":["lab"],"once":false,"cooldownDays":5,
+    "requirements":{"all":[{"kind":"day","min":4},{"kind":"npc","id":"clinic.dr_wichai","field":"alive","value":true},{"any":[{"kind":"npc","id":"clinic.dr_wichai","field":"state","value":"wary"},{"kind":"npc","id":"clinic.dr_wichai","field":"state","value":"friendly"}]}]},
+    "choices":[
+      {"id":"community.clinic.blood_sample.donate","text":"ยอมให้เก็บตัวอย่างเลือด","note":"ร่างกาย -5 · งานวิจัย +3 · ความไว้ใจ +3 · เวชภัณฑ์ +1 · ไม่ลดความหิว","outcomeText":"เข็มทำให้ผิวที่เย็นซีดฉีกเป็นรอย หมอปิดแผลให้ก่อนส่งกล่องเวชภัณฑ์ผ่านช่องรับของ เลือดในหลอดถูกเก็บไว้ศึกษา ไม่ใช่เสบียงสำหรับเจ้า","effects":[{"type":"stat.add","key":"hp","value":-5},{"type":"stat.add","key":"research","value":3},{"type":"stat.add","key":"trust","value":3},{"type":"item.add","key":"medicine","value":1}]},
+      {"id":"community.clinic.blood_sample.decline","text":"ปฏิเสธ แล้วขอฟังข่าวจากวิทยุแทน","note":"สติ +3 · ไม่เสียเลือด · ไม่เพิ่มงานวิจัย","outcomeText":"หมอเก็บเข็มแล้วเลื่อนบันทึกข่าวเข้ามาแทน “ยังมีคนส่งสัญญาณจากนอกเขตกักกันอยู่” ข่าวสั้น ๆ ไม่ได้บอกทางรอดแน่นอน แต่ช่วยให้เจ้ารู้ว่าโลกยังไม่ได้เงียบไปทั้งหมด","effects":[{"type":"stat.add","key":"sanity","value":3}]}
+    ]
+  }
+]
