@@ -80,6 +80,10 @@ export function npcPosture(npc,day) {
   return {label:'ยอมร่วมมือ',armed,warning:false,text:'เขาจำการกระทำที่ผ่านมาของเจ้าได้ จึงยอมคุยและช่วยงานกัน โดยยังตกลงระยะปลอดภัยก่อนเข้าใกล้'};
 }
 
+export function npcHuntEffects(armed) {
+  return {hp:armed?-12:-5,hunger:-45,humanity:-18,mutation:6,killTargetNpc:true,bystanderTrustDelta:-20,threatDelta:12};
+}
+
 export function crisisNeed(npc) {
   const text=npc.crisisText||'';
   if(/ติดอยู่|ขวาง|ทับ|ล้อม|ไล่|โจมตี|ดัก|ลงจาก.*ไม่ได้|ห้อย|ขัง|หนีซอมบี้/.test(text))return 'rescue';

@@ -8,7 +8,7 @@ const file = 'public/after-zero-bundle.js';
 let source = fs.readFileSync(file, 'utf8');
 const relationshipSource = fs.readFileSync('src/data/npcRelationships.js','utf8').replace(/^export /gm,'');
 const relationshipStart = '// BEGIN NPC RELATIONSHIP RULES', relationshipEnd = '// END NPC RELATIONSHIP RULES';
-const relationshipCode = `${relationshipStart}\n  const NpcRelationships = (() => {\n${relationshipSource}\nreturn {relationshipState,changeTrust,previewTrust,npcPosture,relationshipTier,recordRescue,scaledTrust,rebalanceRelationshipCatalog,validateSavedEncounter};\n})();\n  ${relationshipEnd}`;
+const relationshipCode = `${relationshipStart}\n  const NpcRelationships = (() => {\n${relationshipSource}\nreturn {relationshipState,changeTrust,previewTrust,npcPosture,npcHuntEffects,relationshipTier,recordRescue,scaledTrust,rebalanceRelationshipCatalog,validateSavedEncounter};\n})();\n  ${relationshipEnd}`;
 if(source.includes(relationshipStart)) source=source.slice(0,source.indexOf(relationshipStart))+relationshipCode+source.slice(source.indexOf(relationshipEnd)+relationshipEnd.length);
 else source=source.replace('(() => {','(() => {\n  '+relationshipCode);
 const start = '// BEGIN BANGKOK OCCUPATION CONTENT';
@@ -83,8 +83,6 @@ const code = `${start}
         const adapt = ACTIONS.find(a=>a.id==='adapt');
         for(const fx of adapt.effects) {if(fx.path==='stats.mutation')fx.value=8;if(fx.path==='stats.hp')fx.value=-6;if(fx.path==='stats.sanity')fx.value=-3;}
         adapt.note='กลายพันธุ์ +8 · สุขภาพ -6 · สติ -3 · ใช้ตัวอย่างเชื้อ 1';
-        const meal = EVENTS.find(e=>e.id==='prey').choices[0];
-        meal.effects.find(fx=>fx.path==='stats.mutation').value=6;
         EVENTS.push(...${JSON.stringify(community)});
         for(const d of ${JSON.stringify(dialogues)}) EVENTS.push({id:'travel.'+d.id,title:d.title,text:d.text,locations:d.places,routes:d.routes,travelDialogue:true,once:d.once??false,cooldownDays:d.cooldownDays??5,choices:d.choices ? d.choices.map((c,i)=>({id:'travel.'+d.id+'.choice.'+i,...c})) : [
           {id:'travel.'+d.id+'.reply',text:d.reply,note:({trust:'ความไว้ใจ',humanity:'ความเป็นมนุษย์',sanity:'สติ',research:'งานวิจัย',horde:'อำนาจฝูง'}[d.stat])+' +'+d.value,pressure:d.pressure||false,outcomeText:d.outcome,effects:[{type:'stat.add',key:d.stat,value:d.value}]},

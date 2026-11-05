@@ -115,6 +115,7 @@ body:has(.game-dialog) { overflow: hidden; }
   .hud-vitals > div > div:first-child > span:last-child { margin-left: auto; }
   .mobile-nav { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
   .mobile-nav button { min-height: 46px; }
+  .game-shell:has(.mobile-nav) .action-toast { bottom: calc(68px + env(safe-area-inset-bottom)); }
   .primary-stage { display: flex; flex-direction: column; gap: 8px; }
   .primary-stage.hidden { display: none; }
   .primary-stage > * { margin-block: 0 !important; min-width: 0; }

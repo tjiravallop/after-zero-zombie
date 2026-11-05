@@ -9,6 +9,8 @@ coverage/
 .antigravity/
 .agents/
 .codex/
+.venv*/
+graphify-out/cache/
 *.zip
 *.jsonl
 reports/

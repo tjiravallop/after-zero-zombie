@@ -42,7 +42,6 @@ import {
   Dna,
   Activity,
   Droplets,
-  Briefcase,
   ChevronDown,
   ChevronUp,
   X,
@@ -150,7 +149,7 @@ declare global {
           create: (seed: number, options?: any) => any;
           validate: (state: any) => any;
           act: (state: any, actionId: string) => { ok: boolean; reason?: string };
-          choose: (state: any, choiceIndex: number, instanceId: string) => { ok: boolean; reason?: string };
+          choose: (state: any, choiceIndex: number, instanceId: string, armedPrey?: boolean) => { ok: boolean; reason?: string };
           previewAction: (state: any, actionId: string) => any;
           previewChoice: (state: any, choiceIndex: number) => any;
           previewDay: (state: any) => any;
@@ -174,8 +173,8 @@ type StudioTab = 'ai-pack' | 'inspector' | 'patches';
 type MobileDrawerTab = 'play' | 'map' | 'bag' | 'people' | 'journal';
 type DesktopSideTab = 'map' | 'bag' | 'people' | 'journal';
 
-import { prepareNpcModal, npcChoiceReason, applyNpcRelationships, validateZoneRelationships, migrateSavedRelationships } from './data/npcInteractions';
-import { relationshipTier } from './data/npcRelationships.js';
+import { prepareNpcModal, npcChoiceReason, applyNpcRelationships, npcEncounterWitnesses, validateZoneRelationships, migrateSavedRelationships } from './data/npcInteractions';
+import { npcHuntEffects, npcPosture, relationshipTier } from './data/npcRelationships.js';
 const STORAGE_KEY_USER = 'after_zero_v10_user_profile';
 const STORAGE_KEY_STATE = 'after_zero_v10_save_state';
 const STORAGE_KEY_ARCHIVE = 'after_zero_v10_past_lives_v3';
@@ -745,6 +744,17 @@ export default function App() {
     return syncedZonePopulations[gameState.place || 'shelter'];
   }, [syncedZonePopulations, gameState]);
 
+  const discoveredNpcs = currentZonePop?.npcs.filter(npc => npc.met || npc.seen) ?? [];
+  const knownNpcCount = discoveredNpcs.filter(npc => npc.met && npc.alive).length;
+  const undiscoveredNpc = currentZonePop?.npcs.find(npc => npc.alive && !npc.met && !npc.seen);
+  const huntCandidate = currentZonePop?.npcs.find(npc => npc.alive && npc.localResident && !npc.met && !npc.seen)
+    ?? currentZonePop?.npcs.find(npc => npc.alive);
+  const pendingHunt = gameState?.pending?.eventId === 'prey';
+  const boundHuntNpcId = pendingHunt ? gameState.pending.context?.huntTargetId : undefined;
+  const huntTarget = boundHuntNpcId
+    ? currentZonePop?.npcs.find(npc => npc.alive && npc.id === boundHuntNpcId)
+    : huntCandidate;
+  const armedHuntTarget = pendingHunt && huntTarget ? npcPosture(huntTarget, gameState.day || 1).armed : false;
   const currentZoneTrustStats = useMemo(() => {
     return calculateZoneTrustStats(currentZonePop);
   }, [currentZonePop]);
@@ -1223,18 +1233,18 @@ export default function App() {
       unit: string;
       desc: string;
       accent: string;
-      isSignature?: boolean;
+      iconPath: string;
       canUseDirectly?: boolean;
       useLabel?: string;
     }> = [
       {
         id: 'signature-occupation-item',
+        iconPath: 'M5 2h6v3h4v9H1V5h4z M7 4v1h2V4z M1 8v1h6v2h2V9h6V8z',
         name: currentBio.signatureItemName,
         count: 1,
         unit: 'ของติดตัวก่อนตาย',
         desc: currentBio.signatureItemDesc,
         accent: 'text-lime-300 border-lime-400/50 bg-lime-950/20',
-        isSignature: true,
       },
     ];
 
@@ -1246,6 +1256,7 @@ export default function App() {
     if (supplies > 0) {
       items.push({
         id: 'supplies',
+        iconPath: 'M4 1h8v1h2v12h-2v1H4v-1H2V2h2z M3 4v1h10V4z M3 11v1h10v-1z M6 7v2h4V7z',
         name: 'เสบียงมนุษย์ (อาหารกระป๋อง)',
         count: supplies,
         unit: 'ชิ้น',
@@ -1256,6 +1267,7 @@ export default function App() {
     if (medicine > 0) {
       items.push({
         id: 'medicine',
+        iconPath: 'M5 2h6v3h4v9H1V5h4z M7 4v1h2V4z M7 6v2H5v2h2v2h2v-2h2V8H9V6z',
         name: 'ชุดเย็บแผลและเวชภัณฑ์',
         count: medicine,
         unit: 'ชุด',
@@ -1266,6 +1278,7 @@ export default function App() {
     if (samples > 0) {
       items.push({
         id: 'samples',
+        iconPath: 'M4 1h8v3h-1v9h-1v2H6v-2H5V4H4z M7 4v4h2V4z M7 10v2h1v-2z',
         name: 'หลอดตัวอย่างเชื้อเรืองแสง',
         count: samples,
         unit: 'หลอด',
@@ -1276,6 +1289,7 @@ export default function App() {
     if (carriedBlood > 0) {
       items.push({
         id: 'carriedBloodBags',
+        iconPath: 'M6 1h4v2h3v2h1v7h-1v2h-3v2H8v-2H3v-2H2V5h1V3h3z M7 5v2H6v1H5v3h1v1h4v-1h1V8h-1V7H9V5z',
         name: 'ถุงเลือดพกพา',
         count: carriedBlood,
         unit: 'ถุง',
@@ -1395,7 +1409,7 @@ export default function App() {
     if (!currentZonePop || !gameState || gameState.pending || gameState.ending) return;
     if (soundEnabled) soundFx.click();
     const modal = buildFreeformNpcInteractionModal(
-      currentZonePop,
+      {...currentZonePop, placeId: gameState.place || currentZonePop.placeId},
       gameState,
       currentBio,
       specificNpcId
@@ -1403,6 +1417,13 @@ export default function App() {
     if (!modal) {
       setActionToast('ไม่พบผู้รอดชีวิตที่ยังมีชีวิตอยู่ในเขตนี้แล้ว');
       return;
+    }
+    const zone = syncedZonePopulations[modal.placeId];
+    if (zone?.npcs.some(npc => npc.id === modal.targetNpcId && !npc.met && !npc.seen)) {
+      setZonePopulations(zones => ({
+        ...zones,
+        [modal.placeId]: {...zone, npcs: zone.npcs.map(npc => npc.id === modal.targetNpcId ? {...npc, seen: true} : npc)},
+      }));
     }
     setActiveLifeSimModal(modal);
     setGameState({...gameState,npcEncounter:modal});
@@ -1609,7 +1630,12 @@ export default function App() {
     // Trust, crisis resolution and lives saved are independent outcomes.
     const nextZones = structuredClone(syncedZonePopulations);
     const zone = nextZones[modalEvent.placeId];
+    const target = zone?.npcs.find(npc => npc.id === modalEvent.targetNpcId);
+    const knewTarget = target?.met;
     if(zone)applyNpcRelationships(next,zone,modalEvent,choice,before.day||1);
+    const outcomeText = target?.met && !knewTarget
+      ? choice.outcomeText + ' ก่อนแยกกัน อีกฝ่ายบอกให้เจ้าเรียกว่า ' + target.name
+      : choice.outcomeText;
     next.npcZones=nextZones;
 
     // System 1b: Apply Daily Bangkok Weather & Zone Danger (threat) turn modifiers if day advanced
@@ -1709,7 +1735,7 @@ export default function App() {
       {
         id: Date.now(),
         day: next.day,
-        text: choice.outcomeText,
+        text: outcomeText,
         kind: eff.triggerEndingId ? 'ending' : 'lifesim',
       },
       ...(next.log || []),
@@ -1728,7 +1754,7 @@ export default function App() {
     });
     setZonePopulations(nextZones);
     setActiveLifeSimModal(null);
-    recordStoryResult(before, next, { title: modalEvent.title, choice: choice.text, text: choice.outcomeText });
+    recordStoryResult(before, next, { title: modalEvent.title, choice: choice.text, text: outcomeText });
     setGameState(next);
     if (eff.triggerEndingId) {
       setMobileTab('play');
@@ -1877,6 +1903,10 @@ export default function App() {
 
   const handlePerformAction = (actionId: string, bypassEndingClimaxModal = false) => {
     if (!production || !effectiveGameState) return;
+    if (actionId === 'hunt' && !huntCandidate) {
+      setActionToast('ไม่พบผู้รอดชีวิตให้ตามรอยในเขตนี้');
+      return;
+    }
     const currentSanityVal = Number(effectiveGameState.stats?.sanity ?? 100);
     if (
       currentSanityVal < 25 &&
@@ -1920,6 +1950,9 @@ export default function App() {
       if (soundEnabled) soundFx.warning();
       setActionToast(`ยังเลือกไม่ได้: ${res.reason}`);
       return;
+    }
+    if (next.pending?.eventId === 'prey' && huntCandidate) {
+      next.pending.context.huntTargetId = huntCandidate.id;
     }
     next.carriedBloodBags = before.carriedBloodBags || 0;
 
@@ -1986,6 +2019,7 @@ export default function App() {
 
   const handleChoosePending = (choiceIndex: number) => {
     if (!production || !effectiveGameState || !effectiveGameState.pending) return;
+    if (pendingHunt && !huntTarget && choiceIndex !== 2) return;
     const before = structuredClone(effectiveGameState);
     const next = structuredClone(effectiveGameState);
     next.memory = normalizeCanonicalMemory(next.memory);
@@ -1994,7 +2028,7 @@ export default function App() {
     }
     const event = production.catalog.EVENTS.find(entry => entry.id === next.pending.eventId);
     const chosen = event?.choices[choiceIndex];
-    const res = production.engine.choose(next, choiceIndex, next.pending.instanceId);
+    const res = production.engine.choose(next, choiceIndex, next.pending.instanceId, armedHuntTarget);
     if (!res.ok) {
       if (soundEnabled) soundFx.warning();
       setActionToast(`เลือกไม่ได้: ${res.reason}`);
@@ -2047,21 +2081,54 @@ export default function App() {
       }
     }
 
-    if (killedDiff > 0 || savedDiff > 0) {
+    let outcomeText = chosen?.outcomeText || '';
+    if (pendingHunt && huntTarget) {
+      const nextZones = structuredClone(syncedZonePopulations);
+      const zone = nextZones[before.place];
+      const kill = choiceIndex === 0;
+      const rescue = choiceIndex === 1;
+      const huntEffects = npcHuntEffects(armedHuntTarget);
+      applyNpcRelationships(next, zone, {
+        id: before.pending.instanceId,
+        placeId: before.place,
+        targetNpcId: huntTarget.id,
+        witnessIds: kill ? npcEncounterWitnesses(zone, huntTarget.id).map(npc => npc.id) : [],
+      }, {
+        relationshipKind: kill ? 'breach' : rescue ? 'rescue' : 'information',
+        effects: kill ? huntEffects : rescue ? {targetNpcTrustDelta: 14} : {},
+      }, before.day, {
+        killAlreadyRecorded: true,
+        threat: Math.min(100, (before.world?.locations?.[before.place]?.threat ?? 20) + (kill ? huntEffects.threatDelta : 0)),
+      });
+      if (rescue && !huntTarget.met) {
+        outcomeText = [outcomeText, `เมื่อพ้นอันตราย อีกฝ่ายบอกให้เจ้าเรียกว่า ${huntTarget.name}`].filter(Boolean).join(' ');
+      }
+      next.npcZones = nextZones;
+      setZonePopulations(nextZones);
+    } else if (killedDiff > 0 || savedDiff > 0) {
       const nextZones = structuredClone(syncedZonePopulations);
       const z = nextZones[next.place || 'shelter'];
       if (z) {
-        const living = z.npcs.filter(n => n.alive);
         if (killedDiff > 0) {
-          if (z.unmetAnonymousSurvivors > 0) {
-            z.unmetAnonymousSurvivors = Math.max(0, z.unmetAnonymousSurvivors - killedDiff);
-          } else if (living.length > 0) {
-            const victim = living[living.length - 1];
+          const alreadyKilled = z.npcs.filter(npc => npc.storyNpcKey &&
+            before.world?.npcs?.[npc.storyNpcKey]?.alive !== false &&
+            next.world?.npcs?.[npc.storyNpcKey]?.alive === false);
+          const living = z.npcs.filter(npc => npc.alive && !alreadyKilled.includes(npc)).reverse();
+          // A generic encounter reaches undiscovered locals before named story contacts.
+          const unnamed = living.filter(npc => npc.localResident && !npc.met && !npc.seen);
+          const victims = [...unnamed, ...living.filter(npc => !unnamed.includes(npc))];
+          for (const victim of victims.slice(0, Math.max(0, killedDiff - alreadyKilled.length))) {
             victim.alive = false;
             victim.trust = 0;
+            const canonical = victim.storyNpcKey && next.world?.npcs?.[victim.storyNpcKey];
+            if (canonical) {
+              canonical.alive = false;
+              canonical.trust = 0;
+            }
           }
         }
 
+        next.npcZones = nextZones;
         setZonePopulations(nextZones);
       }
     }
@@ -2070,7 +2137,7 @@ export default function App() {
     recordStoryResult(before, next, {
       title: event?.title || 'การตัดสินใจของเจ้า',
       choice: chosen?.text,
-      text: chosen?.outcomeText || '',
+      text: outcomeText,
     });
     setGameState(next);
   };
@@ -2790,7 +2857,7 @@ export default function App() {
         <main className="flex-1 max-w-[1380px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
           {/* Consequence Feedback Toast (Fixed Floating) */}
           {actionToast && (
-            <div role="status" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[92%] px-4 py-3 rounded-2xl bg-slate-900/95 border-2 border-lime-400 text-xs sm:text-sm text-lime-100 shadow-2xl flex items-center justify-between gap-3 animate-fade-in backdrop-blur-md">
+            <div role="status" className="action-toast fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[92%] px-4 py-3 rounded-2xl bg-slate-900/95 border-2 border-lime-400 text-xs sm:text-sm text-lime-100 shadow-2xl flex items-center justify-between gap-3 animate-fade-in backdrop-blur-md">
               <div className="flex items-center gap-2.5 min-w-0">
                 <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="font-semibold truncate">{actionToast}</span>
@@ -2829,7 +2896,7 @@ export default function App() {
                       <>
                         <span className="hidden sm:inline text-slate-500">·</span>
                         <span className="text-[11px] text-slate-300 truncate max-w-[200px] sm:max-w-xs">
-                          ด่วน: {allActiveCityCrises[0].npc.name} ({allActiveCityCrises[0].placeName})
+                          ด่วน: {allActiveCityCrises[0].npc.met ? allActiveCityCrises[0].npc.name : 'มีคนต้องการความช่วยเหลือ'} ({allActiveCityCrises[0].placeName})
                         </span>
                       </>
                     )}
@@ -2855,7 +2922,7 @@ export default function App() {
                     >
                       <div className="min-w-0 flex-1 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-bold text-slate-100">{npc.name}</span>
+                          <span className="font-bold text-slate-100">{npc.met ? npc.name : 'ยังไม่รู้ว่าเป็นใคร'}</span>
                           <span className="text-slate-500">·</span>
                           <span
                             className={`font-mono text-[11px] ${
@@ -2865,12 +2932,10 @@ export default function App() {
                             {isCurrentZone ? `เขตนี้ (${placeName})` : placeName}
                           </span>
                           <span className="text-slate-500">·</span>
-                          <span className="font-mono text-[11px] text-emerald-300">
-                            ไว้ใจ {npc.trust}/100
-                          </span>
+                          {npc.met && <span className="font-mono text-[11px] text-emerald-300">ไว้ใจ {npc.trust}/100</span>}
                         </div>
                         <p className="text-[11px] text-amber-200/90 leading-snug line-clamp-2">
-                          {npc.crisisText}
+                          {npc.met ? npc.crisisText : 'มีเบาะแสว่าคนในย่านนี้กำลังเดือดร้อน'}
                         </p>
                       </div>
 
@@ -3228,7 +3293,7 @@ export default function App() {
                   [
                     ['map', 'แผนที่เขต', MapPin],
                     ['bag', 'กระเป๋า / ร่าง', Package],
-                    ['people', `ผู้คน (${currentZoneTrustStats.livingCount})`, Users],
+                    ['people', `ผู้คน (${knownNpcCount})`, Users],
                     ['journal', 'บันทึก / เซฟ', BookOpen],
                   ] as const
                 ).map(([id, label, Icon]) => (
@@ -3259,36 +3324,32 @@ export default function App() {
 
               {/* PANEL 2: BAG (CARRIED ITEMS ONLY + SIGNATURE ITEM) & BODY / MUTATION STAGE STATS */}
               {(mobileTab === 'bag' || (mobileTab === 'play' && desktopSideTab === 'bag')) && (
-                <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6">
+                <div className="p-3 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6">
                   {/* SECTION A: CARRIED INVENTORY ONLY */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                         <Package className="w-4 h-4 text-lime-300" />
-                        <span>กระเป๋า (เฉพาะสิ่งที่พกอยู่บนตัวเท่านั้น)</span>
+                        <span>กระเป๋า</span>
                       </h3>
                       <span className="text-xs font-mono text-slate-400">
                         {carriedInventoryItems.length} รายการ
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2.5">
+                    <div className="grid grid-cols-2 gap-2" aria-label="ไอเทมในกระเป๋า">
                       {carriedInventoryItems.map(item => (
                         <div
                           key={item.id}
-                          className={`p-3.5 rounded-xl bg-slate-950 border ${item.accent} flex flex-col gap-1.5`}
+                          className={`min-w-0 p-2.5 rounded-xl bg-slate-950 border ${item.accent} flex flex-col gap-1.5 last:odd:col-span-2`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
-                              {item.isSignature && (
-                                <Briefcase className="w-3.5 h-3.5 text-lime-300 shrink-0" />
-                              )}
-                              {item.name}
-                            </span>
-                            <span className="text-xs font-mono font-extrabold text-lime-300 shrink-0">
-                              {item.isSignature ? item.unit : `${item.count} ${item.unit}`}
-                            </span>
+                            <svg viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true" className="size-8 shrink-0">
+                              <path d={item.iconPath} fill="currentColor" fillRule="evenodd" />
+                            </svg>
+                            <span className="text-xs font-mono font-bold" aria-label={`${item.count} ${item.unit}`}>×{item.count}</span>
                           </div>
+                          <span className="break-words text-xs font-bold text-slate-100">{item.name}</span>
                           <p className="text-xs text-slate-400 leading-relaxed">
                             {item.desc}
                           </p>
@@ -3296,9 +3357,9 @@ export default function App() {
                             <button
                               type="button"
                               onClick={handleDrinkCarriedBloodBag}
-                              className="mt-1 py-2 px-3 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-xs font-bold text-rose-200 flex items-center justify-center gap-1.5 transition-colors"
+                              className="mt-auto min-h-11 px-1.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-xs font-bold text-rose-200 flex items-center justify-center gap-1.5 transition-colors"
                             >
-                              <Droplets className="w-3.5 h-3.5 text-rose-400" />
+                              <Droplets className="w-3.5 h-3.5 text-rose-400 shrink-0" aria-hidden="true" />
                               {item.useLabel}
                             </button>
                           )}
@@ -3322,17 +3383,14 @@ export default function App() {
                     {/* System 1: Active Mutation Stage Card + Visual Anatomy Portrait */}
                     <div className={`p-3.5 rounded-xl border space-y-3 ${currentMutationStage.accentColor}`}>
                       <div className="flex items-start gap-3.5">
-                        <div className="w-20 shrink-0 p-1.5 rounded-xl bg-slate-950/90 border border-slate-800">
+                        <div className="w-24 shrink-0 rounded-xl border border-slate-800 bg-slate-950/90 p-1.5 sm:w-28">
                           <ZombiePortrait
                             bio={currentBio}
                             mutation={Math.floor(gameState.stats?.mutation || 0)}
                           />
                         </div>
                         <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center justify-between text-xs font-bold">
-                            <span>{currentMutationStage.title}</span>
-                            <span className="font-mono">{currentMutationStage.rangeLabel}</span>
-                          </div>
+                          <h4 className="text-xs font-bold">{currentMutationStage.title}</h4>
                           <p className="text-xs text-slate-200 leading-relaxed">
                             <strong>ความสามารถของร่าง:</strong> {currentMutationStage.abilityText}
                           </p>
@@ -3340,37 +3398,6 @@ export default function App() {
                             <strong>อาการข้างเคียง:</strong> {currentMutationStage.sideEffectText}
                           </p>
                         </div>
-                      </div>
-                      <div className="pt-2 border-t border-slate-800/80 grid grid-cols-2 gap-1.5 text-[11px]">
-                        {[
-                          {
-                            th: 25,
-                            label: 'ขั้น 2 (25%+): ตาแดงเรืองแสง & เขี้ยวงอก',
-                          },
-                          {
-                            th: 50,
-                            label: 'ขั้น 3 (50%+): ร่างขยายสูง & กรงเล็บกระดูก',
-                          },
-                          {
-                            th: 75,
-                            label: 'ขั้น 4 (75%+): แขนขา/ระยางค์ชีวภาพงอกเพิ่ม',
-                          },
-                        ].map(item => {
-                          const unlocked = (gameState.stats?.mutation || 0) >= item.th;
-                          return (
-                            <div
-                              key={item.th}
-                              className={`px-2 py-1 rounded border font-mono ${
-                                unlocked
-                                  ? 'bg-purple-950/60 border-purple-400/50 text-purple-200'
-                                  : 'bg-slate-950/50 border-slate-800 text-slate-500'
-                              }`}
-                            >
-                              {unlocked ? '✓ ' : '○ '}
-                              {item.label}
-                            </div>
-                          );
-                        })}
                       </div>
                     </div>
 
@@ -3489,36 +3516,23 @@ export default function App() {
                         <span>ผู้คนใน{rawViewModel.place?.name}</span>
                       </h3>
                       <span className="text-xs font-mono text-emerald-300 font-bold">
-                        ประชากร {currentZoneTrustStats.livingCount} คน
+                        รู้จัก {knownNpcCount} คน
                       </span>
                     </div>
 
-                    {/* Zone Average Trust Formula Explanation Card */}
-                    <div className="p-3.5 rounded-xl bg-slate-950 border border-emerald-500/40 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-300 font-semibold">
-                          ค่าความไว้ใจเฉลี่ยของพื้นที่นี้:
-                        </span>
-                        <span className="font-mono font-extrabold text-sm text-emerald-300">
-                          {currentZoneTrustStats.averageTrust} / 100
-                        </span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-400 transition-all duration-300"
-                          style={{
-                            width: `${Math.min(100, Math.max(0, currentZoneTrustStats.averageTrust))}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-400 font-mono">
-                        คิดจากผลรวมความไว้ใจรายบุคคล ({currentZoneTrustStats.totalSumTrust} คะแนน) ÷ จำนวนคนที่ยังมีชีวิตในพื้นที่ ({currentZoneTrustStats.livingCount} คน)
-                      </p>
-                    </div>
                   </div>
 
+                  {discoveredNpcs.length === 0 && <p className="text-sm text-slate-300">เจ้ายังไม่รู้จักใครในย่านนี้</p>}
+                  {undiscoveredNpc && !gameState.ending && (
+                    <button type="button" disabled={Boolean(gameState.pending)}
+                      onClick={() => handleOpenFreeformNpcModal(activeZoneCrises.find(npc => !npc.met && !npc.seen)?.id ?? undiscoveredNpc.id)}
+                      className="story-action disabled:opacity-50">
+                      <span className="story-action-title">{activeZoneCrises.some(npc => !npc.met && !npc.seen) ? 'ตามเบาะแสคนที่ต้องการความช่วยเหลือ' : 'ออกไปพบผู้คนในย่าน'}</span>
+                    </button>
+                  )}
+
                   {/* Collapsible Compact Scrollable Vertical List for Active Crises in Current Zone */}
-                  {activeZoneCrises.length > 0 && (
+                  {activeZoneCrises.some(npc => npc.met) && (
                     <div className="rounded-xl bg-slate-950 border border-amber-500/40 overflow-hidden">
                       <button
                         type="button"
@@ -3528,7 +3542,7 @@ export default function App() {
                         <div className="flex items-center gap-2 min-w-0">
                           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                           <span className="text-xs font-bold text-amber-200 truncate">
-                            ผู้รอดชีวิตที่กำลังเผชิญวิกฤตในเขตนี้ ({activeZoneCrises.length} คน)
+                            ผู้รอดชีวิตที่กำลังเผชิญวิกฤตในเขตนี้ ({activeZoneCrises.filter(npc => npc.met).length} คน)
                           </span>
                         </div>
                         <span className="text-[11px] font-semibold text-amber-300 flex items-center gap-1 shrink-0">
@@ -3543,7 +3557,7 @@ export default function App() {
 
                       {isPeopleCrisisSectionExpanded && (
                         <div className="max-h-40 overflow-y-auto overscroll-contain divide-y divide-slate-800/80 border-t border-slate-800 px-3 py-1">
-                          {activeZoneCrises.map(npc => (
+                          {activeZoneCrises.filter(npc => npc.met).map(npc => (
                             <div
                               key={`crisis-compact-${npc.id}`}
                               className="py-2 flex items-start justify-between gap-2.5 text-xs"
@@ -3582,12 +3596,21 @@ export default function App() {
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-300">
-                        รายชื่อ NPC ในพื้นที่ ({currentZonePop?.npcs.length || 0} คนที่ระบุตัวตนได้ + คนอื่นๆ อีก {currentZonePop?.unmetAnonymousSurvivors || 0} คน)
+                        คนที่เคยพบ
                       </span>
                     </div>
 
                     <div className="max-h-[420px] sm:max-h-[540px] overflow-y-auto overscroll-contain pr-1 space-y-2.5">
-                      {currentZonePop?.npcs.map(npc => {
+                      {discoveredNpcs.map(npc => {
+                        if (!npc.met) return (
+                          <div key={npc.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                            <p className="text-sm font-bold text-slate-200">ผู้รอดชีวิตที่ยังไม่รู้ชื่อ</p>
+                            {npc.alive && !gameState.ending && !gameState.pending && (
+                              <button type="button" className="mt-2 text-xs font-semibold text-lime-300"
+                                onClick={() => handleOpenFreeformNpcModal(npc.id)}>กลับไปทัก</button>
+                            )}
+                          </div>
+                        );
                         const hasCrisis = Boolean(
                           npc.alive &&
                             !npc.crisisResolved &&
@@ -4092,13 +4115,7 @@ export default function App() {
               ['play', 'กิจกรรมวันนี้', Sparkles],
               ['map', 'แผนที่', MapPin],
               ['bag', 'กระเป๋า/ร่าง', Package],
-              [
-                'people',
-                activeZoneCrises.length > 0
-                  ? `ผู้คน (${currentZoneTrustStats.livingCount}·!${activeZoneCrises.length})`
-                  : `ผู้คน (${currentZoneTrustStats.livingCount})`,
-                Users,
-              ],
+              ['people', `ผู้คน (${knownNpcCount})`, Users],
               ['journal', 'บันทึก/เซฟ', BookOpen],
             ] as const
           ).map(([id, label, Icon]) => (
@@ -4146,13 +4163,17 @@ export default function App() {
                 {rawViewModel.pending.title}
               </h2>
               <p className="text-sm sm:text-base text-slate-200 leading-relaxed">
-                {rawViewModel.pending.text}
+                {pendingHunt && !huntTarget
+                  ? 'ร่องรอยขาดหาย เจ้าหาคนบาดเจ็บไม่พบแล้ว'
+                  : rawViewModel.pending.text}
+                {pendingHunt && huntTarget?.met && ` เจ้าจำได้ว่าคนตรงหน้าคือ ${huntTarget.name}`}
               </p>
 
               <div className="space-y-2.5 pt-2">
                 {rawViewModel.pending.choices.map((c: any) => {
-                  const isLocked = !c.preview?.enabled;
-                  const reason = c.preview?.reason || 'ยังไม่พร้อมสำหรับตัวเลือกนี้';
+                  const noHuntTarget = pendingHunt && !huntTarget && c.index !== 2;
+                  const isLocked = noHuntTarget || !c.preview?.enabled;
+                  const reason = noHuntTarget ? 'หาคนบาดเจ็บไม่พบแล้ว' : c.preview?.reason || 'ยังไม่พร้อมสำหรับตัวเลือกนี้';
                   return (
                     <button
                       key={c.index}

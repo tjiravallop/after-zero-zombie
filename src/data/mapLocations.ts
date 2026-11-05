@@ -32,7 +32,7 @@ export function buildMapLocations(production: any, state: any, zones: Record<str
     const signals: MapSignal[] = [];
     if (!state.ending) {
       for (const npc of zones[id]?.npcs || []) if (npc.alive && !npc.crisisResolved && npc.crisisDay && state.day >= npc.crisisDay) {
-        signals.push({id:npc.id,kind:'crisis',title:`${npc.name}: ${npc.crisisText || 'ต้องการความช่วยเหลือ'}`});
+        signals.push({id:npc.id,kind:'crisis',title:npc.met ? `${npc.name}: ${npc.crisisText || 'ต้องการความช่วยเหลือ'}` : 'มีเบาะแสว่าคนในย่านนี้ต้องการความช่วยเหลือ'});
       }
       for (const action of catalog.ACTIONS) {
         if (!action.places?.includes(id)) continue;

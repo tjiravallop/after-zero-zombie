@@ -1,7 +1,13 @@
 import type {LifeSimModalEvent,ZonePopulationState,ZoneNpc} from './pastLifeEchoes';
 import {changeTrust,previewTrust,relationshipState,scaledTrust,crisisNeed,recordRescue} from './npcRelationships.js';
 
-function kindOf(choice:LifeSimModalEvent['choices'][number]) {
+type RelationshipChoice = Pick<LifeSimModalEvent['choices'][number], 'relationshipKind' | 'effects'>;
+
+export function npcEncounterWitnesses(zone: ZonePopulationState, targetId: string) {
+  return zone.npcs.filter(npc => npc.alive && npc.met && npc.id !== targetId).slice(0, 2);
+}
+
+function kindOf(choice:RelationshipChoice) {
   const e=choice.effects;
   return choice.relationshipKind || (e.killTargetNpc||e.tensionDays?'breach':e.medicine&&e.medicine<0?'medicine':e.supplies&&e.supplies<0?'supplies':e.resolveNpcCrisis?'rescue':'work');
 }
@@ -49,7 +55,7 @@ export function prepareNpcModal(modal:LifeSimModalEvent,state:any,zone?:ZonePopu
     if(target && effects.targetNpcTrustDelta) {
       const preview=previewTrust(target,{day,kind,amount:effects.targetNpcTrustDelta,key:modal.id,threat:localThreat});
       note=note.split(' · ').filter(part=>!part.startsWith('ความไว้ใจ')).join(' · ');
-      note+=` · ความไว้ใจของ${target.name} ${preview.gain>=0?'+':''}${preview.gain}`;
+      note+=` · ความไว้ใจของ${target.met ? target.name : 'ผู้รอดชีวิต'} ${preview.gain>=0?'+':''}${preview.gain}`;
       if(effects.targetNpcTrustDelta>0&&preview.gain===0)note+=' (ยังไม่เพิ่มจากการทำซ้ำ)';
       else if(effects.targetNpcTrustDelta>0&&localThreat>=35) {
         const pct=localThreat>=85?65:localThreat>=60?50:25;
@@ -104,20 +110,28 @@ export function migrateSavedRelationships(state:any,zones:Record<string,ZonePopu
   return state;
 }
 
-export function applyNpcRelationships(state:any,zone:ZonePopulationState,modal:LifeSimModalEvent,choice:LifeSimModalEvent['choices'][number],day:number) {
+export function applyNpcRelationships(
+  state:any, zone:ZonePopulationState,
+  modal:Pick<LifeSimModalEvent, 'id' | 'placeId' | 'targetNpcId' | 'witnessIds'>,
+  choice:RelationshipChoice, day:number,
+  options: {killAlreadyRecorded?: boolean; threat?: number} = {},
+) {
   const e=choice.effects,target=zone.npcs.find(n=>n.id===modal.targetNpcId),kind=kindOf(choice);
   const placeKey=modal.placeId||state.place||'shelter';
   const rawLoc=state?.world?.locations?.[placeKey]||(placeKey==='tower'?state?.world?.locations?.radio:undefined);
-  const localThreat=Math.min(100,Math.max(0,Math.round(Number(rawLoc?.threat??20))));
+  const localThreat=options.threat ?? Math.min(100,Math.max(0,Math.round(Number(rawLoc?.threat??20))));
   if(target) {
-    target.met=true;
+    target.seen = true;
+    if ((e.targetNpcTrustDelta || 0) > 0) target.met = true;
     const canonical=target.storyNpcKey?state.world?.npcs?.[target.storyNpcKey]:undefined;
     const person:ZoneNpc=canonical||target;
     if(e.killTargetNpc) {
       target.alive=false;target.trust=0;
       if(canonical){canonical.alive=false;canonical.trust=0;}
-      state.memory.killed=Math.min(120,(state.memory.killed||0)+1);
-      if(!state.memory.killedOn)state.memory.killedOn=day;
+      if (!options.killAlreadyRecorded) {
+        state.memory.killed=Math.min(120,(state.memory.killed||0)+1);
+        if(!state.memory.killedOn)state.memory.killedOn=day;
+      }
       target.lastNote='ถูกเจ้าสังหาร';
     } else {
       changeTrust(person,{day,kind,amount:e.targetNpcTrustDelta||0,key:modal.id,tension:e.tensionDays||0,threat:localThreat});

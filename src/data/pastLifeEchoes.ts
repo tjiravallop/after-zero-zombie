@@ -8,8 +8,9 @@ import {
 import { BANGKOK_2026_BIOS } from './bangkokBios';
 import districts from './bangkokLocations.json';
 import { getEndingReadiness } from './progressionRules';
-import { relationshipState, relationshipTier, npcPosture, crisisNeed } from './npcRelationships.js';
-import { prepareNpcModal } from './npcInteractions';
+import { relationshipState, relationshipTier, npcPosture, npcHuntEffects, crisisNeed } from './npcRelationships.js';
+import { npcEncounterWitnesses, prepareNpcModal } from './npcInteractions';
+import { materializeZoneResidents } from './zoneResidents';
 
 export type CharacterAgeGroup = 'เด็ก' | 'วัยรุ่น' | 'ผู้ใหญ่' | 'ผู้สูงอายุ';
 export interface CharacterAppearance {
@@ -167,6 +168,8 @@ export interface ZoneNpc {
   storyNpcKey?: string;
   alive: boolean;
   met: boolean;
+  seen?: boolean;
+  localResident?: boolean;
   trust: number; // 0 to 100 individual trust
   lastNote: string;
   crisisDay?: number;
@@ -2425,7 +2428,7 @@ export function createInitialZonePopulations(seed: number): Record<string, ZoneP
         trait: p.trait,
         placeId,
         alive: true,
-        met: idx === 0,
+        met: false,
         trust: 0,
         lastNote: 'ยังระแวงผู้ติดเชื้อทุกตนในพื้นที่',
         crisisDay: p.crisisDay,
@@ -2435,18 +2438,19 @@ export function createInitialZonePopulations(seed: number): Record<string, ZoneP
     });
 
     // ผสาน NPC จาก EXTERNAL_AI_NPCS เข้าไปในแต่ละเขตโดยอัตโนมัติ
-    const externalNpcsForZone = EXTERNAL_AI_NPCS.filter(ext => ext.placeId === placeId);
+    const externalPlaceId = placeId === 'radio' ? 'tower' : placeId;
+    const externalNpcsForZone = EXTERNAL_AI_NPCS.filter(ext => ext.placeId === externalPlaceId);
     externalNpcsForZone.forEach((ext, extIdx) => {
       if (!npcs.some(existing => existing.name === ext.name)) {
         npcs.push({
-          id: `npc-ext-${placeId}-${extIdx}`,
+          id: `npc-ext-${externalPlaceId}-${extIdx}`,
           name: ext.name,
           age: ext.age,
           role: ext.role,
           trait: ext.trait,
           placeId,
           alive: true,
-          met: extIdx === 0,
+          met: false,
           trust: 0,
           lastNote: 'ผู้รอดชีวิตในเขตกักกันที่คอยสังเกตท่าทีของเจ้า',
           crisisDay: ext.crisisDay,
@@ -2458,13 +2462,15 @@ export function createInitialZonePopulations(seed: number): Record<string, ZoneP
 
     const effectiveTotalPop = Math.max(totalPop, npcs.length);
     const unmetAnonymous = Math.max(0, effectiveTotalPop - npcs.length);
-    return {
+    const zone: ZonePopulationState = {
       placeId,
       placeName,
       initialTotalPopulation: effectiveTotalPop,
       unmetAnonymousSurvivors: unmetAnonymous,
       npcs,
     };
+    materializeZoneResidents(zone, seed);
+    return zone;
   };
 
   const radioZone = makeZone('radio', 'หอวิทยุสะพานพระราม 8', 10, undefined, 3);
@@ -2540,6 +2546,11 @@ export function syncZonePopulationsWithEngineState(
   for (const zone of Object.values(next)) {
     for (const npc of zone.npcs) {
       relationshipState(npc);
+      // Older saves pre-marked the first generated survivor as met.
+      if (npc.met && !npc.seen && !npc.relationship && npc.trust === 0 &&
+          ['ยังระแวงผู้ติดเชื้อทุกตนในพื้นที่', 'ผู้รอดชีวิตในเขตกักกันที่คอยสังเกตท่าทีของเจ้า'].includes(npc.lastNote)) {
+        npc.met = false;
+      }
       const canonical=npc.storyNpcKey?engineNpcs[npc.storyNpcKey]:undefined;
       if(canonical) {
         npc.alive=canonical.alive!==false;
@@ -2569,7 +2580,7 @@ export function syncZonePopulationsWithEngineState(
           trait: ext.trait,
           placeId: normalizedPlaceId,
           alive: true,
-          met: extIdx === 0,
+          met: false,
           trust: 0,
           lastNote: 'ผู้รอดชีวิตในเขตกักกันที่คอยสังเกตท่าทีของเจ้า',
           crisisDay: ext.crisisDay,
@@ -2583,6 +2594,7 @@ export function syncZonePopulationsWithEngineState(
         }
       }
     });
+    materializeZoneResidents(zone, gameState.initialSeed || 1);
   }
 
   return next;
@@ -2602,12 +2614,14 @@ export function calculateZoneTrustStats(zone: ZonePopulationState | undefined): 
   if (livingCount <= 0) {
     return { livingCount: 0, totalSumTrust: 0, averageTrust: 0, trustedPeopleCount: 0 };
   }
-  const totalSumTrust = livingNamedNpcs.reduce(
+  // Residents converted from anonymous population keep their own trust without diluting existing route thresholds.
+  const communityContacts = livingNamedNpcs.filter(npc => !npc.localResident);
+  const trustGroup = communityContacts.length ? communityContacts : livingNamedNpcs;
+  const totalSumTrust = trustGroup.reduce(
     (acc, n) => acc + Math.max(0, Math.min(100, n.trust)),
     0
   );
-  // Anonymous population has no individual relationship and cannot dilute an attainable community ending.
-  const averageTrust = livingNamedNpcs.length ? Math.round((totalSumTrust / livingNamedNpcs.length) * 10) / 10 : 0;
+  const averageTrust = trustGroup.length ? Math.round((totalSumTrust / trustGroup.length) * 10) / 10 : 0;
   const trustedPeopleCount = livingNamedNpcs.filter(n => n.trust >= 70).length;
   return {
     livingCount,
@@ -2680,10 +2694,11 @@ export function buildFreeformNpcInteractionModal(
   const day=gameState.day||1, living=zone.npcs.filter(n=>n.alive);
   const target=specificNpcId?living.find(n=>n.id===specificNpcId):living.find(n=>!n.crisisResolved&&n.crisisDay&&day>=n.crisisDay)||living.find(n=>!n.met)||living[0];
   if(!target)return null;
+  const name = target.met ? target.name : 'ผู้รอดชีวิตที่ยังไม่รู้จักชื่อ';
   const r=relationshipState(target),posture=npcPosture(target,day),tier=relationshipTier(target.trust);
   const crisis=Boolean(!target.crisisResolved&&target.crisisDay&&day>=target.crisisDay&&target.crisisText);
   const need=crisisNeed(target),tense=r.tensionUntil>day;
-  const witnesses=zone.npcs.filter(n=>n.alive&&n.met&&n.id!==target.id).slice(0,2);
+  const witnesses=npcEncounterWitnesses(zone,target.id);
   const supplies=gameState.items?.supplies||0,medicine=gameState.items?.medicine||0;
   const hungerVal=Number(gameState.stats?.hunger||0);
   const sanityVal=Number(gameState.stats?.sanity??100);
@@ -2765,7 +2780,7 @@ export function buildFreeformNpcInteractionModal(
   choices.push({text:isStarving?'[สัญชาตญาณดิบพลุ่งพล่าน] กระโจนเข้าขย้ำลำคอที่เต้นตุบ ๆ เพื่อดื่มเลือดสด':'[ล่าเหยื่อ] กระโจนเข้าทำร้ายเพื่อกินเลือดเนื้อ',relationshipKind:'breach',
     note:'ฆ่าคน +1 · ความหิว -45 · ความเป็นมนุษย์ -18 · กลายพันธุ์ +6 · สภาพร่าง -'+(posture.armed?12:5)+' · คนที่เห็นจะหวาดกลัว',enabled:true,
     outcomeText:'อีกฝ่ายต่อสู้เพื่อเอาชีวิตรอดก่อนถูกเจ้าสังหาร ความหิวสงบลง แต่มีรอยแผลจากการต่อสู้และคนที่เห็นเหตุการณ์หลบหนี',
-    effects:{hp:posture.armed?-12:-5,hunger:-45,humanity:-18,mutation:6,killTargetNpc:true,bystanderTrustDelta:-20,threatDelta:12}});
+    effects:npcHuntEffects(posture.armed)});
   choices.push({text:'เดินจากไปโดยไม่เข้าใกล้และไม่รบกวน',relationshipKind:'information',
     note:'ความหิว +2 · ไม่เพิ่มหรือลดความไว้ใจ',enabled:true,outcomeText:'เจ้าถอยกลับสู่ทางเดิม อีกฝ่ายยังมองตาม แต่ไม่มีการเผชิญหน้าต่อ',effects:{hunger:2}});
   const rawZoneLoc =
@@ -2775,33 +2790,33 @@ export function buildFreeformNpcInteractionModal(
   const dangerTrustPenaltyPct = zoneDangerVal >= 85 ? 65 : zoneDangerVal >= 60 ? 50 : zoneDangerVal >= 35 ? 25 : 0;
 
   const hungerParagraph = isStarving
-    ? '\n\n[ความหิวพุ่งสูง ' + Math.floor(hungerVal) + '/100] กลิ่นเลือดอุ่น ๆ ของคนเป็นทำให้สายตาของเจ้าเลื่อนไปจ้องเส้นเลือดใหญ่ที่เต้นตุบ ๆ ข้างลำคอของ ' + target.name + ' โดยไม่รู้ตัว เสียงหัวใจของเขาดังก้องในหูจนกลบเสียงพูด ขากรรไกรของเจ้าสั่นเกร็งจนอีกฝ่ายสังเกตเห็นและรีบก้าวถอยหลังขอให้เว้นระยะเพิ่ม'
+    ? '\n\n[ความหิวพุ่งสูง ' + Math.floor(hungerVal) + '/100] กลิ่นเลือดอุ่น ๆ ของคนเป็นทำให้สายตาของเจ้าเลื่อนไปจ้องเส้นเลือดใหญ่ที่เต้นตุบ ๆ ข้างลำคอของ ' + name + ' โดยไม่รู้ตัว เสียงหัวใจของเขาดังก้องในหูจนกลบเสียงพูด ขากรรไกรของเจ้าสั่นเกร็งจนอีกฝ่ายสังเกตเห็นและรีบก้าวถอยหลังขอให้เว้นระยะเพิ่ม'
     : '';
   const sanityParagraph = isLowSanitySpeech
     ? '\n\n[สติพร่าเลือน ' + Math.floor(sanityVal) + '/100] สมองของเจ้ามึนชาและสับสน ถ้อยคำภาษามนุษย์แตกสลายกลายเป็นเพียงเสียงครางต่ำในลำคอ ("อึก... ขะ...")' + (isCognitivelyLocked ? ' มือทั้งสองข้างสั่นเกร็งจนไม่อาจใช้อุปกรณ์ซับซ้อนหรือเจรจาต่อรองได้' : '')
     : '';
   const dangerParagraph =
     zoneDangerVal >= 85
-      ? `\n\n[ภัยพื้นที่วิกฤต ${zoneDangerVal}/100 · เขตปิดล้อมสังหาร] ข่าวซอมบี้อาละวาดและเสียงปืนในย่านนี้ทำให้ ${target.name} ตื่นตระหนกสุดขีด มือกำอาวุธแน่นและระแวงทุกการขยับตัวของเจ้า (ความไว้ใจเพิ่มขึ้นยากสุดขีด -65%)`
+      ? `\n\n[ภัยพื้นที่วิกฤต ${zoneDangerVal}/100 · เขตปิดล้อมสังหาร] ข่าวซอมบี้อาละวาดและเสียงปืนในย่านนี้ทำให้ ${name} ตื่นตระหนกสุดขีด มือกำอาวุธแน่นและระแวงทุกการขยับตัวของเจ้า (ความไว้ใจเพิ่มขึ้นยากสุดขีด -65%)`
       : zoneDangerVal >= 60
-      ? `\n\n[ภัยพื้นที่สูง ${zoneDangerVal}/100 · เขตอันตรายสูง] ผู้คนในย่านนี้กำลังหวาดกลัวผู้ติดเชื้ออย่างหนัก ${target.name} จ้องมองเจ้าด้วยความระแวงและตั้งการ์ดสูงกว่าปกติ (ความไว้ใจเพิ่มขึ้นยากมาก -50%)`
+      ? `\n\n[ภัยพื้นที่สูง ${zoneDangerVal}/100 · เขตอันตรายสูง] ผู้คนในย่านนี้กำลังหวาดกลัวผู้ติดเชื้ออย่างหนัก ${name} จ้องมองเจ้าด้วยความระแวงและตั้งการ์ดสูงกว่าปกติ (ความไว้ใจเพิ่มขึ้นยากมาก -50%)`
       : zoneDangerVal >= 35
-      ? `\n\n[ภัยพื้นที่ ${zoneDangerVal}/100 · เขตเฝ้าระวัง] ข่าวการปะทะในพื้นที่ทำให้ ${target.name} ระมัดระวังตัวมากขึ้น การเอาชนะใจต้องใช้ความอดทนกว่าเดิม (ความไว้ใจเพิ่มขึ้นยาก -25%)`
+      ? `\n\n[ภัยพื้นที่ ${zoneDangerVal}/100 · เขตเฝ้าระวัง] ข่าวการปะทะในพื้นที่ทำให้ ${name} ระมัดระวังตัวมากขึ้น การเอาชนะใจต้องใช้ความอดทนกว่าเดิม (ความไว้ใจเพิ่มขึ้นยาก -25%)`
       : '';
   const mutationParagraph = mutationVal>=45
     ? (target.trust>=60
-        ? '\n\nแม้ร่างของเจ้าจะมีร่องรอยกลายพันธุ์และดวงตาเปลี่ยนสี แต่เพราะความไว้ใจที่สั่งสมมา ' + target.name + ' จึงยังจำแววตาของเจ้าได้และไม่ยกอาวุธขึ้นขู่'
+        ? '\n\nแม้ร่างของเจ้าจะมีร่องรอยกลายพันธุ์และดวงตาเปลี่ยนสี แต่เพราะความไว้ใจที่สั่งสมมา ' + name + ' จึงยังจำแววตาของเจ้าได้และไม่ยกอาวุธขึ้นขู่'
         : '\n\nเขาเหลือบมองร่องรอยกลายพันธุ์และดวงตาที่เปลี่ยนไปบนร่างของเจ้าด้วยความหวาดหวั่น ก่อนย้ำระยะที่ขอให้เจ้าหยุดอย่างเคร่งครัด')
     : '';
   return prepareNpcModal({id:'lifesim-npc-'+target.id+'-day-'+day,
-    title:crisis?target.name+'ต้องการความช่วยเหลือ':'พบกับ'+target.name,
-    text:'เจ้าพบ'+target.name+'ใน'+zone.placeName+'\n\n'+posture.text+(crisis?'\n\n'+target.crisisText:'')+
+    title:crisis?name+'ต้องการความช่วยเหลือ':'พบกับ'+name,
+    text:'เจ้าพบ'+name+'ใน'+zone.placeName+'\n\n'+(target.localResident ? target.role+'คนนี้'+target.trait+'\n\n' : '')+posture.text+(crisis?'\n\n'+target.crisisText:'')+
       (witnesses.length?'\n\n'+witnesses.map(n=>n.name).join(' และ ')+'เฝ้ามองจากแนวกำบังใกล้ ๆ':'')+
       dangerParagraph+
       hungerParagraph+
       sanityParagraph+
       mutationParagraph,
-    statusNote:target.name+' · '+target.role+' · อายุ '+target.age+' ปี\n'+tier.label+' · ความไว้ใจ '+target.trust+'/100'+(tense?' · ยังไม่พร้อมเจรจาถึงวันที่ '+r.tensionUntil:'')+(dangerTrustPenaltyPct>0?` · ภัยพื้นที่ ${zoneDangerVal}/100 (ความไว้ใจขึ้นยาก -${dangerTrustPenaltyPct}%)`:''),
+    statusNote:(target.met ? name+' · '+target.role+' · อายุ '+target.age+' ปี\n'+tier.label+' · ความไว้ใจ '+target.trust+'/100' : posture.label)+(tense?' · ยังไม่พร้อมเจรจาถึงวันที่ '+r.tensionUntil:'')+(dangerTrustPenaltyPct>0?` · ภัยพื้นที่ ${zoneDangerVal}/100 (ความไว้ใจขึ้นยาก -${dangerTrustPenaltyPct}%)`:''),
     dayNote:'เลือกแล้วใช้เวลา 1 วัน',targetNpcId:target.id,witnessIds:witnesses.map(n=>n.id),placeId:zone.placeId,advanceDay:true,choices},gameState,zone);
 }
 
