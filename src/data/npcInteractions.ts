@@ -60,19 +60,34 @@ export function prepareNpcModal(modal:LifeSimModalEvent,state:any,zone?:ZonePopu
       effects.hp=(effects.hp||0)-3;effects.sanity=(effects.sanity||0)-6;
       note+=' · หิวจัด: สภาพร่าง -3 และสติ -6 เพิ่มเติม';
     }
+    const hasEnoughSupplies = (effects.supplies || 0) >= 0 || (state.items?.supplies || 0) >= -(effects.supplies || 0);
+    const hasEnoughMedicine = (effects.medicine || 0) >= 0 || (state.items?.medicine || 0) >= -(effects.medicine || 0);
+    const hasEnoughSamples = (effects.samples || 0) >= 0 || (state.items?.samples || 0) >= -(effects.samples || 0);
+    const hasEnoughItems = hasEnoughSupplies && hasEnoughMedicine && hasEnoughSamples;
+    const itemShortageReason = !hasEnoughSupplies ? 'เสบียงมนุษย์ไม่พอ' : !hasEnoughMedicine ? 'ชุดเย็บแผลไม่พอ' : !hasEnoughSamples ? 'ตัวอย่างเชื้อไม่พอ' : '';
+
     if(!original.enabled&&original.disabledReason)note+=' · '+original.disabledReason;
+    else if(!hasEnoughItems)note+=' · '+itemShortageReason;
     const text=original.text.replace(/\s*\([^)]*ความไว้ใจ[^)]*\)/g,'');
+    const finalEnabled = original.enabled && !incompatible && hasEnoughItems;
+    const finalReason = incompatible
+      ? 'วิธีนี้ไม่ตรงกับวิกฤต ต้องช่วยให้ตรงกับสิ่งที่เขาต้องการ'
+      : !hasEnoughItems
+      ? itemShortageReason
+      : original.disabledReason;
+
     return {...original,text,relationshipKind:kind,effects,note,
-      enabled:original.enabled&&!incompatible,
-      disabledReason:incompatible?'วิธีนี้ไม่ตรงกับวิกฤต ต้องช่วยให้ตรงกับสิ่งที่เขาต้องการ':original.disabledReason};
+      enabled:finalEnabled,
+      disabledReason:finalReason};
   })};
 }
 
 export function npcChoiceReason(state:any,zone:ZonePopulationState|undefined,modal:LifeSimModalEvent,choice:LifeSimModalEvent['choices'][number]) {
   if(state.ending||state.pending)return 'ต้องตัดสินใจเหตุการณ์ที่ค้างอยู่ก่อน';
-  if(modal.placeId!==state.place || (modal.runId&&modal.runId!==state.runId))return 'สถานการณ์นี้ไม่ตรงกับชีวิตหรือสถานที่ปัจจุบัน';
-  if(modal.expectedDay!==undefined && modal.expectedDay!==state.day)return 'สถานการณ์เปลี่ยนแล้ว กรุณาพบผู้รอดชีวิตอีกครั้ง';
-  if(modal.targetNpcId&&!zone?.npcs.some(n=>n.id===modal.targetNpcId&&n.alive))return 'ผู้รอดชีวิตคนนี้ไม่อยู่แล้ว';
+  const normModalPlace = modal.placeId === 'tower' ? 'radio' : modal.placeId;
+  const normStatePlace = state.place === 'tower' ? 'radio' : state.place;
+  if(modal.placeId && normModalPlace && normStatePlace && normModalPlace !== normStatePlace && normModalPlace !== 'any' && (modal.runId && modal.runId !== state.runId))return 'สถานการณ์นี้ไม่ตรงกับชีวิตหรือสถานที่ปัจจุบัน';
+  if(modal.targetNpcId&&zone?.npcs&&!zone.npcs.some(n=>n.id===modal.targetNpcId&&n.alive))return 'ผู้รอดชีวิตคนนี้ไม่อยู่แล้ว';
   for(const item of ['supplies','medicine','samples'] as const)if((choice.effects[item]||0)<0&&(state.items?.[item]||0)<-choice.effects[item]!)return 'ของในกระเป๋าไม่พอ';
   return '';
 }

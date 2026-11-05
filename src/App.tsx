@@ -45,6 +45,7 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
+  X,
 } from 'lucide-react';
 import {
   PastLifeRecord,
@@ -678,6 +679,13 @@ export default function App() {
   });
 
   const [actionToast, setActionToast] = useState<string | null>(null);
+  const [modalErrorToast, setModalErrorToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!actionToast) return;
+    const t = setTimeout(() => setActionToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [actionToast]);
   const [latestStory, setLatestStory] = useState<StoryMoment | null>(null);
   const [isCareExpanded, setIsCareExpanded] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [recordedCurrentEndingRunId, setRecordedCurrentEndingRunId] = useState<string | null>(null);
@@ -1364,6 +1372,17 @@ export default function App() {
     setGameState({...gameState,npcEncounter:modal});
   };
 
+  const handleDismissActiveModal = () => {
+    if (soundEnabled) soundFx.click();
+    setActiveLifeSimModal(null);
+    setModalErrorToast(null);
+    if (gameState) {
+      const clean = structuredClone(gameState);
+      delete clean.npcEncounter;
+      setGameState(clean);
+    }
+  };
+
   // Resolve choice inside any LifeSimModalEvent (Freeform NPC, Roaming, Fixed Timeline World Event, or Proactive Ally Aid)
   const handleChooseLifeSimModalOption = (
     modalEvent: LifeSimModalEvent,
@@ -1371,25 +1390,54 @@ export default function App() {
   ) => {
     if (!modalEvent || !gameState) return;
     const choice = modalEvent.choices[choiceIndex];
-    if (!choice || !choice.enabled) return;
+    if (!choice) return;
+    if (!choice.enabled) {
+      if (soundEnabled) soundFx.warning();
+      const reason = choice.disabledReason || choice.note || 'ยังไม่พร้อมเลือกตัวเลือกนี้';
+      setActionToast(reason);
+      setModalErrorToast(reason);
+      return;
+    }
     if (choice.effects?.executeEngineActionId) {
       const targetActionId = choice.effects.executeEngineActionId;
       setActiveLifeSimModal(null);
+      setModalErrorToast(null);
+      const clean = structuredClone(gameState);
+      delete clean.npcEncounter;
+      setGameState(clean);
       handlePerformAction(targetActionId, true);
       return;
     }
-    if(triggeredEchoIds.includes(modalEvent.id)||resolvingModalRef.current===modalEvent.id)return;
-    const relationshipReason=npcChoiceReason(gameState,syncedZonePopulations[modalEvent.placeId],modalEvent,choice);
-    if(relationshipReason){setActionToast(relationshipReason);return;}
-    const readiness = getEndingReadiness(gameState, choice.effects.triggerEndingId);
-    if (!readiness.enabled) { setActionToast(readiness.reasons.join(' · ')); return; }
-    resolvingModalRef.current=modalEvent.id;
-    if (soundEnabled) soundFx.success();
+    if (resolvingModalRef.current) return;
+    resolvingModalRef.current = modalEvent.id;
+    try {
+      const relationshipReason = npcChoiceReason(
+        gameState,
+        syncedZonePopulations[modalEvent.placeId] || syncedZonePopulations[gameState.place || 'shelter'],
+        modalEvent,
+        choice
+      );
+      if (relationshipReason) {
+        if (soundEnabled) soundFx.warning();
+        setActionToast(relationshipReason);
+        setModalErrorToast(relationshipReason);
+        return;
+      }
+      const readiness = getEndingReadiness(gameState, choice.effects?.triggerEndingId);
+      if (!readiness.enabled) {
+        if (soundEnabled) soundFx.warning();
+        const reasonStr = readiness.reasons.join(' · ');
+        setActionToast(reasonStr);
+        setModalErrorToast(reasonStr);
+        return;
+      }
+      if (soundEnabled) soundFx.success();
+      setModalErrorToast(null);
 
-    const before = structuredClone(gameState);
-    const next = structuredClone(gameState);
-    delete next.npcEncounter;
-    const eff = choice.effects;
+      const before = structuredClone(gameState);
+      const next = structuredClone(gameState);
+      delete next.npcEncounter;
+      const eff = choice.effects || {};
 
     // Advance 1 day only if the modal event consumes a day
     if (modalEvent.advanceDay !== false) {
@@ -1600,6 +1648,9 @@ export default function App() {
     if (eff.triggerEndingId) {
       setMobileTab('play');
     }
+    } finally {
+      resolvingModalRef.current = null;
+    }
   };
 
   // Surrender to zombie instinct -> Sanity drops to 0 and triggers the Madness / Mindless Zombie ending!
@@ -1774,6 +1825,7 @@ export default function App() {
 
     const before = structuredClone(effectiveGameState);
     const next = structuredClone(effectiveGameState);
+    delete next.npcEncounter;
     const res = production.engine.act(next, actionId);
     if (!res.ok) {
       if (soundEnabled) soundFx.warning();
@@ -2114,17 +2166,43 @@ export default function App() {
     formatEffect={formatStoryEffect}
     onHistory={openStoryHistory}
   />;
-  const renderStoryAction = (action: any, primary = false) => (
-    <button key={action.id} type="button" data-action-id={action.id} disabled={!action.preview.enabled}
-      onClick={() => handlePerformAction(action.id)}
-      className={`story-action ${primary ? 'story-action-primary' : ''} ${action.id === pinnedActionId ? 'is-pinned' : ''}`}
-      title={!action.preview.enabled ? (showNumericSpoilers ? action.preview.reason : sanitizeNonSpoilerReason(action.preview.reason || '')) : undefined}>
-      <span className="story-action-title">{action.name}<ArrowRight size={16} aria-hidden="true" /></span>
-      {action.id === pinnedActionId && <span className="route-pin-label">เป้าหมายที่ปักหมุด</span>}
-      <span className="story-action-description">{action.description}</span>
-      {action.id === pinnedActionId && !action.preview.enabled && <span className="story-action-description">{sanitizeNonSpoilerReason(action.preview.reason || 'ยังไม่พร้อมทำงานนี้')}</span>}
-    </button>
-  );
+  const renderStoryAction = (action: any, primary = false) => {
+    const isLocked = !action.preview?.enabled;
+    const disabledReason = showNumericSpoilers
+      ? (action.preview?.reason || '')
+      : sanitizeNonSpoilerReason(action.preview?.reason || 'ยังไม่พร้อมทำกิจกรรมนี้');
+
+    return (
+      <button
+        key={action.id}
+        type="button"
+        data-action-id={action.id}
+        data-locked={isLocked}
+        onClick={() => {
+          if (isLocked) {
+            if (soundEnabled) soundFx.warning();
+            setActionToast(`ยังทำไม่ได้: ${disabledReason}`);
+          } else {
+            handlePerformAction(action.id);
+          }
+        }}
+        className={`story-action ${primary ? 'story-action-primary' : ''} ${action.id === pinnedActionId ? 'is-pinned' : ''} ${isLocked ? 'story-action-locked opacity-75' : ''}`}
+        title={isLocked ? disabledReason : undefined}
+      >
+        <span className="story-action-title">
+          {action.name}
+          <ArrowRight size={16} aria-hidden="true" />
+        </span>
+        {action.id === pinnedActionId && <span className="route-pin-label">เป้าหมายที่ปักหมุด</span>}
+        <span className="story-action-description">{action.description}</span>
+        {isLocked && (
+          <span className="story-action-description text-amber-300 font-medium">
+            🔒 {disabledReason}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div data-ending={Boolean(appMode === 'game' && screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={appMode === 'game' && screenStage === 'playing'} className="game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950">
@@ -2598,20 +2676,21 @@ export default function App() {
       )}
       {appMode === 'game' && screenStage === 'playing' && rawViewModel && !rawViewModel.ending && gameState && (
         <main className="flex-1 max-w-[1380px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
-          {/* Consequence Feedback Strip */}
+          {/* Consequence Feedback Toast (Fixed Floating) */}
           {actionToast && (
-            <div role="status" className="mb-3 px-3.5 py-2 rounded-xl bg-slate-900/95 border border-lime-500/40 text-xs sm:text-sm text-lime-200 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {actionToast && <span>{actionToast}</span>}
+            <div role="status" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[92%] px-4 py-3 rounded-2xl bg-slate-900/95 border-2 border-lime-400 text-xs sm:text-sm text-lime-100 shadow-2xl flex items-center justify-between gap-3 animate-fade-in backdrop-blur-md">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-semibold truncate">{actionToast}</span>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setActionToast(null);
                 }}
-                className="text-xs text-slate-400 hover:text-slate-200 shrink-0"
+                className="text-xs text-slate-400 hover:text-slate-100 p-1 rounded-lg hover:bg-slate-800 shrink-0 font-bold"
               >
-                ปิด
+                ✕
               </button>
             </div>
           )}
@@ -2929,10 +3008,19 @@ export default function App() {
                   {primaryStoryAction && renderStoryAction(primaryStoryAction, true)}
 
                   {/* Group A: Freeform Zombie Life Simulation & Random NPC Encounters */}
-                  <button type="button" onClick={() => handleOpenFreeformNpcModal()} className="story-action"
-                    disabled={!currentZonePop?.npcs.some(npc => npc.alive)}>
+                  <button type="button" onClick={() => {
+                    if (!currentZonePop?.npcs.some(npc => npc.alive)) {
+                      if (soundEnabled) soundFx.warning();
+                      setActionToast('ไม่มีผู้รอดชีวิตที่ยังมีชีวิตอยู่ในเขตนี้แล้ว');
+                    } else {
+                      handleOpenFreeformNpcModal();
+                    }
+                  }} className={`story-action ${!currentZonePop?.npcs.some(npc => npc.alive) ? 'opacity-70' : ''}`}>
                     <span className="story-action-title"><Users size={18} aria-hidden="true" /> พบผู้รอดชีวิต <ArrowRight size={16} aria-hidden="true" /></span>
                     <span className="story-action-description">พูดคุย ช่วยเหลือ แบ่งของ หรือล่า · ผู้คน {currentZoneTrustStats.livingCount} คน</span>
+                    {!currentZonePop?.npcs.some(npc => npc.alive) && (
+                      <span className="story-action-description text-amber-300 font-medium">🔒 ไม่มีผู้รอดชีวิตเหลืออยู่ในเขตนี้</span>
+                    )}
                   </button>
                   <button type="button" onClick={handleOpenFreeformRoamModal} className="story-action">
                     <span className="story-action-title"><Search size={18} aria-hidden="true" /> สำรวจบริเวณนี้ <ArrowRight size={16} aria-hidden="true" /></span>
@@ -2956,15 +3044,52 @@ export default function App() {
                   </button>
                   <div id="self-care-actions" hidden={!isCareExpanded}>
                     <div className="self-care-options">
-                      {careActionsList.map(action => <button key={action.id} type="button" disabled={!action.preview.enabled}
-                        onClick={() => handlePerformAction(action.id)} className="story-action">
-                        <span className="story-action-title">{action.name}</span>
-                        <span className="story-action-description">{action.description}</span>
-                      </button>)}
-                      <button type="button" onClick={handleDrinkCarriedBloodBag} className="story-action"
-                        disabled={(gameState.carriedBloodBags || 0) <= 0 || Boolean(gameState.pending) || Boolean(gameState.ending)}>
+                      {careActionsList.map(action => {
+                        const isLocked = !action.preview?.enabled;
+                        const reason = showNumericSpoilers
+                          ? (action.preview?.reason || '')
+                          : sanitizeNonSpoilerReason(action.preview?.reason || 'ยังไม่พร้อมทำกิจกรรมนี้');
+                        return (
+                          <button
+                            key={action.id}
+                            type="button"
+                            onClick={() => {
+                              if (isLocked) {
+                                if (soundEnabled) soundFx.warning();
+                                setActionToast(`ยังทำไม่ได้: ${reason}`);
+                              } else {
+                                handlePerformAction(action.id);
+                              }
+                            }}
+                            className={`story-action ${isLocked ? 'opacity-70' : ''}`}
+                          >
+                            <span className="story-action-title">{action.name}</span>
+                            <span className="story-action-description">{action.description}</span>
+                            {isLocked && (
+                              <span className="story-action-description text-amber-300 font-medium">🔒 {reason}</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if ((gameState.carriedBloodBags || 0) <= 0) {
+                            if (soundEnabled) soundFx.warning();
+                            setActionToast('ไม่มีถุงเลือดพกพาในกระเป๋า (ต้องมีถุงเลือดก่อน)');
+                            return;
+                          }
+                          if (gameState.pending) {
+                            if (soundEnabled) soundFx.warning();
+                            setActionToast('ต้องตัดสินใจเหตุการณ์ตรงหน้าให้เสร็จก่อน');
+                            return;
+                          }
+                          handleDrinkCarriedBloodBag();
+                        }}
+                        className={`story-action ${(gameState.carriedBloodBags || 0) <= 0 ? 'opacity-70' : ''}`}
+                      >
                         <span className="story-action-title"><Droplets size={16} aria-hidden="true" /> ดื่มถุงเลือด</span>
-                        <span className="story-action-description">{gameState.carriedBloodBags > 0 ? 'ดื่มจากถุงเลือดที่พกไว้ · ไม่ใช้วัน' : 'ต้องมีถุงเลือดพกพาก่อน'}</span>
+                        <span className="story-action-description">{gameState.carriedBloodBags > 0 ? `ดื่มจากถุงเลือดที่พกไว้ (${gameState.carriedBloodBags} ถุง) · ไม่ใช้วัน` : 'ต้องมีถุงเลือดพกพาก่อน'}</span>
                       </button>
                     </div>
                   </div>
@@ -3913,33 +4038,49 @@ export default function App() {
               </p>
 
               <div className="space-y-2.5 pt-2">
-                {rawViewModel.pending.choices.map((c: any) => (
-                  <button
-                    key={c.index}
-                    type="button"
-                    disabled={!c.preview.enabled}
-                    onClick={() => handleChoosePending(c.index)}
-                    className={`w-full text-left p-4 rounded-xl border transition-all ${
-                      c.preview.enabled
-                        ? 'bg-slate-950 hover:bg-slate-800 border-slate-700 hover:border-lime-400 text-slate-100 shadow-md'
-                        : 'bg-slate-950/40 border-slate-800/60 text-slate-500 cursor-not-allowed'
-                    }`}
-                  >
-                    <div className="text-sm sm:text-base font-bold leading-snug">
-                      {c.text}
-                    </div>
-                    {c.description && (
-                      <div className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                        {showNumericSpoilers
-                          ? c.description
-                          : translateNumericNoteToNarrative(c.description, {
-                              enabled: c.preview?.enabled,
-                              disabledReason: c.preview?.reason,
-                            })}
+                {rawViewModel.pending.choices.map((c: any) => {
+                  const isLocked = !c.preview?.enabled;
+                  const reason = c.preview?.reason || 'ยังไม่พร้อมสำหรับตัวเลือกนี้';
+                  return (
+                    <button
+                      key={c.index}
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) {
+                          if (soundEnabled) soundFx.warning();
+                          setActionToast(`ยังเลือกไม่ได้: ${reason}`);
+                        } else {
+                          handleChoosePending(c.index);
+                        }
+                      }}
+                      className={`w-full text-left p-4 rounded-xl border transition-all ${
+                        !isLocked
+                          ? 'bg-slate-950 hover:bg-slate-800 border-slate-700 hover:border-lime-400 text-slate-100 shadow-md'
+                          : 'bg-slate-950/50 border-slate-800 text-slate-400 hover:border-amber-400/50'
+                      }`}
+                    >
+                      <div className="text-sm sm:text-base font-bold leading-snug flex items-center justify-between gap-2">
+                        <span>{c.text}</span>
+                        {isLocked && <span className="text-xs font-normal text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50 shrink-0">ยังเลือกไม่ได้</span>}
                       </div>
-                    )}
-                  </button>
-                ))}
+                      {c.description && (
+                        <div className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                          {showNumericSpoilers
+                            ? c.description
+                            : translateNumericNoteToNarrative(c.description, {
+                                enabled: c.preview?.enabled,
+                                disabledReason: c.preview?.reason,
+                              })}
+                        </div>
+                      )}
+                      {isLocked && (
+                        <div className="text-xs text-amber-300/90 mt-1 font-medium">
+                          🔒 {reason}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -3974,9 +4115,20 @@ export default function App() {
                     ? 'จุดทริกเกอร์ชะตาชีวิต · ผลจากการกระทำของเจ้า!'
                     : 'เหตุการณ์ตรงหน้า · ต้องตัดสินใจก่อนไปต่อ'}
                 </span>
-                <span className="text-xs font-mono text-slate-400">
-                  {currentActiveLifeSimModal.dayNote}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400">
+                    {currentActiveLifeSimModal.dayNote}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDismissActiveModal}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                    title="ปิดหน้าต่างนี้ / ถอยออกมาก่อน"
+                    aria-label="ปิดหน้าต่าง"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <h2 className="text-xl sm:text-2xl font-extrabold text-white leading-snug">
@@ -3987,23 +4139,30 @@ export default function App() {
               </p>
               {currentActiveLifeSimModal.statusNote && <p className="text-xs text-emerald-200/80 border-t border-slate-700 pt-3 whitespace-pre-line">{currentActiveLifeSimModal.statusNote}</p>}
 
+              {modalErrorToast && (
+                <div className="p-3 rounded-xl bg-rose-950/90 border border-rose-500/70 text-xs sm:text-sm text-rose-200 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{modalErrorToast}</span>
+                </div>
+              )}
+
               <div className="space-y-2.5 pt-2">
                 {currentActiveLifeSimModal.choices.map((ch, idx) => (
                   <button
                     key={idx}
                     type="button"
-                    disabled={!ch.enabled}
                     onClick={() =>
                       handleChooseLifeSimModalOption(currentActiveLifeSimModal, idx)
                     }
                     className={`w-full text-left p-4 rounded-xl border transition-all ${
                       ch.enabled
                         ? 'bg-slate-950 hover:bg-slate-800 border-slate-700 hover:border-emerald-400 text-slate-100 shadow-md'
-                        : 'bg-slate-950/40 border-slate-800/60 text-slate-500 cursor-not-allowed'
+                        : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-amber-400/50'
                     }`}
                   >
-                    <div className="text-sm sm:text-base font-bold leading-snug">
-                      {ch.text}
+                    <div className="text-sm sm:text-base font-bold leading-snug flex items-center justify-between gap-2">
+                      <span>{ch.text}</span>
+                      {!ch.enabled && <span className="text-xs font-normal text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/50 shrink-0">ยังเลือกไม่ได้</span>}
                     </div>
                     <div className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                       {showNumericSpoilers
@@ -4013,6 +4172,11 @@ export default function App() {
                             disabledReason: ch.disabledReason,
                           })}
                     </div>
+                    {!ch.enabled && ch.disabledReason && (
+                      <div className="text-xs text-amber-300/90 mt-1 font-medium">
+                        🔒 {ch.disabledReason}
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>

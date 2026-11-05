@@ -2445,7 +2445,7 @@ export function createInitialZonePopulations(seed: number): Record<string, ZoneP
     };
   };
 
-  const radioZone = makeZone('tower', 'หอวิทยุสะพานพระราม 8', 10, undefined, 3);
+  const radioZone = makeZone('radio', 'หอวิทยุสะพานพระราม 8', 10, undefined, 3);
   return {
     ...Object.fromEntries(districts.map((d, i) => [d.id, makeZone(d.id, d.name, 6 + i % 3, {
       id: d.id + '-coordinator', storyKey: d.id + '.coordinator',
@@ -2496,8 +2496,8 @@ export function createInitialZonePopulations(seed: number): Record<string, ZoneP
       },
       3
     ),
-    tower: radioZone,
-    radio: { ...radioZone, placeId: 'tower' },
+    tower: { ...radioZone, placeId: 'tower' },
+    radio: radioZone,
     nest: makeZone('nest', 'อุโมงค์ MRT สามย่าน–คลองเตย', 5, undefined, 2),
   };
 }
