@@ -2093,6 +2093,17 @@ export function getFixedWorldTimelineEvent(
   return null;
 }
 
+export function normalizeCanonicalMemory(mem: any) {
+  return {
+    saved: Math.min(120, Math.max(0, Math.floor(Number(mem?.saved || 0)))),
+    killed: Math.min(120, Math.max(0, Math.floor(Number(mem?.killed || 0)))),
+    corpseMeals: Math.min(120, Math.max(0, Math.floor(Number(mem?.corpseMeals || 0)))),
+    endured: Math.min(120, Math.max(0, Math.floor(Number(mem?.endured || 0)))),
+    savedOn: Math.min(120, Math.max(0, Math.floor(Number(mem?.savedOn || 0)))),
+    killedOn: Math.min(120, Math.max(0, Math.floor(Number(mem?.killedOn || 0)))),
+  };
+}
+
 /**
  * Helper สำหรับจำลองหรือประมวลผลผลลัพธ์ของ LifeSimModalEvent ลงใน gameState (ใช้ร่วมกันทั้งใน UI และการทดสอบจำลองสมดุล)
  */
@@ -2149,10 +2160,10 @@ export function applyLifeSimModalEffectsToState(
   if (!gameState.memory || typeof gameState.memory !== 'object') {
     gameState.memory = {};
   }
+  gameState.memory = normalizeCanonicalMemory(gameState.memory);
   for (const key of ['corpseMeals', 'endured'] as const) {
     if (eff[key]) {
-      gameState.memory[key] = (gameState.memory[key] || 0) + eff[key]!;
-      if (!gameState.memory[key + 'On']) gameState.memory[key + 'On'] = gameState.day;
+      gameState.memory[key] = Math.min(120, (gameState.memory[key] || 0) + eff[key]!);
     }
   }
 

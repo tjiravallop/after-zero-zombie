@@ -78,6 +78,7 @@ import {
   buildActionClimaxDecisionModal,
   getDailyWeatherAndZoneHazard,
   applyDailyWeatherAndZoneHazardTurn,
+  normalizeCanonicalMemory,
 } from './data/pastLifeEchoes';
 import {
   AI_COLLABORATION_PROMPTS,
@@ -587,7 +588,15 @@ export default function App() {
 
   // Active Freeform Life-Sim Blocking Modal Event
   const [activeLifeSimModal, setActiveLifeSimModal] = useState<LifeSimModalEvent | null>(() => {
-    try { return window.AfterZeroEngine?.Production?.engine.validate(JSON.parse(localStorage.getItem(STORAGE_KEY_STATE)||'null')).npcEncounter || null; }
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_STATE);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        parsed.memory = normalizeCanonicalMemory(parsed.memory);
+      }
+      return window.AfterZeroEngine?.Production?.engine.validate(parsed).npcEncounter || null;
+    }
     catch { return null; }
   });
   const resolvingModalRef = useRef<string | null>(null);
@@ -636,8 +645,12 @@ export default function App() {
       const savedRaw = localStorage.getItem(STORAGE_KEY_STATE);
       if (savedRaw) {
         const parsed = JSON.parse(savedRaw);
+        if (parsed && typeof parsed === 'object') {
+          parsed.memory = normalizeCanonicalMemory(parsed.memory);
+        }
         resolveSavedCharacter(parsed, localStorage.getItem(STORAGE_KEY_BIO_ID) || undefined, currentBio);
         const validated = prod.engine.validate(parsed);
+        validated.memory = normalizeCanonicalMemory(validated.memory);
         const savedZones=parsed.npcZones || JSON.parse(localStorage.getItem(STORAGE_KEY_ZONE_POPS)||'null');
         if(savedZones)migrateSavedRelationships(validated,savedZones);
         validated.carriedBloodBags = Number(parsed.carriedBloodBags || 0);
@@ -892,6 +905,7 @@ export default function App() {
   const effectiveGameState = useMemo(() => {
     if (!gameState) return null;
     const clone = structuredClone(gameState);
+    clone.memory = normalizeCanonicalMemory(clone.memory);
     if (clone.ending) {
       clone.pending = null;
       const derived = deriveDeathEndingPresentation(gameState, currentBio, {
@@ -1437,6 +1451,7 @@ export default function App() {
       const before = structuredClone(gameState);
       const next = structuredClone(gameState);
       delete next.npcEncounter;
+      next.memory = normalizeCanonicalMemory(next.memory);
       const eff = choice.effects || {};
 
     // Advance 1 day only if the modal event consumes a day
@@ -1482,10 +1497,10 @@ export default function App() {
     applyClampedStat('horde', eff.horde, 120);
     for (const key of ['corpseMeals', 'endured'] as const) {
       if (eff[key]) {
-        next.memory[key] = (next.memory[key] || 0) + eff[key]!;
-        if (!next.memory[key + 'On']) next.memory[key + 'On'] = next.day;
+        next.memory[key] = Math.min(120, (next.memory[key] || 0) + eff[key]!);
       }
     }
+    next.memory = normalizeCanonicalMemory(next.memory);
 
     if (eff.supplies) {
       next.items.supplies = Math.max(0, (next.items.supplies || 0) + eff.supplies);
@@ -1826,6 +1841,7 @@ export default function App() {
     const before = structuredClone(effectiveGameState);
     const next = structuredClone(effectiveGameState);
     delete next.npcEncounter;
+    next.memory = normalizeCanonicalMemory(next.memory);
     const res = production.engine.act(next, actionId);
     if (!res.ok) {
       if (soundEnabled) soundFx.warning();
@@ -2038,7 +2054,11 @@ export default function App() {
     try {
       const parsed = JSON.parse(importJsonText.trim());
       const rawState = parsed.gameState || parsed;
+      if (rawState && typeof rawState === 'object') {
+        rawState.memory = normalizeCanonicalMemory(rawState.memory);
+      }
       const validated = production.engine.validate(rawState);
+      validated.memory = normalizeCanonicalMemory(validated.memory);
       const importedBio = resolveSavedCharacter(validated, parsed.currentBioId, currentBio);
       const importedZones=rawState.npcZones || parsed.zonePopulations || createInitialZonePopulations(validated.initialSeed||1);
       migrateSavedRelationships(validated,importedZones);
