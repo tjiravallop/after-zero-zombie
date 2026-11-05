@@ -211,3 +211,42 @@ body:has(.game-dialog) { overflow: hidden; }
 .ending-experience :focus-visible{outline:3px solid #e6cf99;outline-offset:4px}
 @media(min-width:800px){.ending-controls{grid-template-columns:1fr 1fr}.ending-controls button:last-child{grid-column:1/-1}.ending-world{padding-top:100px}}
 .ending-experience[data-resolution="STARVATION"] h1,.ending-experience[data-resolution="FATAL_TRAUMA"] h1,.ending-experience[data-resolution="FERAL_MADNESS"] h1,.ending-experience[data-resolution="SURRENDER"] h1,.ending-experience[data-resolution="BOMBARDMENT"] h1{color:#dfc5b0}
+
+
+/* Threat ambush feedback animations */
+@keyframes screen-shake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-8px, 6px) rotate(-1deg); }
+  30% { transform: translate(8px, -6px) rotate(1.5deg); }
+  45% { transform: translate(-6px, -4px) rotate(-0.5deg); }
+  60% { transform: translate(6px, 4px) rotate(1deg); }
+  75% { transform: translate(-3px, 2px) rotate(-0.5deg); }
+  90% { transform: translate(2px, -1px) rotate(0.2deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.screen-shake {
+  animation: screen-shake 0.65s cubic-bezier(.36, .07, .19, .97) both;
+}
+
+@keyframes damage-flash {
+  0% { opacity: 0; }
+  15% { opacity: 0.85; }
+  40% { opacity: 0.6; }
+  70% { opacity: 0.35; }
+  100% { opacity: 0; }
+}
+
+.damage-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(circle at center, transparent 40%, rgba(220, 38, 38, 0.45) 80%, rgba(185, 28, 28, 0.85) 100%);
+  box-shadow: inset 0 0 80px rgba(239, 68, 68, 0.65);
+  animation: damage-flash 0.85s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-shake { animation: none; }
+}

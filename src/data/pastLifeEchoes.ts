@@ -2903,7 +2903,7 @@ export function buildFreeformRoamModal(
       title: picked.title,
       text: picked.text,
       dayNote: picked.dayNote,
-      placeId: zone.placeId,
+      placeId: normalizedZoneId,
       advanceDay: picked.advanceDay !== false,
       choices: picked.choices.map((c, idx) => {
         const req = c.choiceRequirements;
@@ -3093,7 +3093,7 @@ export function buildFreeformRoamModal(
       title: `พบกระเป๋าเก็บความเย็นฉุกเฉินที่ถูกทิ้งไว้ใน${zone.placeName}`,
       text: `ระหว่างเดินสำรวจซอกมุมมืดใน${zone.placeName} เจ้าพบกล่องเก็บความเย็นของหน่วยแพทย์เคลื่อนที่ตกอยู่ข้างซากรถ ข้างในยังมีถุงเลือดสำรองที่ยังไม่เสียสภาพ 1 ถุง และหลอดตัวอย่างเชื้อที่ติดฉลากจางๆ (${weatherAndHazard.weatherTitle} · ${weatherAndHazard.threatTierTitle} ${weatherAndHazard.localThreat}/100)`,
       dayNote: `เหตุการณ์สำรวจอิสระ 1 วัน · ${weatherAndHazard.weatherTitle}`,
-      placeId: zone.placeId,
+      placeId: normalizedZoneId,
       advanceDay: true,
       choices: [
         {
@@ -3141,7 +3141,7 @@ export function buildFreeformRoamModal(
       title: `ฝูงผู้ติดเชื้อไร้สติกำลังเดินผ่าน${zone.placeName}`,
       text: `กลุ่มซอมบี้ที่สูญเสียสติไปแล้วเกือบสิบตนกำลังเดินลากขาผ่านตรอกแคบๆ ใน${zone.placeName} พวกมันส่งเสียงคลื่นความถี่ต่ำในลำคอและเริ่มหันมาดมกลิ่นของเจ้าที่ยังมีสติแตกต่างจากพวกมัน (${weatherAndHazard.weatherTitle} · ${weatherAndHazard.threatTierTitle} ${weatherAndHazard.localThreat}/100)`,
       dayNote: `เหตุการณ์สำรวจอิสระ 1 วัน · ${weatherAndHazard.weatherTitle}`,
-      placeId: zone.placeId,
+      placeId: normalizedZoneId,
       advanceDay: true,
       choices: [
         {

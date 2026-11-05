@@ -67,6 +67,43 @@ class SoundManager {
     }
   }
 
+  /** เสียงถูกซุ่มโจมตีในเขตอันตรายสูง (Heavy Ambush / Impact & Warning Alarm) */
+  playDamageAmbush() {
+    const ctx = this.getContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      // Heavy low-end impact (เสียงกระแทก/คมกระสุน/ของแข็งฟาด)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(32, now + 0.28);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.35);
+
+      // Warning alarm pings (เสียงเตือนภัยแทรก)
+      [280, 210, 160].forEach((freq, idx) => {
+        const o2 = ctx.createOscillator();
+        const g2 = ctx.createGain();
+        o2.type = 'triangle';
+        o2.frequency.setValueAtTime(freq, now + 0.08 + idx * 0.09);
+        g2.gain.setValueAtTime(0.12, now + 0.08 + idx * 0.09);
+        g2.gain.exponentialRampToValueAtTime(0.001, now + 0.08 + idx * 0.09 + 0.18);
+        o2.connect(g2);
+        g2.connect(ctx.destination);
+        o2.start(now + 0.08 + idx * 0.09);
+        o2.stop(now + 0.08 + idx * 0.09 + 0.18);
+      });
+    } catch {
+      // ignore audio errors
+    }
+  }
+
   patchToggle() {
     const ctx = this.getContext();
     if (!ctx) return;

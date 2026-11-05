@@ -78,6 +78,8 @@ import {
   buildActionClimaxDecisionModal,
   getDailyWeatherAndZoneHazard,
   applyDailyWeatherAndZoneHazardTurn,
+  DangerHumanAttackScenario,
+  HazardTurnAttackResult,
   normalizeCanonicalMemory,
   sanitizeCanonicalStoryFlags,
 } from './data/pastLifeEchoes';
@@ -212,6 +214,18 @@ const NARRATIVE_ACTION_HINTS: Record<string, string> = {
   evolve: 'ก้าวข้ามขีดจำกัดเดิมของทั้งมนุษย์และซอมบี้ไปสู่สายพันธุ์ใหม่',
   extinguish: 'ส่งคลื่นสัญญาณครั้งสุดท้ายจากยอดหอวิทยุเพื่อปิดฉากยุคของมนุษย์',
 };
+
+export interface ThreatAmbushAlert {
+  scenario: DangerHumanAttackScenario;
+  localThreat: number;
+  chancePercent: number;
+  hpLoss: number;
+  sanityLoss: number;
+  remainingHp: number;
+  remainingSanity: number;
+  day: number;
+  locationName: string;
+}
 
 function sanitizeNonSpoilerReason(rawReason: string): string {
   return rawReason
@@ -606,6 +620,11 @@ export default function App() {
   const resolvingModalRef = useRef<string | null>(null);
 
   // Active Mutation Milestone Alert Modal (25, 50, 75)
+  // Active Threat Ambush Alert Modal & Screen Shake state
+  const [activeThreatAmbushAlert, setActiveThreatAmbushAlert] =
+    useState<ThreatAmbushAlert | null>(null);
+  const [isScreenShaking, setIsScreenShaking] = useState<boolean>(false);
+
   const [activeMutationMilestoneAlert, setActiveMutationMilestoneAlert] =
     useState<MutationMilestoneEntry | null>(null);
 
@@ -1310,6 +1329,8 @@ export default function App() {
     setTriggeredEchoIds([]);
     setRecordedMutationMilestones([]);
     setActiveMutationMilestoneAlert(null);
+    setActiveThreatAmbushAlert(null);
+    setIsScreenShaking(false);
     setLatestStory(null);
     setRecordedCurrentEndingRunId(null);
     setActiveLifeSimModal(null);
@@ -1394,6 +1415,37 @@ export default function App() {
     const modal = buildFreeformRoamModal(currentZonePop, gameState, currentBio, triggeredEchoIds);
     setActiveLifeSimModal(modal);
     setGameState({...gameState,npcEncounter:modal});
+  };
+
+  const triggerThreatAmbushAlert = (
+    hazardRes: HazardTurnAttackResult,
+    targetState: any,
+    currentDay: number,
+    placeName: string
+  ) => {
+    if (!hazardRes?.attacked || !hazardRes?.scenario) return;
+
+    if (soundEnabled) {
+      soundFx.playDamageAmbush();
+    }
+    setIsScreenShaking(true);
+    setTimeout(() => {
+      setIsScreenShaking(false);
+    }, 700);
+
+    if ((targetState?.stats?.hp || 0) > 0 && !targetState?.ending) {
+      setActiveThreatAmbushAlert({
+        scenario: hazardRes.scenario,
+        localThreat: hazardRes.localThreat,
+        chancePercent: hazardRes.chancePercent,
+        hpLoss: hazardRes.scenario.hpLoss,
+        sanityLoss: hazardRes.scenario.sanityLoss || 0,
+        remainingHp: Math.max(0, Math.floor(targetState.stats?.hp || 0)),
+        remainingSanity: Math.max(0, Math.floor(targetState.stats?.sanity || 0)),
+        day: currentDay,
+        locationName: placeName,
+      });
+    }
   };
 
   const handleDismissActiveModal = () => {
@@ -1566,7 +1618,12 @@ export default function App() {
       const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before);
       hazardAttacked = Boolean(hazardRes.attacked);
       if (hazardRes.attacked && hazardRes.scenario) {
-        if (soundEnabled) soundFx.warning();
+        triggerThreatAmbushAlert(
+          hazardRes,
+          next,
+          next.day || 1,
+          production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
+        );
       }
     }
 
@@ -1876,6 +1933,12 @@ export default function App() {
       const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before);
       if (hazardRes.attacked && hazardRes.scenario) {
         actionAttackToast = `⚠️ [ภัยพื้นที่ ${hazardRes.localThreat}/100 · โอกาสปะทะ ${hazardRes.chancePercent}%] ${hazardRes.scenario.title}: ${hazardRes.scenario.description} (สภาพร่าง -${hazardRes.scenario.hpLoss}${hazardRes.scenario.sanityLoss > 0 ? ` · สติ -${hazardRes.scenario.sanityLoss}` : ''})`;
+        triggerThreatAmbushAlert(
+          hazardRes,
+          next,
+          next.day || 1,
+          production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
+        );
       }
       if (next.stats.hp <= 0 && !next.ending) {
         next.pending = null;
@@ -1913,7 +1976,7 @@ export default function App() {
     recordStoryResult(before, next, {
       title: catalogAction?.name || (actionId.startsWith('move:') ? 'ออกเดินทาง' : 'การตัดสินใจของเจ้า'),
       text: actionId.startsWith('move:')
-        ? 'เจ้าเดินทางมาถึง' + (production.catalog.PLACES[next.place]?.name || 'ย่านใหม่')
+        ? 'เจ้าเดินทางมาถึง' + (production?.catalog?.PLACES?.[next.place]?.name || 'ย่านใหม่')
         : next.pending ? 'สถานการณ์ตรงหน้ารอให้เจ้าตัดสินใจ'
         : (next.log || []).find((entry: any) => entry.kind === 'routine' && entry.text !== catalogAction?.name && !(before.log || []).some((old: any) => storyLogKey(old) === storyLogKey(entry)))?.text || 'เจ้า' + (catalogAction?.name || 'ลงมือทำสิ่งที่เลือก'),
     });
@@ -1946,7 +2009,12 @@ export default function App() {
       }
       const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before);
       if (hazardRes.attacked && hazardRes.scenario) {
-        if (soundEnabled) soundFx.warning();
+        triggerThreatAmbushAlert(
+          hazardRes,
+          next,
+          next.day || 1,
+          production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
+        );
       }
       if (next.stats.hp <= 0 && !next.ending) {
         next.pending = null;
@@ -2248,7 +2316,8 @@ export default function App() {
   };
 
   return (
-    <div data-ending={Boolean(appMode === 'game' && screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={appMode === 'game' && screenStage === 'playing'} className="game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950">
+    <div data-ending={Boolean(appMode === 'game' && screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={appMode === 'game' && screenStage === 'playing'} className={`game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950 ${isScreenShaking ? 'screen-shake' : ''}`}>
+      {isScreenShaking && <div className="damage-vignette" />}
       {/* STICKY COMPACT TOP HUD */}
       <header className="game-hud sticky top-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-b border-emerald-950/80 px-3 sm:px-6 py-2.5">
         <div className="max-w-[1380px] mx-auto flex flex-col gap-2">
@@ -4222,6 +4291,127 @@ export default function App() {
                     )}
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+      
+      {/* =====================================================================
+          BLOCKING POPUP MODAL: THREAT AMBUSH DAMAGE ALERT (ซุ่มโจมตีในเขตภัยคุกคามสูง)
+         ===================================================================== */}
+      {appMode === 'game' &&
+        screenStage === 'playing' &&
+        activeThreatAmbushAlert && (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="game-dialog fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <div className="max-w-xl w-full p-6 sm:p-7 rounded-2xl bg-gradient-to-b from-rose-950/95 via-slate-900 to-slate-950 border-2 border-rose-500 shadow-2xl shadow-rose-950/80 space-y-4 my-auto relative animate-in fade-in zoom-in-95 duration-200">
+              {/* Header Badges */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-rose-900/60">
+                <span className="flex items-center gap-2 text-xs font-mono font-extrabold uppercase tracking-wider text-rose-400">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 animate-bounce" />
+                  ถูกลอบโจมตี! · การปะทะในเขตอันตราย
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800/80 text-xs font-mono font-bold">
+                  วันที่ {activeThreatAmbushAlert.day} · เขต {activeThreatAmbushAlert.locationName}
+                </span>
+              </div>
+
+              {/* Threat context tag */}
+              <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                <span className="px-2 py-1 rounded bg-slate-950/80 text-amber-300 border border-amber-900/40">
+                  ระดับภัยคุกคามในเขต: <strong className="text-amber-200">{activeThreatAmbushAlert.localThreat}/100</strong>
+                </span>
+                <span className="px-2 py-1 rounded bg-slate-950/80 text-rose-300 border border-rose-900/40">
+                  โอกาสปะทะรอบนี้: <strong className="text-rose-200">{activeThreatAmbushAlert.chancePercent}%</strong>
+                </span>
+                <span className="px-2 py-1 rounded bg-slate-950/80 text-slate-300 border border-slate-800">
+                  ฉากปะทะที่ {activeThreatAmbushAlert.scenario.stageLevel}/15
+                </span>
+              </div>
+
+              {/* Title & Description */}
+              <div className="space-y-2">
+                <h2 className="text-xl sm:text-2xl font-black text-rose-100 leading-snug flex items-center gap-2">
+                  <Skull className="w-5 h-5 text-rose-400 shrink-0" />
+                  {activeThreatAmbushAlert.scenario.title}
+                </h2>
+                <p className="text-sm sm:text-base text-slate-200 leading-relaxed bg-slate-950/60 p-4 rounded-xl border border-rose-950/80">
+                  {activeThreatAmbushAlert.scenario.description}
+                </p>
+              </div>
+
+              {/* Damage & Impact Card */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/50 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-rose-300 uppercase tracking-wide flex items-center gap-1.5">
+                      <Heart className="w-3.5 h-3.5 text-rose-400" />
+                      ความเสียหายต่อสภาพร่าง
+                    </div>
+                    <div className="text-2xl font-black text-rose-400 mt-0.5">
+                      -{activeThreatAmbushAlert.hpLoss} <span className="text-sm font-bold text-rose-300">HP</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-400">สภาพร่างคงเหลือ</div>
+                    <div className={`text-base font-extrabold ${activeThreatAmbushAlert.remainingHp <= 25 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
+                      {activeThreatAmbushAlert.remainingHp}/100
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                      <Brain className="w-3.5 h-3.5 text-sky-400" />
+                      ผลกระทบต่อสติ
+                    </div>
+                    <div className="text-2xl font-black text-sky-300 mt-0.5">
+                      {activeThreatAmbushAlert.sanityLoss > 0 ? `-${activeThreatAmbushAlert.sanityLoss}` : '0'}{' '}
+                      <span className="text-sm font-bold text-slate-400">สติ</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-400">สติคงเหลือ</div>
+                    <div className="text-base font-extrabold text-sky-300">
+                      {activeThreatAmbushAlert.remainingSanity}/100
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Survival Tip */}
+              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs leading-relaxed text-slate-300">
+                {activeThreatAmbushAlert.remainingHp <= 25 ? (
+                  <p className="text-rose-300 font-semibold flex items-start gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <span>⚠️ สภาพร่างวิกฤตมาก! เลือดเหลือเพียง {activeThreatAmbushAlert.remainingHp} HP รีบออกล่าหาเลือด/อาหาร หรือย้ายหลบภัยไปยังเขตที่มีค่าความเป็นภัยต่ำกว่านี้โดยด่วน!</span>
+                  </p>
+                ) : (
+                  <p className="flex items-start gap-1.5 text-slate-300">
+                    <span className="text-amber-400 shrink-0">💡</span>
+                    <span>ระดับความเป็นภัยในเขตนี้สูง ({activeThreatAmbushAlert.localThreat}/100) มนุษย์กลุ่มติดอาวุธหรือชาวบ้านกำลังหวาดระแวงและคอยซุ่มโจมตีสิ่งมีชีวิตผิดปกติ ควรระวังตัวหรือพิจารณาหลบหนีไปย่านที่ปลอดภัยกว่า</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Confirm / Dismiss button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveThreatAmbushAlert(null);
+                    if (soundEnabled) soundFx.click();
+                  }}
+                  className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm sm:text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-950/60 active:scale-[0.99]"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  รับทราบสถานการณ์ (ตั้งหลักและสังเกตรอบด้าน)
+                </button>
               </div>
             </div>
           </div>
