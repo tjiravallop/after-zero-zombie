@@ -153,4 +153,37 @@ assert.equal(hasCranialCrestS4, true, 'Stage 4 should have cranial crest');
 
 console.log('✓ Mutation stage isolation verified: features strictly match current stage.');
 
+// 6. Test Male vs Female Styling (No female hairpins, no blunt bangs, no nurse cap on males)
+for (const role of ['liveseller', 'nurse', 'developer', 'vendor']) {
+  for (const style of ['short', 'bob', 'long', 'tied'] as const) {
+    const maleBio: Bio = {
+      id: `test_male_${role}_${style}`,
+      gender: 'ชาย',
+      occupation: role,
+      age: 28,
+      portraitRole: role,
+      appearance: { hairStyle: style, hairColor: '#354b42', outfitVariant: 0 },
+    };
+    const malePixels = computePortraitPixels(maleBio, 0);
+
+    // Male should NEVER have pink hairpins (#dd9bb4)
+    const hasPinkClips = malePixels.some(p => p[4] === '#dd9bb4');
+    assert.equal(hasPinkClips, false, `Male (${role}, ${style}) must not have pink hair clips`);
+
+    // Male should NEVER have nurse cap top (#d3e5df at y < headY)
+    const maleLayout = getAgeLayout(28);
+    const hasNurseCapOnHead = malePixels.some(p => p[4] === '#d3e5df' && p[1] < maleLayout.headY);
+    assert.equal(hasNurseCapOnHead, false, `Male (${role}, ${style}) must not wear nurse cap on head`);
+
+    // Male tied hairstyle should have topknot / man bun instead of side ponytail
+    if (style === 'tied') {
+      const hasManBun = malePixels.some(p => p[1] === maleLayout.headY - 2 && p[0] === 14);
+      assert.ok(hasManBun, `Male tied hair should have topknot/man bun`);
+      const hasFemaleSideTie = malePixels.some(p => p[4] === '#b58b7a' && p[0] === maleLayout.headX + maleLayout.headW);
+      assert.equal(hasFemaleSideTie, false, `Male tied hair must not have female side ponytail band`);
+    }
+  }
+}
+console.log('✓ Gender styling isolation verified: male characters do not have hairpins, bangs, or female accessories.');
+
 console.log('All ZombiePortrait unit tests passed successfully!');

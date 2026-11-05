@@ -354,18 +354,41 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
   // ==========================================
   // HAIR: BACK LAYERS (for long, bob, tied)
   // ==========================================
+  const isFemale = bio.gender === 'หญิง';
+
   if (hairStyle === 'long' || hairStyle === 'bob') {
-    const hairDrop = hairStyle === 'long' ? (layout.isChild ? 10 : 14) : (layout.isChild ? 7 : 10);
-    r(layout.headX - 1, layout.headY + 2, layout.headW + 2, hairDrop, hair);
-    r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+    if (isFemale) {
+      const hairDrop = hairStyle === 'long' ? (layout.isChild ? 10 : 14) : (layout.isChild ? 7 : 10);
+      r(layout.headX - 1, layout.headY + 2, layout.headW + 2, hairDrop, hair);
+      r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+    } else {
+      // Male hair:
+      if (hairStyle === 'long') {
+        // Straight masculine long hair behind neck/shoulders
+        const hairDrop = layout.isChild ? 7 : 10;
+        r(layout.headX - 1, layout.headY + 3, layout.headW + 2, hairDrop, hair);
+        r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+      } else {
+        // Male 'bob' cut rendered as masculine medium taper / parted cut (no long feminine drape)
+        r(layout.headX, layout.headY + 1, layout.headW, 5, hair);
+        r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+      }
+    }
   }
+
   if (hairStyle === 'tied') {
-    // Ponytail at side/back with hair tie
-    const tieX = layout.headX + layout.headW;
-    const tieY = layout.headY + 2;
-    r(tieX - 1, tieY, 3, 3, hair);
-    r(tieX + 1, tieY + 3, 2, layout.isChild ? 5 : 7, hair);
-    r(tieX, tieY + 2, 2, 1, '#b58b7a'); // hair band
+    if (isFemale) {
+      // Female: side ponytail with hair band
+      const tieX = layout.headX + layout.headW;
+      const tieY = layout.headY + 2;
+      r(tieX - 1, tieY, 3, 3, hair);
+      r(tieX + 1, tieY + 3, 2, layout.isChild ? 5 : 7, hair);
+      r(tieX, tieY + 2, 2, 1, '#b58b7a'); // hair band
+    } else {
+      // Male: masculine topknot / man bun atop back of head
+      r(14, layout.headY - 2, 4, 3, hair);
+      r(15, layout.headY - 1, 2, 1, '#1e1b2e'); // dark leather band
+    }
   }
 
   // ==========================================
@@ -387,9 +410,18 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
 
   // Hair front fringe & top
   r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
-  r(layout.headX, layout.headY + 2, 3, 2, hair);
-  r(layout.headX + 4, layout.headY + 2, 3, 1, hair);
-  r(layout.headX + layout.headW - 4, layout.headY + 2, 4, 2, hair);
+  if (isFemale) {
+    // Female: soft bangs/fringe across forehead
+    r(layout.headX, layout.headY + 2, 3, 2, hair);
+    r(layout.headX + 4, layout.headY + 2, 3, 1, hair);
+    r(layout.headX + layout.headW - 4, layout.headY + 2, 4, 2, hair);
+  } else {
+    // Male: clean masculine side-swept hair, sideburns, open forehead (NO blunt bangs/ผมม้า)
+    r(layout.headX, layout.headY + 2, 2, 2, hair); // left sideburn
+    r(layout.headX + layout.headW - 2, layout.headY + 2, 2, 2, hair); // right sideburn
+    r(layout.headX + 1, layout.headY + 1, 4, 1, hair); // side part
+    r(layout.headX + layout.headW - 5, layout.headY + 1, 3, 1, hair);
+  }
 
   // Elderly hair: silver / gray highlights
   if (layout.isElderly) {
@@ -641,10 +673,17 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
       break;
 
     case 'nurse':
-      // Nurse cap with red cross
-      r(layout.headX + 2, layout.headY - 2, layout.headW - 4, 2, '#d3e5df');
-      r(layout.headX, layout.headY, layout.headW, 2, '#b9d5da');
-      r(15, layout.headY - 1, 2, 1, '#cc6868');
+      if (isFemale) {
+        // Nurse cap with red cross
+        r(layout.headX + 2, layout.headY - 2, layout.headW - 4, 2, '#d3e5df');
+        r(layout.headX, layout.headY, layout.headW, 2, '#b9d5da');
+        r(15, layout.headY - 1, 2, 1, '#cc6868');
+      } else {
+        // Male nurse (บุรุษพยาบาล): medical badge on chest pocket
+        r(layout.torsoX + 2, layout.torsoY + 2, 3, 3, '#d3e5df');
+        r(layout.torsoX + 3, layout.torsoY + 2, 1, 3, '#cc6868');
+        r(layout.torsoX + 2, layout.torsoY + 3, 3, 1, '#cc6868');
+      }
       break;
 
     case 'electrician':
@@ -687,10 +726,16 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
       break;
 
     case 'liveseller':
-      // Hairpin, chic blouse & mini microphone
-      r(layout.headX + 2, layout.headY + 1, 2, 2, '#dd9bb4');
-      r(layout.headX + layout.headW - 4, layout.headY + 1, 2, 2, '#dd9bb4');
-      r(layout.torsoX + 1, layout.torsoY + layout.torsoH - 3, layout.torsoW - 2, 3, '#a5638a');
+      if (isFemale) {
+        // Hairpin, chic blouse & mini microphone
+        r(layout.headX + 2, layout.headY + 1, 2, 2, '#dd9bb4');
+        r(layout.headX + layout.headW - 4, layout.headY + 1, 2, 2, '#dd9bb4');
+        r(layout.torsoX + 1, layout.torsoY + layout.torsoH - 3, layout.torsoW - 2, 3, '#a5638a');
+      } else {
+        // Male streamer: urban dark shirt, collar clip microphone (no hairpins!)
+        r(layout.torsoX + 1, layout.torsoY + 1, layout.torsoW - 2, layout.torsoH - 2, '#3b4252');
+        r(layout.torsoX + 3, layout.torsoY + 2, 2, 2, '#d8dee9');
+      }
       r(layout.armRightX + layout.armW - 1, layout.torsoY + 1, 3, 5, '#d6c7d3');
       break;
 
