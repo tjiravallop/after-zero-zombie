@@ -13,29 +13,32 @@ function renderSvgString(pixels, bio, mutStage) {
 
 const testCases = [
   // Child
-  { age: 11, gender: 'ชาย', mutation: 0, desc: 'เด็ก ชาย (ไม่กลายพันธุ์)' },
-  { age: 11, gender: 'หญิง', mutation: 0, desc: 'เด็ก หญิง (ไม่กลายพันธุ์)' },
-  { age: 11, gender: 'ชาย', mutation: 60, desc: 'เด็ก ชาย (กลายพันธุ์ระยะ 3)' },
-  { age: 11, gender: 'หญิง', mutation: 85, desc: 'เด็ก หญิง (กลายพันธุ์ระยะ 4)' },
+  { age: 11, gender: 'ชาย', mutation: 0, hairStyle: 'messy', eyeType: 2, glassesType: 0, desc: 'เด็ก ชาย (ผมยุ่ง ตาโตตกใจ)' },
+  { age: 11, gender: 'หญิง', mutation: 0, hairStyle: 'twin', eyeType: 0, glassesType: 1, desc: 'เด็ก หญิง (ทวินเทล แว่นกลมวินเทจ)' },
+  { age: 11, gender: 'ชาย', mutation: 60, hairStyle: 'undercut', eyeType: 1, glassesType: 4, desc: 'เด็ก ชาย (อันเดอร์คัท ตาฝ้าขาว แว่นร้าว Stage 3)' },
+  { age: 11, gender: 'หญิง', mutation: 85, hairStyle: 'curly', eyeType: 0, glassesType: 0, desc: 'เด็ก หญิง (ผมดัดลอนฟู Stage 4)' },
   // Teen
-  { age: 16, gender: 'ชาย', mutation: 0, desc: 'วัยรุ่น ชาย (ไม่กลายพันธุ์)' },
-  { age: 16, gender: 'หญิง', mutation: 0, desc: 'วัยรุ่น หญิง (ไม่กลายพันธุ์)' },
-  { age: 16, gender: 'ชาย', mutation: 60, desc: 'วัยรุ่น ชาย (กลายพันธุ์ระยะ 3)' },
-  { age: 16, gender: 'หญิง', mutation: 85, desc: 'วัยรุ่น หญิง (กลายพันธุ์ระยะ 4)' },
+  { age: 16, gender: 'ชาย', mutation: 0, hairStyle: 'parted', eyeType: 0, glassesType: 3, desc: 'วัยรุ่น ชาย (แสกกลางคอมม่า แว่นกันแดด)' },
+  { age: 16, gender: 'หญิง', mutation: 0, hairStyle: 'bob', eyeType: 3, glassesType: 2, desc: 'วัยรุ่น หญิง (บ๊อบ ตาปรือขอบตาดำ แว่นหนา)' },
+  { age: 16, gender: 'ชาย', mutation: 60, hairStyle: 'messy', eyeType: 4, glassesType: 0, desc: 'วัยรุ่น ชาย (ผมเซอร์ แผลเป็นกรีดตา Stage 3)' },
+  { age: 16, gender: 'หญิง', mutation: 85, hairStyle: 'long', eyeType: 5, glassesType: 1, desc: 'วัยรุ่น หญิง (ผมยาว ตาเหลืองติดเชื้อ Stage 4)' },
   // Adult
-  { age: 35, gender: 'ชาย', mutation: 0, desc: 'ผู้ใหญ่ ชาย (ไม่กลายพันธุ์)' },
-  { age: 35, gender: 'หญิง', mutation: 0, desc: 'ผู้ใหญ่ หญิง (ไม่กลายพันธุ์)' },
-  { age: 35, gender: 'ชาย', mutation: 60, desc: 'ผู้ใหญ่ ชาย (กลายพันธุ์ระยะ 3)' },
-  { age: 35, gender: 'หญิง', mutation: 85, desc: 'ผู้ใหญ่ หญิง (กลายพันธุ์ระยะ 4)' },
+  { age: 35, gender: 'ชาย', mutation: 0, hairStyle: 'undercut', eyeType: 1, glassesType: 0, desc: 'ผู้ใหญ่ ชาย (อันเดอร์คัท ตาฝ้าขาวซอมบี้)' },
+  { age: 35, gender: 'หญิง', mutation: 0, hairStyle: 'curly', eyeType: 0, glassesType: 1, desc: 'ผู้ใหญ่ หญิง (ลอนฟู แว่นกรอบทอง)' },
+  { age: 35, gender: 'ชาย', mutation: 60, hairStyle: 'tied', eyeType: 3, glassesType: 3, desc: 'ผู้ใหญ่ ชาย (Man Bun แว่นกันแดด Stage 3)' },
+  { age: 35, gender: 'หญิง', mutation: 85, hairStyle: 'parted', eyeType: 0, glassesType: 4, desc: 'ผู้ใหญ่ หญิง (แสกข้าง แว่นเลนส์ร้าว Stage 4)' },
   // Elderly
-  { age: 72, gender: 'ชาย', mutation: 0, desc: 'ผู้สูงอายุ ชาย มีเครา (ไม่กลายพันธุ์)' },
-  { age: 68, gender: 'หญิง', mutation: 0, desc: 'ผู้สูงอายุ หญิง (ไม่กลายพันธุ์)' },
-  { age: 70, gender: 'ชาย', mutation: 60, desc: 'ผู้สูงอายุ ชาย (กลายพันธุ์ระยะ 3)' },
-  { age: 68, gender: 'หญิง', mutation: 85, desc: 'ผู้สูงอายุ หญิง (กลายพันธุ์ระยะ 4)' },
+  { age: 72, gender: 'ชาย', mutation: 0, hairStyle: 'short', eyeType: 4, glassesType: 1, desc: 'ผู้สูงอายุ ชาย (มีเครา แผลกรีดตา แว่นสายตา)' },
+  { age: 68, gender: 'หญิง', mutation: 0, hairStyle: 'curly', eyeType: 3, glassesType: 2, desc: 'ผู้สูงอายุ หญิง (ดัดลอนผมหงอก ตาปรือ แว่นหนา)' },
+  { age: 70, gender: 'ชาย', mutation: 60, hairStyle: 'parted', eyeType: 1, glassesType: 0, desc: 'ผู้สูงอายุ ชาย (หนวด ตาฝ้าขาว Stage 3)' },
+  { age: 68, gender: 'หญิง', mutation: 85, hairStyle: 'bob', eyeType: 0, glassesType: 3, desc: 'ผู้สูงอายุ หญิง (บ๊อบเงิน แว่นกันแดด Stage 4)' },
 ];
 
 const cardsHtml = testCases.map((tc, idx) => {
   const bio = generateCharacter(1000 + idx, { age: tc.age, gender: tc.gender });
+  if (tc.hairStyle) bio.appearance.hairStyle = tc.hairStyle;
+  if (tc.eyeType !== undefined) bio.appearance.eyeType = tc.eyeType;
+  if (tc.glassesType !== undefined) bio.appearance.glassesType = tc.glassesType;
   const mutStage = tc.mutation >= 75 ? 4 : tc.mutation >= 50 ? 3 : tc.mutation >= 25 ? 2 : 1;
   const pixels = computePortraitPixels(bio, tc.mutation);
   const svg = renderSvgString(pixels, bio, mutStage);

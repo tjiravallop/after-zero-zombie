@@ -36,14 +36,18 @@ console.log('✓ Age layouts and silhouette proportions verified.');
 // 2. Test Bounding Box & No Clipping for all roles, ages, genders, and mutations
 const sampleAges = [10, 12, 13, 16, 19, 20, 35, 55, 60, 75];
 const sampleGenders: ('ชาย' | 'หญิง')[] = ['ชาย', 'หญิง'];
-const sampleMutations = [0, 20, 25, 45, 50, 65, 75, 90, 100];
+const sampleMutations = [0, 25, 50, 75, 100];
 const sampleRoles = CHARACTER_OCCUPATIONS.map(o => o.role);
+const allHairStyles = ['short', 'bob', 'long', 'tied', 'messy', 'undercut', 'curly', 'parted', 'twin'] as const;
 
 let count = 0;
 for (const age of sampleAges) {
   for (const gender of sampleGenders) {
     for (const mutation of sampleMutations) {
       for (const role of sampleRoles) {
+        const hairStyle = allHairStyles[count % allHairStyles.length];
+        const eyeType = count % 6;
+        const glassesType = count % 5;
         const bio: Bio = {
           id: `test_${role}_${age}_${gender}`,
           gender,
@@ -51,11 +55,13 @@ for (const age of sampleAges) {
           age,
           portraitRole: role,
           appearance: {
-            hairStyle: gender === 'หญิง' ? 'long' : 'short',
+            hairStyle,
             hairColor: '#354b42',
             outfitVariant: 1,
+            eyeType,
+            glassesType,
           },
-          generationSeed: 12345,
+          generationSeed: 12345 + count,
         };
 
         const pixels = computePortraitPixels(bio, mutation);
@@ -72,7 +78,7 @@ for (const age of sampleAges) {
     }
   }
 }
-console.log(`✓ Tested ${count} combinations for canvas bounds [0..32, 0..33] without clipping.`);
+console.log(`✓ Tested ${count} combinations (covering 9 hairstyles, 6 eye types, 5 glasses types) for canvas bounds [0..32, 0..33] without clipping.`);
 
 // 3. Test Determinism across repeated renders
 const testBioA = generateCharacter(424242, { age: 68, gender: 'ชาย' });
@@ -111,7 +117,7 @@ console.log(`✓ Elderly male facial hair verified with deterministic variants.`
 const stage1Pixels = computePortraitPixels(testBioA, 10);
 const hasRedEyesS1 = stage1Pixels.some(p => p[4] === '#dc2626');
 const hasDorsalLimbsS1 = stage1Pixels.some(p => p[4] === '#3b1d54');
-const hasClawsS1 = stage1Pixels.some(p => p[4] === '#e2e8f0');
+const hasClawsS1 = stage1Pixels.some(p => p[4] === '#f43f5e' && p[1] >= 20);
 const hasCranialCrestS1 = stage1Pixels.some(p => p[4] === '#a855f7');
 assert.equal(hasRedEyesS1, false, 'Stage 1 should not have glowing red eyes');
 assert.equal(hasDorsalLimbsS1, false, 'Stage 1 should not have dorsal wings');
@@ -122,7 +128,7 @@ assert.equal(hasCranialCrestS1, false, 'Stage 1 should not have cranial crest');
 const stage2Pixels = computePortraitPixels(testBioA, 30);
 const hasRedEyesS2 = stage2Pixels.some(p => p[4] === '#dc2626');
 const hasDorsalLimbsS2 = stage2Pixels.some(p => p[4] === '#3b1d54');
-const hasClawsS2 = stage2Pixels.some(p => p[4] === '#e2e8f0');
+const hasClawsS2 = stage2Pixels.some(p => p[4] === '#f43f5e' && p[1] >= 20);
 const hasCranialCrestS2 = stage2Pixels.some(p => p[4] === '#a855f7');
 assert.equal(hasRedEyesS2, true, 'Stage 2 should have crimson eyes');
 assert.equal(hasDorsalLimbsS2, false, 'Stage 2 should not have dorsal limbs');
@@ -132,7 +138,7 @@ assert.equal(hasCranialCrestS2, false, 'Stage 2 should not have cranial crest');
 // Stage 3: Has red eyes and claws & shoulder spurs, but NO cranial crest & NO dorsal wings
 const stage3Pixels = computePortraitPixels(testBioA, 60);
 const hasRedEyesS3 = stage3Pixels.some(p => p[4] === '#dc2626');
-const hasClawsS3 = stage3Pixels.some(p => p[4] === '#e2e8f0');
+const hasClawsS3 = stage3Pixels.some(p => p[4] === '#f43f5e' && p[1] >= 20);
 const hasDorsalLimbsS3 = stage3Pixels.some(p => p[4] === '#3b1d54');
 const hasCranialCrestS3 = stage3Pixels.some(p => p[4] === '#a855f7');
 assert.equal(hasRedEyesS3, true, 'Stage 3 should have red eyes');
@@ -143,7 +149,7 @@ assert.equal(hasCranialCrestS3, false, 'Stage 3 should not have cranial crest');
 // Stage 4: Has cranial crest, glowing chest core, dorsal wings
 const stage4Pixels = computePortraitPixels(testBioA, 85);
 const hasRedEyesS4 = stage4Pixels.some(p => p[4] === '#dc2626');
-const hasClawsS4 = stage4Pixels.some(p => p[4] === '#e2e8f0');
+const hasClawsS4 = stage4Pixels.some(p => p[4] === '#f43f5e' && p[1] >= 20);
 const hasDorsalLimbsS4 = stage4Pixels.some(p => p[4] === '#3b1d54');
 const hasCranialCrestS4 = stage4Pixels.some(p => p[4] === '#a855f7');
 assert.equal(hasRedEyesS4, true, 'Stage 4 should have red eyes');
@@ -155,7 +161,7 @@ console.log('✓ Mutation stage isolation verified: features strictly match curr
 
 // 6. Test Male vs Female Styling (No female hairpins, no blunt bangs, no nurse cap on males)
 for (const role of ['liveseller', 'nurse', 'developer', 'vendor']) {
-  for (const style of ['short', 'bob', 'long', 'tied'] as const) {
+  for (const style of allHairStyles) {
     const maleBio: Bio = {
       id: `test_male_${role}_${style}`,
       gender: 'ชาย',

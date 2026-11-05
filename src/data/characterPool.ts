@@ -49,7 +49,7 @@ export function eligibleOccupations(age:number):Occupation[] {
   return CHARACTER_OCCUPATIONS.filter(job=>age>=job.minAge&&age<=job.maxAge);
 }
 const hairColors:CharacterAppearance['hairColor'][]=['#354b42','#51443c','#46516b','#88938c','#b5b8a5'];
-const hairStyles:CharacterAppearance['hairStyle'][]=['short','bob','long','tied'];
+const hairStyles:CharacterAppearance['hairStyle'][]=['short','bob','long','tied','messy','undercut','curly','parted','twin'];
 const profileId=(seed:number,job:string,age:number,gender:string)=>`pool_${seed.toString(36)}_${job}_${age}${gender==='หญิง'?'f':'m'}`;
 
 export function generateCharacter(seed:number,options:{age?:number;gender?:'ชาย'|'หญิง';occupationId?:string}={}):CharacterBioDossier {
@@ -62,7 +62,13 @@ export function generateCharacter(seed:number,options:{age?:number;gender?:'ช�
   if(!job||!['ชาย','หญิง'].includes(gender))throw Error('อาชีพหรือเพศไม่ตรงกับเงื่อนไขตัวละคร');
   const template=job.template;
   const genderText=(text:string)=>gender==='ชาย'?text.replaceAll('แม่ค้า','พ่อค้า'):text;
-  const appearance:CharacterAppearance={hairStyle:hairStyles[Math.floor(random()*hairStyles.length)],hairColor:hairColors[(age>=60?3:0)+Math.floor(random()*(age>=60?2:3))],outfitVariant:Math.floor(random()*3) as 0|1|2};
+  const appearance:CharacterAppearance={
+    hairStyle:hairStyles[Math.floor(random()*hairStyles.length)],
+    hairColor:hairColors[(age>=60?3:0)+Math.floor(random()*(age>=60?2:3))],
+    outfitVariant:Math.floor(random()*3) as 0|1|2,
+    eyeType:Math.floor(random()*6),
+    glassesType:Math.floor(random()*5),
+  };
   const daysInfectedEstimate=1+Math.floor(random()*5);
   const occupation=genderText(job.title||template.occupation);
   return {...template,id:profileId(seed,job.id,age,gender),profileVersion:1,generationSeed:seed,occupationId:job.id,templateId:template.id,portraitRole:job.role,

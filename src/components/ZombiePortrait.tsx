@@ -352,31 +352,65 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
   }
 
   // ==========================================
-  // HAIR: BACK LAYERS (for long, bob, tied)
+  // HAIR: BACK & BASE LAYERS
   // ==========================================
   const isFemale = bio.gender === 'หญิง';
 
-  if (hairStyle === 'long' || hairStyle === 'bob') {
+  if (hairStyle === 'long') {
+    const hairDrop = isFemale ? (layout.isChild ? 10 : 14) : (layout.isChild ? 7 : 10);
+    r(layout.headX - 1, layout.headY + 2, layout.headW + 2, hairDrop, hair);
+    r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+  } else if (hairStyle === 'bob') {
     if (isFemale) {
-      const hairDrop = hairStyle === 'long' ? (layout.isChild ? 10 : 14) : (layout.isChild ? 7 : 10);
+      const hairDrop = layout.isChild ? 7 : 10;
       r(layout.headX - 1, layout.headY + 2, layout.headW + 2, hairDrop, hair);
       r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
     } else {
-      // Male hair:
-      if (hairStyle === 'long') {
-        // Straight masculine long hair behind neck/shoulders
-        const hairDrop = layout.isChild ? 7 : 10;
-        r(layout.headX - 1, layout.headY + 3, layout.headW + 2, hairDrop, hair);
-        r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
-      } else {
-        // Male 'bob' cut rendered as masculine medium taper / parted cut (no long feminine drape)
-        r(layout.headX, layout.headY + 1, layout.headW, 5, hair);
-        r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
-      }
+      // Male medium taper cut (no long feminine drape)
+      r(layout.headX, layout.headY + 1, layout.headW, 5, hair);
+      r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
     }
-  }
-
-  if (hairStyle === 'tied') {
+  } else if (hairStyle === 'curly') {
+    // Voluminous curly hair puffing out on top and around ears
+    const curlyH = layout.isChild ? 7 : 9;
+    r(layout.headX - 2, layout.headY + 1, layout.headW + 4, curlyH, hair);
+    r(layout.headX, layout.headY - 2, layout.headW, 3, hair);
+    // Curl texture gaps
+    r(layout.headX + 2, layout.headY - 2, 2, 1, activeSkin);
+    r(layout.headX + layout.headW - 4, layout.headY - 2, 2, 1, activeSkin);
+  } else if (hairStyle === 'messy') {
+    // Spiky / messy textured survivor hair
+    r(layout.headX - 1, layout.headY + 1, layout.headW + 2, 6, hair);
+    r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+    r(layout.headX + 2, layout.headY - 2, 2, 2, hair);
+    r(layout.headX + 6, layout.headY - 3, 3, 3, hair);
+    r(layout.headX + layout.headW - 4, layout.headY - 2, 2, 2, hair);
+  } else if (hairStyle === 'undercut') {
+    // Undercut / fade cut: clean top volume, shaved sides
+    r(layout.headX + 2, layout.headY - 2, layout.headW - 4, 3, hair);
+    r(layout.headX + 1, layout.headY, layout.headW - 2, 2, hair);
+  } else if (hairStyle === 'parted') {
+    // Middle / curtain parted hair draped over sides
+    const partDrop = isFemale ? (layout.isChild ? 8 : 11) : (layout.isChild ? 5 : 7);
+    r(layout.headX - 1, layout.headY + 1, 3, partDrop, hair);
+    r(layout.headX + layout.headW - 2, layout.headY + 1, 3, partDrop, hair);
+    r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+  } else if (hairStyle === 'twin') {
+    if (isFemale) {
+      // Female twin bunches / pigtails on both sides with red ties
+      const twinDrop = layout.isChild ? 6 : 8;
+      r(layout.headX - 3, layout.headY + 3, 2, twinDrop, hair);
+      r(layout.headX + layout.headW + 1, layout.headY + 3, 2, twinDrop, hair);
+      r(layout.headX - 2, layout.headY + 2, 2, 2, '#f43f5e'); // twin tie
+      r(layout.headX + layout.headW, layout.headY + 2, 2, 2, '#f43f5e'); // twin tie
+      r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+    } else {
+      // Male double warrior topknots
+      r(layout.headX + 2, layout.headY - 2, 3, 3, hair);
+      r(layout.headX + layout.headW - 5, layout.headY - 2, 3, 3, hair);
+      r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
+    }
+  } else if (hairStyle === 'tied') {
     if (isFemale) {
       // Female: side ponytail with hair band
       const tieX = layout.headX + layout.headW;
@@ -411,16 +445,41 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
   // Hair front fringe & top
   r(layout.headX + 1, layout.headY - 1, layout.headW - 2, 3, hair);
   if (isFemale) {
-    // Female: soft bangs/fringe across forehead
-    r(layout.headX, layout.headY + 2, 3, 2, hair);
-    r(layout.headX + 4, layout.headY + 2, 3, 1, hair);
-    r(layout.headX + layout.headW - 4, layout.headY + 2, 4, 2, hair);
+    if (hairStyle === 'parted') {
+      // Curtain bangs parted in middle
+      r(layout.headX, layout.headY + 2, 3, 2, hair);
+      r(layout.headX + layout.headW - 3, layout.headY + 2, 3, 2, hair);
+      r(layout.headX + 2, layout.headY + 2, 2, 1, hair);
+      r(layout.headX + layout.headW - 4, layout.headY + 2, 2, 1, hair);
+    } else if (hairStyle === 'curly') {
+      // Curly texture bangs
+      r(layout.headX, layout.headY + 2, 3, 2, hair);
+      r(layout.headX + 3, layout.headY + 1, 2, 2, hair);
+      r(layout.headX + 6, layout.headY + 2, 3, 1, hair);
+      r(layout.headX + layout.headW - 4, layout.headY + 2, 4, 2, hair);
+    } else {
+      // Soft bangs/fringe across forehead
+      r(layout.headX, layout.headY + 2, 3, 2, hair);
+      r(layout.headX + 4, layout.headY + 2, 3, 1, hair);
+      r(layout.headX + layout.headW - 4, layout.headY + 2, 4, 2, hair);
+    }
   } else {
     // Male: clean masculine side-swept hair, sideburns, open forehead (NO blunt bangs/ผมม้า)
     r(layout.headX, layout.headY + 2, 2, 2, hair); // left sideburn
     r(layout.headX + layout.headW - 2, layout.headY + 2, 2, 2, hair); // right sideburn
-    r(layout.headX + 1, layout.headY + 1, 4, 1, hair); // side part
-    r(layout.headX + layout.headW - 5, layout.headY + 1, 3, 1, hair);
+    if (hairStyle === 'parted') {
+      r(layout.headX + 1, layout.headY + 1, 3, 2, hair);
+      r(layout.headX + layout.headW - 4, layout.headY + 1, 3, 2, hair);
+    } else if (hairStyle === 'undercut') {
+      r(layout.headX + 3, layout.headY + 1, layout.headW - 6, 2, hair);
+    } else if (hairStyle === 'messy') {
+      r(layout.headX + 2, layout.headY + 1, 3, 2, hair);
+      r(layout.headX + 7, layout.headY + 1, 2, 1, hair);
+      r(layout.headX + layout.headW - 4, layout.headY + 1, 3, 2, hair);
+    } else {
+      r(layout.headX + 1, layout.headY + 1, 4, 1, hair); // side part
+      r(layout.headX + layout.headW - 5, layout.headY + 1, 3, 1, hair);
+    }
   }
 
   // Elderly hair: silver / gray highlights
@@ -436,20 +495,183 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
   r(layout.headX + layout.headW - 3, layout.headY + 5, 1, 1, '#739066');
 
   // ==========================================
-  // EYES & MUTATED OCULAR GLOW
+  // EYES & MUTATED OCULAR GLOW (6 Randomized Eye Types)
   // ==========================================
+  const eyeSeed = getSeedHash(bio.id, bio.generationSeed);
+  const eyeType = (bio.appearance as any)?.eyeType ?? (eyeSeed % 6);
+
   if (mutStage >= 2) {
-    // Stage 2+: Crimson glowing mutated eyes
-    r(layout.eyeLeftX, layout.eyeY, 2, 3, '#dc2626');
-    r(layout.eyeRightX, layout.eyeY, 2, 3, '#dc2626');
-    r(layout.eyeLeftX, layout.eyeY, 1, 1, '#fecaca');
-    r(layout.eyeRightX, layout.eyeY, 1, 1, '#fecaca');
+    // Crimson mutated ocular glow
+    if (eyeType === 1) {
+      // Cataract: milky cloudy right eye with faint red core, left eye blazes crimson
+      r(layout.eyeLeftX, layout.eyeY, 2, 3, '#dc2626');
+      r(layout.eyeLeftX, layout.eyeY, 1, 1, '#fecaca');
+      r(layout.eyeRightX, layout.eyeY, 2, 3, '#fca5a5');
+      r(layout.eyeRightX, layout.eyeY + 1, 1, 1, '#dc2626');
+    } else if (eyeType === 4) {
+      // Scarred socket: vertical blood-red scar over left socket, right eye glows fiery red
+      r(layout.eyeLeftX, layout.eyeY - 2, 1, 6, '#b91c1c');
+      r(layout.eyeLeftX, layout.eyeY, 2, 3, '#450a0a');
+      r(layout.eyeRightX, layout.eyeY, 2, 3, '#dc2626');
+      r(layout.eyeRightX, layout.eyeY, 1, 1, '#fecaca');
+    } else {
+      // Dual glowing crimson eyes
+      r(layout.eyeLeftX, layout.eyeY, 2, 3, '#dc2626');
+      r(layout.eyeRightX, layout.eyeY, 2, 3, '#dc2626');
+      r(layout.eyeLeftX, layout.eyeY, 1, 1, '#fecaca');
+      r(layout.eyeRightX, layout.eyeY, 1, 1, '#fecaca');
+    }
   } else {
-    // Stage 1: Standard zombie glazed eyes
-    r(layout.eyeLeftX, layout.eyeY, 2, 3, ink);
-    r(layout.eyeRightX, layout.eyeY, 2, 3, ink);
-    r(layout.eyeLeftX, layout.eyeY, 1, 1, light);
-    r(layout.eyeRightX, layout.eyeY, 1, 1, light);
+    // Stage 1 (Survivor / Early zombie eyes):
+    switch (eyeType) {
+      case 1:
+        // Milky cataract zombie eye (ขวาฝ้าขาว ซ้ายปกติ)
+        r(layout.eyeLeftX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeLeftX, layout.eyeY, 1, 1, light);
+        r(layout.eyeRightX, layout.eyeY, 2, 3, '#e2e8f0');
+        r(layout.eyeRightX, layout.eyeY + 1, 1, 1, '#94a3b8');
+        break;
+
+      case 2:
+        // Wide staring panicked / manic eyes (ตาโตเบิกกว้าง)
+        r(layout.eyeLeftX - 1, layout.eyeY, 4, 3, light);
+        r(layout.eyeRightX - 1, layout.eyeY, 4, 3, light);
+        r(layout.eyeLeftX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeRightX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeLeftX, layout.eyeY, 1, 1, '#ffffff');
+        r(layout.eyeRightX, layout.eyeY, 1, 1, '#ffffff');
+        break;
+
+      case 3:
+        // Tired droopy eyelids & dark fatigue bags (ตาปรือ ขอบตาดำ)
+        r(layout.eyeLeftX, layout.eyeY, 2, 1, '#334155');
+        r(layout.eyeRightX, layout.eyeY, 2, 1, '#334155');
+        r(layout.eyeLeftX, layout.eyeY + 1, 2, 2, ink);
+        r(layout.eyeRightX, layout.eyeY + 1, 2, 2, ink);
+        r(layout.eyeLeftX, layout.eyeY + 1, 1, 1, light);
+        r(layout.eyeRightX, layout.eyeY + 1, 1, 1, light);
+        r(layout.eyeLeftX - 1, layout.eyeY + 3, 3, 1, '#475569');
+        r(layout.eyeRightX, layout.eyeY + 3, 3, 1, '#475569');
+        break;
+
+      case 4:
+        // Scarred / blinded eye with slash (มีรอยแผลเป็นกรีดตา)
+        r(layout.eyeLeftX, layout.eyeY - 2, 1, 6, '#7f1d1d'); // scar
+        r(layout.eyeLeftX, layout.eyeY, 2, 3, '#1a2e26');
+        r(layout.eyeRightX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeRightX, layout.eyeY, 1, 1, light);
+        break;
+
+      case 5:
+        // Jaundiced infected yellowish eyes (ตาเหลืองติดเชื้อ)
+        r(layout.eyeLeftX - 1, layout.eyeY, 3, 3, '#fef08a');
+        r(layout.eyeRightX, layout.eyeY, 3, 3, '#fef08a');
+        r(layout.eyeLeftX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeRightX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeLeftX, layout.eyeY, 1, 1, '#fde047');
+        r(layout.eyeRightX, layout.eyeY, 1, 1, '#fde047');
+        break;
+
+      case 0:
+      default:
+        // Standard glazed dual eyes (ตาปกติ)
+        r(layout.eyeLeftX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeRightX, layout.eyeY, 2, 3, ink);
+        r(layout.eyeLeftX, layout.eyeY, 1, 1, light);
+        r(layout.eyeRightX, layout.eyeY, 1, 1, light);
+        break;
+    }
+  }
+
+  // ==========================================
+  // RANDOMIZED EYEGLASSES (แว่นตาสุ่มใส่ทุกคน)
+  // ==========================================
+  const glassesSeed = (eyeSeed * 37 + 13) >>> 0;
+  const isStudious = ['student', 'developer', 'retiredteacher'].includes(role);
+  let glassesType = (bio.appearance as any)?.glassesType;
+  if (glassesType === undefined) {
+    const roll = glassesSeed % 100;
+    // 80% chance for studious occupations, 40% chance for any survivor
+    const threshold = isStudious ? 80 : 40;
+    glassesType = roll < threshold ? 1 + (glassesSeed % 4) : 0;
+  }
+
+  if (glassesType > 0) {
+    const bridgeY = layout.eyeY + 1;
+    const bridgeW = layout.eyeRightX - (layout.eyeLeftX + 2);
+
+    switch (glassesType) {
+      case 1: {
+        // Round wire-rim glasses (แว่นกรอบกลมวินเทจ / กรอบโลหะทองหรือเงิน)
+        const frameColor = (glassesSeed % 2 === 0) ? '#94a3b8' : '#eab308';
+        r(layout.eyeLeftX - 1, layout.eyeY - 1, 4, 1, frameColor);
+        r(layout.eyeLeftX - 1, layout.eyeY + 3, 4, 1, frameColor);
+        r(layout.eyeLeftX - 1, layout.eyeY, 1, 3, frameColor);
+        r(layout.eyeLeftX + 2, layout.eyeY, 1, 3, frameColor);
+
+        r(layout.eyeRightX - 1, layout.eyeY - 1, 4, 1, frameColor);
+        r(layout.eyeRightX - 1, layout.eyeY + 3, 4, 1, frameColor);
+        r(layout.eyeRightX - 1, layout.eyeY, 1, 3, frameColor);
+        r(layout.eyeRightX + 2, layout.eyeY, 1, 3, frameColor);
+
+        r(layout.eyeLeftX + 2, bridgeY, bridgeW + 1, 1, frameColor); // bridge
+        r(layout.eyeLeftX, layout.eyeY, 1, 1, '#f8fafc'); // glass gleam
+        r(layout.eyeRightX, layout.eyeY, 1, 1, '#f8fafc');
+        break;
+      }
+
+      case 2: {
+        // Thick square nerd glasses (แว่นกรอบหนาสี่เหลี่ยมคลาสสิก)
+        const frameColor = '#0f172a';
+        r(layout.eyeLeftX - 1, layout.eyeY - 1, 4, 5, frameColor);
+        r(layout.eyeRightX - 1, layout.eyeY - 1, 4, 5, frameColor);
+        r(layout.eyeLeftX + 2, bridgeY, bridgeW + 1, 1, frameColor);
+        // Hollow lens area to show eyes
+        r(layout.eyeLeftX, layout.eyeY, 2, 3, activeSkin);
+        r(layout.eyeRightX, layout.eyeY, 2, 3, activeSkin);
+        r(layout.eyeLeftX, layout.eyeY, 1, 2, ink);
+        r(layout.eyeRightX, layout.eyeY, 1, 2, ink);
+        r(layout.eyeLeftX, layout.eyeY, 1, 1, light);
+        r(layout.eyeRightX, layout.eyeY, 1, 1, light);
+        break;
+      }
+
+      case 3: {
+        // Dark sunglasses / tinted shades (แว่นกันแดดสีเข้มเท่ๆ)
+        const shadeColor = '#0f172a';
+        r(layout.eyeLeftX - 1, layout.eyeY - 1, 4, 4, shadeColor);
+        r(layout.eyeRightX - 1, layout.eyeY - 1, 4, 4, shadeColor);
+        r(layout.eyeLeftX + 2, bridgeY - 1, bridgeW + 1, 2, shadeColor);
+        // Sleek reflection glare line
+        r(layout.eyeLeftX, layout.eyeY - 1, 2, 1, '#64748b');
+        r(layout.eyeLeftX + 1, layout.eyeY, 1, 1, '#94a3b8');
+        r(layout.eyeRightX, layout.eyeY - 1, 2, 1, '#64748b');
+        r(layout.eyeRightX + 1, layout.eyeY, 1, 1, '#94a3b8');
+        break;
+      }
+
+      case 4: {
+        // Cracked post-apocalyptic glasses with taped bridge (แว่นเลนส์ร้าวพันเทปดั้ง)
+        const frameColor = '#334155';
+        r(layout.eyeLeftX - 1, layout.eyeY - 1, 4, 1, frameColor);
+        r(layout.eyeLeftX - 1, layout.eyeY + 3, 4, 1, frameColor);
+        r(layout.eyeLeftX - 1, layout.eyeY, 1, 3, frameColor);
+        r(layout.eyeLeftX + 2, layout.eyeY, 1, 3, frameColor);
+
+        r(layout.eyeRightX - 1, layout.eyeY - 1, 4, 1, frameColor);
+        r(layout.eyeRightX - 1, layout.eyeY + 3, 4, 1, frameColor);
+        r(layout.eyeRightX - 1, layout.eyeY, 1, 3, frameColor);
+        r(layout.eyeRightX + 2, layout.eyeY, 1, 3, frameColor);
+
+        // Medical tape wrapped on bridge
+        r(layout.eyeLeftX + 2, bridgeY - 1, bridgeW + 1, 2, '#f1f5f9');
+        r(layout.eyeLeftX + 3, bridgeY - 1, 1, 2, '#94a3b8');
+        // Spiderweb crack on left lens
+        r(layout.eyeLeftX, layout.eyeY, 1, 2, '#e2e8f0');
+        r(layout.eyeLeftX + 1, layout.eyeY + 1, 1, 1, '#ffffff');
+        break;
+      }
+    }
   }
 
   // Cheeks & Mouth
@@ -538,15 +760,6 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
   // OCCUPATION & UNIFORM DETAILS (21 Roles)
   // Preserving occupational identities adapted to silhouette
   // ==========================================
-  if (['student', 'developer'].includes(role)) {
-    // Spectacles frame around eyes
-    r(layout.headX + 1, layout.eyeY - 1, 5, 4, ink);
-    r(layout.headX + layout.headW - 6, layout.eyeY - 1, 5, 4, ink);
-    r(layout.headX + 2, layout.eyeY, 3, 2, activeSkin);
-    r(layout.headX + layout.headW - 5, layout.eyeY, 3, 2, activeSkin);
-    r(14, layout.eyeY, 3, 1, ink); // bridge
-  }
-
   if (['paramedic', 'cleaner', 'mototaxi'].includes(role)) {
     // Reflective safety stripes on torso
     r(layout.torsoX + 1, layout.torsoY + 1, 2, layout.torsoH - 2, light);
@@ -609,12 +822,6 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
       break;
 
     case 'retiredteacher':
-      // Reading wire glasses
-      r(layout.headX + 1, layout.eyeY - 1, 5, 4, '#86978f');
-      r(layout.headX + layout.headW - 6, layout.eyeY - 1, 5, 4, '#86978f');
-      r(layout.headX + 2, layout.eyeY, 3, 2, activeSkin);
-      r(layout.headX + layout.headW - 5, layout.eyeY, 3, 2, activeSkin);
-      r(14, layout.eyeY, 3, 1, '#86978f');
       // Cloth document tote bag
       r(layout.armRightX + layout.armW - 1, layout.torsoY + 3, 4, 5, '#a47f55');
       r(layout.armRightX + layout.armW, layout.torsoY + 3, 1, 5, light);

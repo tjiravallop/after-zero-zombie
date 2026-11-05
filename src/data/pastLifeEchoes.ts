@@ -14,9 +14,11 @@ import { materializeZoneResidents } from './zoneResidents';
 
 export type CharacterAgeGroup = 'เด็ก' | 'วัยรุ่น' | 'ผู้ใหญ่' | 'ผู้สูงอายุ';
 export interface CharacterAppearance {
-  hairStyle: 'short' | 'bob' | 'long' | 'tied';
+  hairStyle: 'short' | 'bob' | 'long' | 'tied' | 'messy' | 'undercut' | 'curly' | 'parted' | 'twin';
   hairColor: '#354b42' | '#51443c' | '#46516b' | '#88938c' | '#b5b8a5';
   outfitVariant: 0 | 1 | 2;
+  eyeType?: number;
+  glassesType?: number;
 }
 export interface CharacterBioDossier {
   id: string;
