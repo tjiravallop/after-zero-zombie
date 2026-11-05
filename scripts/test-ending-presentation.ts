@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 import vm from 'node:vm';
 import {renderToStaticMarkup} from 'react-dom/server';
 import React from 'react';
@@ -26,6 +29,20 @@ for(const [id,ending] of Object.entries(P.catalog.ENDINGS)){
   state.npcZones=zones;const record=buildPastLifeRecordFromState(state,P.viewModel(state,{archive:[]}),1,bio);
   assert.equal(record.deeds.alliedHumans,1);
 }
-const exported=JSON.parse(fs.readFileSync('docs/ending-review/01-ending-catalog.json','utf8'));
-assert.deepEqual(exported.map((e:any)=>e.id).sort(),Object.keys(P.catalog.ENDINGS).sort());
-console.log(`PASS: ending counts, ally deduplication, real reflections, archive snapshot, rendering and export coverage for ${exported.length} endings`);
+const reviewDir=fs.mkdtempSync(path.join(os.tmpdir(),'after-zero-ending-review-'));
+let exportedCount=0;
+try {
+  // Exercise the real exporter without requiring a previously generated review pack.
+  execFileSync(process.execPath,['--import','tsx','scripts/export-ending-review.ts'],{
+    env:{...process.env,ENDING_REVIEW_DIR:reviewDir},encoding:'utf8',
+  });
+  const exported=JSON.parse(fs.readFileSync(path.join(reviewDir,'01-ending-catalog.json'),'utf8'));
+  assert.deepEqual(exported.map((e:any)=>e.id).sort(),Object.keys(P.catalog.ENDINGS).sort());
+  exportedCount=exported.length;
+} finally {
+  // Only remove the directory this test created directly under the system temp folder.
+  assert.equal(path.dirname(path.resolve(reviewDir)),path.resolve(os.tmpdir()));
+  assert(path.basename(reviewDir).startsWith('after-zero-ending-review-'));
+  fs.rmSync(reviewDir,{recursive:true,force:true});
+}
+console.log(`PASS: ending counts, ally deduplication, real reflections, archive snapshot, rendering and fresh export coverage for ${exportedCount} endings`);

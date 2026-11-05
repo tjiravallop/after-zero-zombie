@@ -56,6 +56,8 @@ node --import tsx test-npc-wording.ts
 
 ใช้ `node --import tsx test-pixel-map-browser.ts` ตรวจแผนที่ ป๊อปอัป จุดแจ้งเตือน และการเดินทางผ่านหน้าเกมจริง
 
+ใช้ `node --import tsx scripts/test-ending-presentation.ts` ตรวจหน้าจบและความครบถ้วนของการส่งออกฉากจบ เทสต์สร้างชุดรีวิวในโฟลเดอร์ชั่วคราวและล้างออกเอง ไม่ต้องมี `docs/ending-review` ก่อน หากต้องการชุดรีวิวสำหรับอ่าน ให้รัน `node --import tsx scripts/export-ending-review.ts`
+
 ใช้ `node --import tsx test-character-pool-browser.ts` ตรวจการสุ่ม จุดเกิด การรีโหลด และส่งออก/นำเข้าตัวละครผ่านหน้าเกม การจำลองตัวละครใหม่ในสคริปต์ใช้ `generateCharacter(seed)` ร่วมกับ `createCharacterState(production, bio)` เพื่อให้จุดเกิด โบนัส และเหตุการณ์เปิดตรงกับอาชีพ
 
 `scripts/measure-progression.ts` ใช้วัดเส้นทางอ้างอิง ไม่ใช่ตัวแทนอัตราชนะของผู้เล่นจริง ผลลัพธ์และภาพที่สร้างใหม่เก็บใน `reports/` ซึ่งไม่ติดตามใน Git

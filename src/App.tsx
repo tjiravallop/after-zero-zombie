@@ -4,7 +4,7 @@ import { generateCharacter, resolveSavedCharacter, snapshotCharacter, getCharact
 import PixelCityMap from './components/PixelCityMap';
 import { buildMapLocations } from './data/mapLocations';
 import ZombiePortrait from './components/ZombiePortrait';
-import { getEndingReadiness, PROGRESSION_ROUTES } from './data/progressionRules';
+import { getEndingReadiness, getRouteGuidance, PROGRESSION_ROUTES } from './data/progressionRules';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -179,6 +179,14 @@ const STORAGE_KEY_TRIGGERED_ECHOES = 'after_zero_v10_triggered_echoes';
 const STORAGE_KEY_ZONE_POPS = 'after_zero_v10_zone_populations';
 const STORAGE_KEY_MUTATION_MILESTONES = 'after_zero_v10_mutation_milestones';
 const STORAGE_KEY_NUMERIC_SPOILERS = 'after_zero_v10_numeric_spoilers';
+const STORAGE_KEY_ROUTE_HINTS = 'after_zero_v10_route_hints';
+const STORAGE_KEY_ROUTE_ASSISTANCE = 'after_zero_v10_route_assistance';
+const STORAGE_KEY_ROUTE_SESSION = 'after_zero_v10_route_guidance_session';
+type RouteGuidanceSession = {runId: string; pinnedRouteId: string | null; dismissedRouteIds: string[]};
+
+function readPreference(key: string): boolean {
+  try { return localStorage.getItem(key) === 'true'; } catch { return false; }
+}
 
 const NARRATIVE_ACTION_HINTS: Record<string, string> = {
   scavenge: 'คุ้ยหาเสบียงไว้แบ่งให้คนเป็น แต่อาจโดนเศษเหล็กบาดและไม่ช่วยให้อิ่ม',
@@ -511,6 +519,26 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [ambientEnabled, setAmbientEnabled] = useState<boolean>(false);
+  const [showRouteHints, setShowRouteHints] = useState(() => readPreference(STORAGE_KEY_ROUTE_HINTS));
+  const [routeAssistanceEnabled, setRouteAssistanceEnabled] = useState(() => readPreference(STORAGE_KEY_ROUTE_ASSISTANCE));
+  const [routeGuidanceSession, setRouteGuidanceSession] = useState<RouteGuidanceSession>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_ROUTE_SESSION) || 'null');
+      const known = (id: unknown) => PROGRESSION_ROUTES.some(route => route.id === id);
+      if (saved && typeof saved.runId === 'string' && (saved.pinnedRouteId === null || known(saved.pinnedRouteId)) &&
+          Array.isArray(saved.dismissedRouteIds) && saved.dismissedRouteIds.length <= PROGRESSION_ROUTES.length && saved.dismissedRouteIds.every(known)) return saved;
+    } catch { /* Invalid preferences do not affect the character save. */ }
+    return {runId: '', pinnedRouteId: null, dismissedRouteIds: []};
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_ROUTE_HINTS, String(showRouteHints));
+      localStorage.setItem(STORAGE_KEY_ROUTE_ASSISTANCE, String(routeAssistanceEnabled));
+    } catch { /* Preferences remain usable for this session when storage is unavailable. */ }
+  }, [showRouteHints, routeAssistanceEnabled]);
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY_ROUTE_SESSION, JSON.stringify(routeGuidanceSession)); } catch { /* Keep the in-memory pin. */ }
+  }, [routeGuidanceSession]);
   const [showNumericSpoilers, setShowNumericSpoilers] = useState<boolean>(() => {
     try {
       return localStorage.getItem(STORAGE_KEY_NUMERIC_SPOILERS) === 'true';
@@ -624,6 +652,15 @@ export default function App() {
     const fresh = createCharacterState(prod, currentBio, seed);
     return structuredClone(fresh);
   });
+
+  useEffect(() => {
+    const runId = gameState?.runId || '';
+    setRouteGuidanceSession(previous => {
+      if (previous.runId === runId && routeAssistanceEnabled && !gameState?.ending) return previous;
+      if (previous.runId === runId && !previous.pinnedRouteId && previous.dismissedRouteIds.length === 0) return previous;
+      return {runId, pinnedRouteId: null, dismissedRouteIds: []};
+    });
+  }, [gameState?.runId, Boolean(gameState?.ending), routeAssistanceEnabled]);
 
   // Per-Zone Survivor Populations & Individual NPC Trust State
   const [zonePopulations, setZonePopulations] = useState<Record<string, ZonePopulationState>>(() => {
@@ -1109,9 +1146,9 @@ export default function App() {
 
   // Compute Mid-Game Horizon Clues
   const horizonClues = useMemo(() => {
-    if (!patches.midGameHorizonClues || !effectiveGameState) return [];
+    if (!showRouteHints || !patches.midGameHorizonClues || !effectiveGameState) return [];
     return getMidGameHorizonClues(effectiveGameState);
-  }, [patches.midGameHorizonClues, effectiveGameState]);
+  }, [showRouteHints, patches.midGameHorizonClues, effectiveGameState]);
 
   // Compute Slice-of-Life & Pre-Bombing Escape Endings
   const sliceOfLifeEndings = useMemo(() => {
@@ -1958,6 +1995,7 @@ export default function App() {
       validated.roamCooldowns = (rawState && typeof rawState.roamCooldowns === 'object' && rawState.roamCooldowns !== null && !Array.isArray(rawState.roamCooldowns)) ? rawState.roamCooldowns : {};
       validated.asokWreckDepletedParts = Array.isArray(rawState?.asokWreckDepletedParts) ? rawState.asokWreckDepletedParts.filter((p: any) => typeof p === 'string') : [];
       setCurrentBio(importedBio);
+      setRouteGuidanceSession({runId: validated.runId, pinnedRouteId: null, dismissedRouteIds: []});
       setGameState(validated);
       setActiveLifeSimModal(validated.npcEncounter||null);
       setZonePopulations(importedZones);
@@ -2021,11 +2059,17 @@ export default function App() {
   // District settlement endings are explicit choices; core endings use climax events.
   const storyActionsList = filteredActions.filter(a => (a.group === 'story' && !a.ending) || a.id.startsWith('bkk_') || a.id.startsWith('route.'));
   const careActionsList = filteredActions.filter(a => a.group === 'care' && !a.id.startsWith('bkk_') && !a.id.startsWith('route.'));
-  const primaryStoryAction = storyActionsList.find(action => action.preview.enabled);
+  const routeGuidance = useMemo(() => getRouteGuidance(effectiveGameState), [effectiveGameState]);
+  const guidanceSession = routeAssistanceEnabled && !gameState?.ending && routeGuidanceSession.runId === gameState?.runId ? routeGuidanceSession : null;
+  const pinnedRoute = guidanceSession ? routeGuidance.find(route => route.routeId === guidanceSession.pinnedRouteId) : undefined;
+  const suggestedRoutes = guidanceSession ? routeGuidance.filter(route => route.eligible && !guidanceSession.dismissedRouteIds.includes(route.routeId)) : [];
+  const pinnedPlaceId = pinnedRoute?.nextStep?.placeId || (pinnedRoute?.requirementsMet ? pinnedRoute.destination : null);
+  const pinnedActionId = pinnedRoute?.nextStep?.actionId;
+  const primaryStoryAction = storyActionsList.find(action => action.id === pinnedActionId) || storyActionsList.find(action => action.preview.enabled);
   const otherStoryActions = storyActionsList.filter(action => action !== primaryStoryAction);
 
-  const mapPlaces = useMemo(() => buildMapLocations(production, effectiveGameState, syncedZonePopulations, triggeredEchoIds, {currentBio,pastLives}),
-    [production, effectiveGameState, syncedZonePopulations, triggeredEchoIds, currentBio, pastLives]);
+  const mapPlaces = useMemo(() => buildMapLocations(production, effectiveGameState, syncedZonePopulations, triggeredEchoIds, {currentBio,pastLives}, {showRouteHints}),
+    [production, effectiveGameState, syncedZonePopulations, triggeredEchoIds, currentBio, pastLives, showRouteHints]);
   const mapNotificationCount = mapPlaces.filter(p => p.signals.length > 0).length;
   const mapHasUrgentNews = mapPlaces.some(p => p.signals.some(s => s.kind === 'crisis'));
   const currentWeatherAndHazard = useMemo(
@@ -2071,12 +2115,14 @@ export default function App() {
     onHistory={openStoryHistory}
   />;
   const renderStoryAction = (action: any, primary = false) => (
-    <button key={action.id} type="button" disabled={!action.preview.enabled}
+    <button key={action.id} type="button" data-action-id={action.id} disabled={!action.preview.enabled}
       onClick={() => handlePerformAction(action.id)}
-      className={`story-action ${primary ? 'story-action-primary' : ''}`}
+      className={`story-action ${primary ? 'story-action-primary' : ''} ${action.id === pinnedActionId ? 'is-pinned' : ''}`}
       title={!action.preview.enabled ? (showNumericSpoilers ? action.preview.reason : sanitizeNonSpoilerReason(action.preview.reason || '')) : undefined}>
       <span className="story-action-title">{action.name}<ArrowRight size={16} aria-hidden="true" /></span>
+      {action.id === pinnedActionId && <span className="route-pin-label">เป้าหมายที่ปักหมุด</span>}
       <span className="story-action-description">{action.description}</span>
+      {action.id === pinnedActionId && !action.preview.enabled && <span className="story-action-description">{sanitizeNonSpoilerReason(action.preview.reason || 'ยังไม่พร้อมทำงานนี้')}</span>}
     </button>
   );
 
@@ -2853,6 +2899,30 @@ export default function App() {
                   DAILY ACTIVITY GROUPS (Compact Above-the-Fold Mobile Grid)
                  ============================================================= */}
               <div className="daily-actions space-y-3">
+                {guidanceSession && (pinnedRoute ? [pinnedRoute] : suggestedRoutes).map(route => (
+                  <section key={route.routeId} data-route-guidance={route.routeId} className="route-guidance-card" aria-label={`ตัวช่วย${route.label}`}>
+                    <h2>{pinnedRoute ? 'เป้าหมายที่ปักหมุด' : 'เส้นทางที่เจ้าเริ่มมองเห็น'} · {route.label}</h2>
+                    {pinnedRoute && <p>{route.nextStep
+                      ? `${route.nextStep.title} · ${production?.catalog.PLACES[route.nextStep.placeId]?.name || route.nextStep.placeId}`
+                      : route.requirementsMet
+                      ? `เดินทางไป${production?.catalog.PLACES[route.destination]?.name || route.destination} เพื่อติดตามผลของสิ่งที่เตรียมไว้`
+                      : [
+                          route.missingStatKeys.some(key => key === 'research') && 'ยังต้องศึกษาการตอบสนองของเชื้อ',
+                          route.missingStatKeys.some(key => key === 'horde') && 'ยังต้องฝึกควบคุมฝูงให้มั่นคง',
+                          route.missingStatKeys.some(key => key === 'mutation') && 'ร่างกายยังต้องปรับตัวอีก',
+                          route.missingStatKeys.some(key => key === 'sanity') && 'ยังต้องประคองสติให้มั่นคง',
+                          route.missingStatKeys.some(key => key === 'humanity') && 'ยังต้องรักษาความเห็นใจต่อคนเป็น',
+                          route.missingStatKeys.some(key => key === 'trust') && 'ยังต้องสร้างความเชื่อใจจากผู้คน',
+                          route.missingSamples && 'ยังต้องรวบรวมตัวอย่างเชื้อเพิ่มเติม',
+                        ].filter(Boolean).join(' · ')}</p>}
+                    {!pinnedRoute && <p>สิ่งที่เจ้าลงมือเตรียมเริ่มเป็นรูปเป็นร่างแล้ว จะติดตามงานที่เหลือต่อหรือไม่</p>}
+                    <div className="route-guidance-buttons">
+                      <button type="button" onClick={() => setRouteGuidanceSession({...guidanceSession, pinnedRouteId: pinnedRoute ? null : route.routeId})}>{pinnedRoute ? 'ปลดหมุด' : 'ปักหมุด'}</button>
+                      {pinnedRoute && pinnedPlaceId && <button type="button" onClick={() => {setMobileTab('map'); setDesktopSideTab('map');}}>ดูเป้าหมายบนแผนที่</button>}
+                      <button type="button" onClick={() => setRouteGuidanceSession({...guidanceSession, pinnedRouteId: pinnedRoute ? null : guidanceSession.pinnedRouteId, dismissedRouteIds: [...guidanceSession.dismissedRouteIds, route.routeId]})}>ไม่แนะนำเส้นทางนี้อีกในชีวิตนี้</button>
+                    </div>
+                  </section>
+                ))}
                 {/* Group B: Storylines */}
                 <section className="scene-actions" aria-labelledby="scene-actions-heading">
                   <h2 id="scene-actions-heading">ตรงหน้าเจ้า</h2>
@@ -2947,7 +3017,7 @@ export default function App() {
 
               {/* Map is the only place to confirm travel. */}
               {(mobileTab === 'map' || (mobileTab === 'play' && desktopSideTab === 'map')) && (
-                <PixelCityMap places={mapPlaces} onTravel={id => handlePerformAction('move:' + id)} />
+                <PixelCityMap places={mapPlaces} pinnedPlaceId={pinnedPlaceId} onTravel={id => handlePerformAction('move:' + id)} />
               )}
 
               {/* PANEL 2: BAG (CARRIED ITEMS ONLY + SIGNATURE ITEM) & BODY / MUTATION STAGE STATS */}
@@ -3395,7 +3465,7 @@ export default function App() {
                 (mobileTab === 'play' && desktopSideTab === 'journal')) && (
                 <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-5">
                   {/* SECTION 1: NON-SPOILERY ROUTE & HORIZON CHECKLIST (PROGRESSION TRACKER) */}
-                  <div className="space-y-3">
+                  {showRouteHints && <div data-route-checklist className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-lime-300" />
@@ -3555,7 +3625,7 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </div>}
 
                   {/* SECTION 1.5: AMBIENT SOUNDSCAPE CONTROLS */}
                   <div className="space-y-2.5 pt-3 border-t border-slate-800">
@@ -3731,10 +3801,21 @@ export default function App() {
                   </div>
 
                   {/* Deep Hidden Option: Toggle Numeric Action Spoilers vs Roleplay Narrative Hints */}
-                  <details className="pt-2 border-t border-slate-800/40 text-[11px] text-slate-500">
+                  <details data-advanced-settings className="pt-2 border-t border-slate-800/40 text-[11px] text-slate-500">
                     <summary className="cursor-pointer py-1 hover:text-slate-400 select-none">
-                      ตัวเลือกการแสดงผลเพิ่มเติม (ขั้นสูง)
+                      ปรับแต่งขั้นสูง
                     </summary>
+                    <label className="route-setting">
+                      <span><strong>แสดงเบาะแสและเงื่อนไขเส้นทาง</strong><small>เปิดคู่มือเตรียมเส้นทางและเบาะแสบทจบล่วงหน้า · ปิดไว้เพื่อค้นพบด้วยตัวเอง</small></span>
+                      <input type="checkbox" role="switch" aria-checked={showRouteHints} data-setting="route-hints" checked={showRouteHints} onChange={event => setShowRouteHints(event.target.checked)} />
+                    </label>
+                    <label className="route-setting">
+                      <span><strong>ช่วยแนะนำและปักหมุดเส้นทางช่วงท้าย</strong><small>เสนอให้ติดตามงานเมื่อเตรียมเส้นทางมาไกลแล้ว · ไม่เปิดคู่มือเฉลย</small></span>
+                      <input type="checkbox" role="switch" aria-checked={routeAssistanceEnabled} data-setting="route-assistance" checked={routeAssistanceEnabled} onChange={event => {
+                        setRouteAssistanceEnabled(event.target.checked);
+                        if (!event.target.checked) setRouteGuidanceSession({runId: gameState?.runId || '', pinnedRouteId: null, dismissedRouteIds: []});
+                      }} />
+                    </label>
                     <div className="mt-2 p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/70 flex items-center justify-between gap-2">
                       <div className="space-y-0.5 min-w-0">
                         <div className="text-slate-300 font-medium text-[11px]">

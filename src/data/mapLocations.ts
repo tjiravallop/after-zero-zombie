@@ -22,7 +22,7 @@ export function findMapRoute(places: Record<string, { neighbors?: string[] }>, f
   return [];
 }
 
-export function buildMapLocations(production: any, state: any, zones: Record<string, ZonePopulationState>, triggeredIds: string[] = [], context?: {currentBio:CharacterBioDossier;pastLives:PastLifeRecord[]}): MapLocation[] {
+export function buildMapLocations(production: any, state: any, zones: Record<string, ZonePopulationState>, triggeredIds: string[] = [], context?: {currentBio:CharacterBioDossier;pastLives:PastLifeRecord[]}, options: {showRouteHints?: boolean} = {}): MapLocation[] {
   if (!production || !state) return [];
   const { engine, catalog } = production;
   return Object.entries(catalog.PLACES).map(([id, value]) => {
@@ -36,12 +36,13 @@ export function buildMapLocations(production: any, state: any, zones: Record<str
       }
       for (const action of catalog.ACTIONS) {
         if (!action.places?.includes(id)) continue;
+        if (!options.showRouteHints && (action.ending || action.id.startsWith('route.'))) continue;
         const story = action.id.startsWith('bkk_') || action.id.startsWith('route.') || action.id.startsWith('story.') || production.storyActionIds.includes(action.id);
         if (!(story || action.ending) || !engine.previewAction(hypothetical, action.id).enabled) continue;
         signals.push({id:action.id,kind:action.ending?'ending':'quest',title:action.name});
       }
       const climax = getTriggeredEndingClimaxModal(hypothetical, zones[id], zones, triggeredIds);
-      if (climax) signals.push({id:climax.id,kind:'ending',title:climax.title});
+      if (climax && options.showRouteHints) signals.push({id:climax.id,kind:'ending',title:climax.title});
       if (context) {
         const event = getNextTriggeredDynamicEvent({gameState:hypothetical,currentBio:context.currentBio,currentZonePop:zones[id],
           allZonePopulations:zones,currentZoneAverageTrust:population.averageTrust,currentZoneLivingCount:population.livingCount,

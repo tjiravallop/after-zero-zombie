@@ -26,7 +26,7 @@ const routePaths:Record<string,string> = {
   'bkk_office|radio':'M88 54L67 61L46 66L27 63L12 58L15 34',
 };
 
-export default function PixelCityMap({places,onTravel}:{places:MapLocation[];onTravel:(id:string)=>void}) {
+export default function PixelCityMap({places,onTravel,pinnedPlaceId}:{places:MapLocation[];onTravel:(id:string)=>void;pinnedPlaceId?:string|null}) {
   const [selectedId,setSelectedId]=useState<string|null>(null);
   const closeRef=useRef<HTMLButtonElement>(null);
   const dialogRef=useRef<HTMLDivElement>(null);
@@ -53,6 +53,7 @@ export default function PixelCityMap({places,onTravel}:{places:MapLocation[];onT
   return <section className="pixel-city-map rounded-2xl border border-slate-700 bg-slate-900 overflow-hidden" aria-label="แผนที่เดินทางกรุงเทพฯ">
     <header className="px-4 pt-4 pb-3"><p className="text-[10px] tracking-[.2em] text-emerald-400 font-mono">BANGKOK · AFTER ZERO</p><h3 className="text-lg font-bold text-slate-100 mt-1">เลือกทางที่จะเดินต่อ</h3><p className="text-xs text-slate-400 mt-1">แตะสถานที่เพื่อดูข้อมูลและเลือกเดินทาง · ช่วงละ 1 วัน</p></header>
     <div className="pixel-map-legend"><span><i className="map-key-current"/>อยู่ที่นี่</span><span><i className="map-key-quest"/>มีเควสต์</span><span><i className="map-key-crisis"/>เหตุฉุกเฉิน</span><span><i className="map-key-ending"/>จุดตัดสินใจ</span></div>
+    {pinnedPlaceId && <p className="px-4 pb-3 text-xs text-sky-200">⚑ เป้าหมายที่ปักหมุด: {places.find(p => p.id === pinnedPlaceId)?.name}</p>}
     <div className="pixel-map-terrain">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pixel-map-ground" aria-hidden="true">
         <rect width="100" height="100" fill="#172923"/>
@@ -76,9 +77,9 @@ export default function PixelCityMap({places,onTravel}:{places:MapLocation[];onT
         <text x="5" y="80" transform="rotate(-78 5 80)" fill="#668b91" fontSize="2.4">เจ้าพระยา</text>
         <text x="90" y="61" fill="#5b7d82" fontSize="2.1">แสนแสบ</text>
       </svg>
-      {places.map(p=>{const [x,y]=point(p.id),urgent=p.signals.some(s=>s.kind==='crisis'),ending=p.signals.some(s=>s.kind==='ending'),status=urgent?'crisis':ending?'ending':p.signals.length?'quest':'quiet';return <button type="button" key={p.id} data-location={p.id} data-status={status} aria-label={`${p.name}${p.isCurrent?' · อยู่ที่นี่':''}${p.signals.length?' · มีเรื่องพิเศษ '+p.signals.length+' รายการ':''}`} className={`pixel-map-marker ${p.isCurrent?'is-current':''}`} style={{left:x+'%',top:y+'%'}} onClick={()=>setSelectedId(p.id)}>
+      {places.map(p=>{const [x,y]=point(p.id),urgent=p.signals.some(s=>s.kind==='crisis'),ending=p.signals.some(s=>s.kind==='ending'),status=urgent?'crisis':ending?'ending':p.signals.length?'quest':'quiet';return <button type="button" key={p.id} data-location={p.id} data-status={status} aria-label={`${p.name}${p.isCurrent?' · อยู่ที่นี่':''}${p.id===pinnedPlaceId?' · เป้าหมายที่ปักหมุด':''}${p.signals.length?' · มีเรื่องพิเศษ '+p.signals.length+' รายการ':''}`} className={`pixel-map-marker ${p.isCurrent?'is-current':''} ${p.id===pinnedPlaceId?'is-pinned':''}`} style={{left:x+'%',top:y+'%'}} onClick={()=>setSelectedId(p.id)}>
         <span className="pixel-map-dot" aria-hidden="true"/>
-        <span className="pixel-map-place-name">{labels[p.id]||p.short||p.name}</span>
+        <span className="pixel-map-place-name">{labels[p.id]||p.short||p.name}{p.id === pinnedPlaceId && <span className="route-pin-label">⚑ หมุด</span>}</span>
         
       </button>;})}
       <span className="pixel-map-north" aria-hidden="true">N ↑</span>

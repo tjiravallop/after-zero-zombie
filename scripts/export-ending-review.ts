@@ -7,7 +7,7 @@ import {getTriggeredEndingClimaxModal,getSliceOfLifeAndEscapeEndings,deriveCause
 import {getEndingReadiness,PROGRESSION_ROUTES} from '../src/data/progressionRules';
 import {ENDING_REFLECTIONS} from '../src/data/endingPresentation';
 
-const out=path.resolve('docs/ending-review');fs.mkdirSync(path.join(out,'source'),{recursive:true});
+const out=path.resolve(process.env.ENDING_REVIEW_DIR || 'docs/ending-review');fs.mkdirSync(path.join(out,'source'),{recursive:true});
 const context={window:{} as any},bundle=fs.readFileSync('public/after-zero-bundle.js','utf8');
 vm.runInNewContext(bundle,context);
 const P=context.window.AfterZeroEngine.Production,C=P.catalog;

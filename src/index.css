@@ -87,6 +87,23 @@ body:has(.game-dialog) { overflow: hidden; }
 .travel-map-action { display:flex; align-items:center; gap:10px; width:100%; min-height:48px; padding:12px 14px; border:1px solid #9bbc68; border-radius:10px; color:#d6e9ad; background:#17281b; text-align:left; font-size:14px; font-weight:700; touch-action:manipulation; }
 .travel-map-action > svg:last-child { margin-left:auto; }
 
+.route-setting { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px; margin-top:10px; border:1px solid #394c40; border-radius:10px; background:#101d18; cursor:pointer; }
+.route-setting span { min-width:0; }
+.route-setting strong { display:block; color:#dce6d5; font-size:12px; }
+.route-setting small { display:block; margin-top:5px; color:#aebcaf; font-size:11px; line-height:1.7; }
+.route-setting input { width:24px; height:24px; flex-shrink:0; accent-color:#bef264; }
+.route-setting input:focus-visible { outline:2px solid #bef264; outline-offset:4px; }
+.route-guidance-card { padding:14px; border:1px solid #7c9db0; border-radius:12px; background:#12252a; overflow-wrap:anywhere; }
+.route-guidance-card h2 { font-size:14px; color:#d6eaf1; font-weight:700; }
+.route-guidance-card p { margin-top:8px; color:#c0d1d5; font-size:12px; line-height:1.8; }
+.route-guidance-buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.route-guidance-buttons button { min-height:44px; padding:8px 12px; border:1px solid #597a88; border-radius:8px; color:#d6eaf1; font-size:12px; }
+.route-guidance-buttons button:last-child { color:#acbdc0; }
+.story-action.is-pinned { border-color:#7dd3fc; box-shadow:inset 3px 0 #7dd3fc; }
+.route-pin-label { display:block; color:#bae6fd; font-size:10px; line-height:1.6; }
+.pixel-map-marker.is-pinned .pixel-map-dot { outline:2px solid #7dd3fc; outline-offset:6px; }
+.pixel-map-marker.is-pinned .pixel-map-place-name { color:#bae6fd; }
+
 @media (max-width: 1023px) {
   .game-shell { padding-bottom: calc(68px + env(safe-area-inset-bottom)); overflow-x: clip; }
   .game-shell[data-playing="true"] .hud-mode-switch { display: none; }

@@ -93,12 +93,13 @@ try {
     try {
       await resize(width);
       await page.goto(process.env.UI_TEST_URL || 'http://127.0.0.1:3000/', {waitUntil: 'networkidle0'});
-      await page.evaluate(({state, zones, triggered}) => {
+      await page.evaluate(({state, zones, triggered, showRouteHints}) => {
         localStorage.setItem('after_zero_v10_user_profile', 'Tab Regression');
         localStorage.setItem('after_zero_v10_save_state', JSON.stringify(state));
         localStorage.setItem('after_zero_v10_zone_populations', JSON.stringify(zones));
         localStorage.setItem('after_zero_v10_triggered_echoes', JSON.stringify(triggered));
-      }, {state, zones, triggered: [...DYNAMIC_NARRATIVE_EVENTS.map(event => event.id), 'world-timeline-day6-airdrop']});
+        localStorage.setItem('after_zero_v10_route_hints', String(showRouteHints));
+      }, {state, zones, showRouteHints: name === 'desktop-journal-map-shortcut', triggered: [...DYNAMIC_NARRATIVE_EVENTS.map(event => event.id), 'world-timeline-day6-airdrop']});
       await page.reload({waitUntil: 'networkidle0'});
       await click('เข้าสู่เกม');
       await click('โหลดเซฟเล่นต่อ');

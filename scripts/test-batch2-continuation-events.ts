@@ -51,7 +51,10 @@ function makeBaseContext(overrides: Partial<any> = {}): EventEvaluationContext {
   };
 
   const currentZonePop: ZonePopulationState = {
-    zoneId: gameState.place,
+    placeId: gameState.place,
+    placeName: gameState.place,
+    initialTotalPopulation: overrides.zoneNpcs?.length || 0,
+    unmetAnonymousSurvivors: 0,
     npcs: overrides.zoneNpcs || [],
   };
 
@@ -175,6 +178,8 @@ const ev4_2 = COMMUNITY_DYNAMIC_EVENTS.find(e => e.id === 'dyn_somjit_fever_woun
 const somjitAlive: ZoneNpc = {
   id: 'somjit_1',
   name: 'ป้าสมจิตร์',
+  age: 58,
+  lastNote: '',
   placeId: 'shelter',
   role: 'แม่ค้าอาหารตามสั่งเก่า',
   trait: 'ใจดี',
