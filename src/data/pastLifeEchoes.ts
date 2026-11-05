@@ -2104,6 +2104,17 @@ export function normalizeCanonicalMemory(mem: any) {
   };
 }
 
+export function sanitizeCanonicalStoryFlags(flags: any, knownCatalogFlags?: Record<string, any>) {
+  if (!flags || typeof flags !== 'object') return {};
+  const cleaned: Record<string, any> = {};
+  for (const [k, v] of Object.entries(flags)) {
+    if (!knownCatalogFlags || Object.hasOwn(knownCatalogFlags, k)) {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned;
+}
+
 /**
  * Helper สำหรับจำลองหรือประมวลผลผลลัพธ์ของ LifeSimModalEvent ลงใน gameState (ใช้ร่วมกันทั้งใน UI และการทดสอบจำลองสมดุล)
  */

@@ -79,6 +79,7 @@ import {
   getDailyWeatherAndZoneHazard,
   applyDailyWeatherAndZoneHazardTurn,
   normalizeCanonicalMemory,
+  sanitizeCanonicalStoryFlags,
 } from './data/pastLifeEchoes';
 import {
   AI_COLLABORATION_PROMPTS,
@@ -594,6 +595,9 @@ export default function App() {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
         parsed.memory = normalizeCanonicalMemory(parsed.memory);
+        if (parsed.story?.flags && window.AfterZeroEngine?.Production?.catalog?.FLAGS) {
+          parsed.story.flags = sanitizeCanonicalStoryFlags(parsed.story.flags, window.AfterZeroEngine.Production.catalog.FLAGS);
+        }
       }
       return window.AfterZeroEngine?.Production?.engine.validate(parsed).npcEncounter || null;
     }
@@ -647,6 +651,9 @@ export default function App() {
         const parsed = JSON.parse(savedRaw);
         if (parsed && typeof parsed === 'object') {
           parsed.memory = normalizeCanonicalMemory(parsed.memory);
+          if (parsed.story?.flags && prod.catalog?.FLAGS) {
+            parsed.story.flags = sanitizeCanonicalStoryFlags(parsed.story.flags, prod.catalog.FLAGS);
+          }
         }
         resolveSavedCharacter(parsed, localStorage.getItem(STORAGE_KEY_BIO_ID) || undefined, currentBio);
         const validated = prod.engine.validate(parsed);
@@ -906,6 +913,9 @@ export default function App() {
     if (!gameState) return null;
     const clone = structuredClone(gameState);
     clone.memory = normalizeCanonicalMemory(clone.memory);
+    if (clone.story?.flags && production?.catalog?.FLAGS) {
+      clone.story.flags = sanitizeCanonicalStoryFlags(clone.story.flags, production.catalog.FLAGS);
+    }
     if (clone.ending) {
       clone.pending = null;
       const derived = deriveDeathEndingPresentation(gameState, currentBio, {
@@ -1535,6 +1545,9 @@ export default function App() {
         if (flagKey) next.story.flags[flagKey] = true;
       }
     }
+    if (next.story?.flags && production?.catalog?.FLAGS) {
+      next.story.flags = sanitizeCanonicalStoryFlags(next.story.flags, production.catalog.FLAGS);
+    }
 
     if (eff.threatDelta && next.world?.locations?.[modalEvent.placeId]) {
       const loc = next.world.locations[modalEvent.placeId];
@@ -1842,6 +1855,9 @@ export default function App() {
     const next = structuredClone(effectiveGameState);
     delete next.npcEncounter;
     next.memory = normalizeCanonicalMemory(next.memory);
+    if (next.story?.flags && production.catalog?.FLAGS) {
+      next.story.flags = sanitizeCanonicalStoryFlags(next.story.flags, production.catalog.FLAGS);
+    }
     const res = production.engine.act(next, actionId);
     if (!res.ok) {
       if (soundEnabled) soundFx.warning();
@@ -1909,6 +1925,10 @@ export default function App() {
     if (!production || !effectiveGameState || !effectiveGameState.pending) return;
     const before = structuredClone(effectiveGameState);
     const next = structuredClone(effectiveGameState);
+    next.memory = normalizeCanonicalMemory(next.memory);
+    if (next.story?.flags && production.catalog?.FLAGS) {
+      next.story.flags = sanitizeCanonicalStoryFlags(next.story.flags, production.catalog.FLAGS);
+    }
     const event = production.catalog.EVENTS.find(entry => entry.id === next.pending.eventId);
     const chosen = event?.choices[choiceIndex];
     const res = production.engine.choose(next, choiceIndex, next.pending.instanceId);
@@ -2056,6 +2076,9 @@ export default function App() {
       const rawState = parsed.gameState || parsed;
       if (rawState && typeof rawState === 'object') {
         rawState.memory = normalizeCanonicalMemory(rawState.memory);
+        if (rawState.story?.flags && production.catalog?.FLAGS) {
+          rawState.story.flags = sanitizeCanonicalStoryFlags(rawState.story.flags, production.catalog.FLAGS);
+        }
       }
       const validated = production.engine.validate(rawState);
       validated.memory = normalizeCanonicalMemory(validated.memory);
