@@ -1,4 +1,4 @@
-import {endingMetrics} from './endingPresentation';
+import {endingMetrics, isPilotEnding, tailorPilotEndingPresentation} from './endingPresentation';
 import {
   ORGANIC_ENDING_CLIMAX_EVENTS,
   EXTERNAL_AI_ROAM_EVENTS,
@@ -478,7 +478,7 @@ export const CHARACTER_BIO_DOSSIERS: CharacterBioDossier[] = [
     fullNameHint: 'พวงกุญแจเหล็กของรปภ.ตึกแถว',
     age: 38,
     gender: 'ชาย',
-    occupation: 'คนเฝ้ายามอาคารพาณิชย์ใกล้ถนนหมายเลขศูนย์',
+    occupation: 'คนเฝ้ายามอาคารพาณิชย์ใกล้ถนนพระราม 4–อโศก',
     clothingClue: 'เสื้อเชิ้ตเครื่องแบบสีกรมท่าที่กระดุมหลุดหายไปครึ่งแถว',
     personalItemClue: 'ไฟฉายกระบอกเหล็กที่เลนส์ร้าวและนกหวีดทองเหลือง',
     signatureItemName: 'พวงกุญแจมาสเตอร์คีย์ & ไฟฉายกระบอกเหล็ก',
@@ -655,11 +655,18 @@ export function deriveCauseOfDeath(
       causeHint !== 'starvation');
 
   // 1. Bombardment (Day 120 Operation Firestorm / Bombed / Survivor on Day 120)
+  const isExplicitNonBombardmentDeath =
+    endingId === 'death' &&
+    (['human_attack', 'attack', 'killed_by_humans', 'hypothermia', 'environmental', 'starvation', 'fatal_trauma'].includes(causeHint) ||
+      isHumanAttackContext ||
+      isColdOrRainContext ||
+      hunger >= 85 ||
+      starvationDays >= 2);
   if (
     causeHint === 'bombardment' ||
     endingId === 'bombed' ||
-    (endingId === 'survivor' && day >= 120) ||
-    (endingId === 'death' && day >= 120)
+    endingId === 'survivor' ||
+    (endingId === 'death' && day >= 120 && !isExplicitNonBombardmentDeath)
   ) {
     return {
       code: 'BOMBARDMENT',
@@ -973,13 +980,13 @@ export function deriveCauseOfDeath(
   return {
     code: 'SURVIVAL_RESOLUTION',
     categoryLabel: 'Chronicle Resolution · บทสรุปชะตากรรม',
-    title: matched?.title || state?.ending?.title || 'สิ้นสุดบันทึกการเดินทางในเขตศูนย์',
+    title: matched?.title || state?.ending?.title || 'สิ้นสุดบันทึกการเดินทางในเขตกักกันกรุงเทพฯ',
     description:
       matched?.desc ||
       state?.ending?.text ||
       'เรื่องราวของร่างนี้ในเขตกักกันกรุงเทพฯ ได้เดินทางมาถึงบทสรุปสุดท้าย',
     badgeColor: 'lime',
-    narrativeTitle: matched?.title || state?.ending?.title || 'สิ้นสุดบันทึกการเดินทางในเขตศูนย์',
+    narrativeTitle: matched?.title || state?.ending?.title || 'สิ้นสุดบันทึกการเดินทางในเขตกักกันกรุงเทพฯ',
     narrativeText:
       matched?.desc ||
       state?.ending?.text ||
@@ -1000,9 +1007,34 @@ export function deriveDeathEndingPresentation(
     text?: string;
     causeCode?: string;
     surrendered?: boolean;
-  }
+  },
+  zonePopulations?: Record<string, ZonePopulationState>
 ): DeathEndingNarrative {
   const cause = deriveCauseOfDeath(state, customEndingOverride);
+  const endingId = customEndingOverride?.id || state?.ending?.id || '';
+  const effectiveZones = zonePopulations || state?.npcZones;
+
+  // สำหรับฉากจบ Pilot (king, human, escape_companion) ให้เล่าเรื่องตามการกระทำจริงของผู้เล่น
+  if (isPilotEnding(endingId)) {
+    const tailored = tailorPilotEndingPresentation({
+      endingId,
+      state,
+      zones: effectiveZones,
+      bio,
+      customOverride: customEndingOverride,
+    });
+    const finalCause = {
+      ...cause,
+      narrativeTitle: tailored.title,
+      narrativeText: tailored.text,
+      description: tailored.text,
+    };
+    return {
+      cause: finalCause,
+      title: tailored.title,
+      text: tailored.text,
+    };
+  }
 
   // สำหรับฉากจบสำเร็จ/ตั้งหลัก (Survival Resolution) ให้รักษาข้อความดั้งเดิมไว้
   if (cause.code === 'SURVIVAL_RESOLUTION') {
@@ -1056,7 +1088,7 @@ export function buildPastLifeRecordFromState(
   const f = state?.story?.flags || {};
   const mali = state?.world?.npcs?.['remnant.mali'];
   const endingId = customEndingOverride?.id || state?.ending?.id || 'death';
-  const presentation = deriveDeathEndingPresentation(state, bio, customEndingOverride);
+  const presentation = deriveDeathEndingPresentation(state, bio, customEndingOverride, state?.npcZones);
   const causeOfDeath = presentation.cause;
   const endingTitle = presentation.title;
 
@@ -1222,7 +1254,7 @@ export function getOrganicEchoPopupForLocation(
           fromLifeNumber: life.lifeNumber,
           placeId: 'streets',
           title: 'ป้ายเตือนภัยที่เขียนด้วยสีสเปรย์สดใหม่',
-          text: `บนกำแพงตึกแถวริมถนนหมายเลขศูนย์ มีข้อความสีสเปรย์พ่นเตือนไว้เร่งด่วนว่า "ระวัง! มีผู้ติดเชื้อที่ใส่${cloth} ซุ่มล่าคนเป็นแถวแยกนี้ มันไม่ได้เดินทื่อๆ เหมือนตัวอื่น!" ข้างใต้กำแพงยังมีเศษ${itemClue}ตกอยู่ท่ามกลางรอยเลือดแห้ง`,
+          text: `บนกำแพงตึกแถวริมถนนพระราม 4–อโศก มีข้อความสีสเปรย์พ่นเตือนไว้เร่งด่วนว่า "ระวัง! มีผู้ติดเชื้อที่ใส่${cloth} ซุ่มล่าคนเป็นแถวแยกนี้ มันไม่ได้เดินทื่อๆ เหมือนตัวอื่น!" ข้างใต้กำแพงยังมีเศษ${itemClue}ตกอยู่ท่ามกลางรอยเลือดแห้ง`,
           choices: [
             {
               text: 'อ่านข้อความเตือนนั้นเงียบๆ แล้วเปลี่ยนเส้นทางหลบสายตาคนเป็น',
@@ -1325,7 +1357,7 @@ export function getFixedWorldTimelineEvent(
     if (!triggeredIds.includes(id)) {
       return {
         id,
-        title: '18 ตุลาคม · ฝนเขม่าสีดำโปรยปรายลงมาทั่วเขตศูนย์',
+        title: '18 ตุลาคม · ฝนเขม่าสีดำโปรยปรายลงมาทั่วเขตกักกันกรุงเทพฯ',
         text: 'ท้องฟ้าเหนือเมืองมืดครึ้มลงตั้งแต่เช้ามืดของวันที่ 18 ตุลาคม สายฝนที่ปนเปื้อนเขม่าควันและละอองเชื้อโปรยลงมาทำให้ผู้รอดชีวิตทุกคนต้องรีบหลบเข้าอาคาร ในขณะที่เชื้อเรืองแสงตามแอ่งน้ำเริ่มปะทุชัดเจนขึ้น',
         dayNote: 'สภาพอากาศประจำไทม์ไลน์วันที่ 18 ตุลาคม (ไม่เสียวันเพิ่ม)',
         placeId: place,
@@ -1357,15 +1389,15 @@ export function getFixedWorldTimelineEvent(
     }
   }
 
-  // วันที่ 6 (20 ตุลาคม): เฮลิคอปเตอร์ลำเลียงทิ้งร่มชูชีพกล่องเวชภัณฑ์ที่ถนนหมายเลขศูนย์
+  // วันที่ 6 (20 ตุลาคม): เฮลิคอปเตอร์ลำเลียงทิ้งร่มชูชีพกล่องเวชภัณฑ์ที่ถนนพระราม 4–อโศก
   if (day === 6) {
     const id = 'world-timeline-day6-airdrop';
     if (!triggeredIds.includes(id)) {
       if (place === 'streets') {
         return {
           id,
-          title: '20 ตุลาคม · ร่มชูชีพเสบียงฉุกเฉินร่วงลงกลางถนนหมายเลขศูนย์!',
-          text: 'เสียงใบพัดเฮลิคอปเตอร์ดังกึกก้องเหนือหัว ก่อนที่กล่องเหล็กติดร่มชูชีพสีส้มจะร่วงลงมาค้างอยู่ตรงเสาไฟของถนนหมายเลขศูนย์ตรงหน้าเจ้าพอดี! ภายในมีทั้งเสบียงอาหารกระป๋อง ชุดเย็บแผล และถุงเลือดสำรองแช่เย็น',
+          title: '20 ตุลาคม · ร่มชูชีพเสบียงฉุกเฉินร่วงลงกลางถนนพระราม 4–อโศก!',
+          text: 'เสียงใบพัดเฮลิคอปเตอร์ดังกึกก้องเหนือหัว ก่อนที่กล่องเหล็กติดร่มชูชีพสีส้มจะร่วงลงมาค้างอยู่ตรงเสาไฟของถนนพระราม 4–อโศกตรงหน้าเจ้าพอดี! ภายในมีทั้งเสบียงอาหารกระป๋อง ชุดเย็บแผล และถุงเลือดสำรองแช่เย็น',
           dayNote: 'เหตุการณ์ประจำไทม์ไลน์วันที่ 20 ตุลาคม (ไม่เสียวันเพิ่ม)',
           placeId: place,
           advanceDay: false,
@@ -1374,7 +1406,7 @@ export function getFixedWorldTimelineEvent(
               text: 'เปิดกล่องร่มชูชีพเก็บเสบียง ชุดเย็บแผล และถุงเลือดพกพาใส่กระเป๋าทั้งหมด',
               note: 'เสบียงมนุษย์ +2 · ชุดเย็บแผล +1 · ถุงเลือดพกพา +1',
               enabled: true,
-              outcomeText: 'การอยู่บนถนนหมายเลขศูนย์ในวันที่ 20 ตุลาคม ทำให้เจ้าได้ครอบครองกล่องเสบียงทางอากาศทั้งหมด!',
+              outcomeText: 'การอยู่บนถนนพระราม 4–อโศกในวันที่ 20 ตุลาคม ทำให้เจ้าได้ครอบครองกล่องเสบียงทางอากาศทั้งหมด!',
               effects: {
                 supplies: 2,
                 medicine: 1,
@@ -1385,7 +1417,7 @@ export function getFixedWorldTimelineEvent(
               text: 'เก็บเฉพาะถุงเลือดพกพา แล้วเคาะสัญญาณเรียกผู้รอดชีวิตบนถนนมารับอาหารและยาไป',
               note: 'ถุงเลือดพกพา +1 · ความไว้ใจของทุกคนบนถนน +35 · ความเห็นใจ +10',
               enabled: true,
-              outcomeText: 'ผู้รอดชีวิตบนถนนหมายเลขศูนย์ซาบซึ้งที่เจ้ายอมแบ่งกล่องร่มชูชีพให้ ความไว้ใจในเขตถนนพุ่งสูงขึ้นทันที',
+              outcomeText: 'ผู้รอดชีวิตบนถนนพระราม 4–อโศกซาบซึ้งที่เจ้ายอมแบ่งกล่องร่มชูชีพให้ ความไว้ใจในเขตถนนพุ่งสูงขึ้นทันที',
               effects: {
                 carriedBloodBags: 1,
                 humanity: 10,
@@ -1397,17 +1429,17 @@ export function getFixedWorldTimelineEvent(
       } else {
         return {
           id,
-          title: '20 ตุลาคม · เฮลิคอปเตอร์บินผ่านไปทิ้งร่มชูชีพที่ "ถนนหมายเลขศูนย์"',
-          text: 'เจ้าแหงนมองขึ้นไปบนฟ้า เห็นเฮลิคอปเตอร์ลำเลียงบินฝ่าเมฆหมอกไปปล่อยร่มชูชีพกล่องเสบียงสีส้มลงตรงบริเวณ "ถนนหมายเลขศูนย์" ก่อนจะบินลับขอบฟ้าไป น่าเสียดายที่วันนี้เจ้าไม่ได้อยู่ที่ถนนสายนั้น...',
+          title: '20 ตุลาคม · เฮลิคอปเตอร์บินผ่านไปทิ้งร่มชูชีพที่ "ถนนพระราม 4–อโศก"',
+          text: 'เจ้าแหงนมองขึ้นไปบนฟ้า เห็นเฮลิคอปเตอร์ลำเลียงบินฝ่าเมฆหมอกไปปล่อยร่มชูชีพกล่องเสบียงสีส้มลงตรงบริเวณ "ถนนพระราม 4–อโศก" ก่อนจะบินลับขอบฟ้าไป น่าเสียดายที่วันนี้เจ้าไม่ได้อยู่ที่ถนนสายนั้น...',
           dayNote: 'เหตุการณ์ประจำไทม์ไลน์วันที่ 20 ตุลาคม (ไม่เสียวันเพิ่ม)',
           placeId: place,
           advanceDay: false,
           choices: [
             {
-              text: 'จดจำไว้ว่าวันที่ 20 ตุลาคม จะมีร่มชูชีพเสบียงตกที่ถนนหมายเลขศูนย์',
+              text: 'จดจำไว้ว่าวันที่ 20 ตุลาคม จะมีร่มชูชีพเสบียงตกที่ถนนพระราม 4–อโศก',
               note: 'สติ +3 · เบาะแสสำคัญของไทม์ไลน์วันที่ 20 ตุลาคม',
               enabled: true,
-              outcomeText: 'เจ้าจำตำแหน่งและวันที่ร่มชูชีพตกไว้ในใจ (20 ตุลาคม · ถนนหมายเลขศูนย์)',
+              outcomeText: 'เจ้าจำตำแหน่งและวันที่ร่มชูชีพตกไว้ในใจ (20 ตุลาคม · ถนนพระราม 4–อโศก)',
               effects: {
                 sanity: 3,
               },
@@ -2120,17 +2152,375 @@ export function sanitizeCanonicalStoryFlags(flags: any, knownCatalogFlags?: Reco
   return cleaned;
 }
 
+const ENGINE_TRAIT_MODIFIERS: Record<
+  string,
+  { healingMultiplier?: number; hungerDailyDelta?: number; travelHpCost?: number; scavengeHpCost?: number }
+> = {
+  thick_hide: { travelHpCost: -1 },
+  frail_vessel: { healingMultiplier: 0.85 },
+  slow_metabolism: { hungerDailyDelta: -1 },
+  restless_hunger: { hungerDailyDelta: 1 },
+  predator_gait: { travelHpCost: -1, scavengeHpCost: -1 },
+  savage_maw: { hungerDailyDelta: 2 },
+  rot_resilience: { healingMultiplier: 1.25, hungerDailyDelta: -2 },
+};
+
+const ENGINE_INJURY_RULES: Record<
+  string,
+  { name: string; travelHpCost?: number; scavengeHpCost?: number; healingMultiplier?: number; dailyHpCost?: number }
+> = {
+  leg_wound: { name: 'แผลที่ขา', travelHpCost: 3 },
+  arm_wound: { name: 'แผลที่แขน', scavengeHpCost: 2 },
+  torn_tissue: { name: 'เนื้อเยื่อฉีกขาด', healingMultiplier: 0.8, dailyHpCost: 1 },
+};
+
+export function collectEngineSurvivalModifiers(gameState: any): {
+  healingMultiplier: number;
+  hungerDailyDelta: number;
+  travelHpCost: number;
+  scavengeHpCost: number;
+} {
+  const out = { healingMultiplier: 1, hungerDailyDelta: 0, travelHpCost: 0, scavengeHpCost: 0 };
+  const traitIds = [
+    ...(Array.isArray(gameState?.bodyTraits) ? gameState.bodyTraits : []),
+    ...(Array.isArray(gameState?.evolution?.acquired) ? gameState.evolution.acquired : []),
+  ];
+  for (const id of traitIds) {
+    const mod = ENGINE_TRAIT_MODIFIERS[id];
+    if (!mod) continue;
+    if (typeof mod.healingMultiplier === 'number') out.healingMultiplier *= mod.healingMultiplier;
+    if (typeof mod.hungerDailyDelta === 'number') out.hungerDailyDelta += mod.hungerDailyDelta;
+    if (typeof mod.travelHpCost === 'number') out.travelHpCost += mod.travelHpCost;
+    if (typeof mod.scavengeHpCost === 'number') out.scavengeHpCost += mod.scavengeHpCost;
+  }
+  return out;
+}
+
+export function computeEngineSurvivalDayPolicy(
+  gameState: any,
+  overrideHunger?: number
+): {
+  hunger: number;
+  starvationDays: number;
+  ceiling: number;
+  hungerDamage: number;
+  woundDamage: number;
+  healingMultiplier: number;
+} {
+  const clamp = (n: number, max: number) => Math.max(0, Math.min(max, n));
+  const m = collectEngineSurvivalModifiers(gameState);
+  const currentHunger = clamp(Number(overrideHunger ?? gameState?.stats?.hunger ?? 0), 100);
+  const nextHunger = clamp(currentHunger + Math.max(1, 8 + m.hungerDailyDelta), 100);
+  const previousStarvationDays = clamp(Number(gameState?.body?.starvationDays ?? 0), MAX_BOMBING_DAY);
+  const starving = nextHunger >= 85;
+  const starvationDays = clamp(
+    starving ? previousStarvationDays + 1 : nextHunger < 75 ? previousStarvationDays - 2 : previousStarvationDays,
+    MAX_BOMBING_DAY
+  );
+  const baseDamage = nextHunger >= 100 ? 20 : nextHunger >= 85 ? 10 : 0;
+  const chronicDamage = starving ? Math.min(12, Math.max(0, starvationDays - 1) * 2) : 0;
+  const tierCeiling = nextHunger >= 100 ? 40 : nextHunger >= 85 ? 60 : nextHunger >= 75 ? 80 : 100;
+  const ceiling = Math.max(0, Math.min(tierCeiling, 100 - starvationDays * 15));
+  const injuries: Array<{ id: string; severity: number }> = Array.isArray(gameState?.body?.injuries)
+    ? gameState.body.injuries
+    : [];
+  let woundDamage = 0;
+  let healingMultiplier = m.healingMultiplier;
+  for (const inj of injuries) {
+    const rule = ENGINE_INJURY_RULES[inj.id];
+    if (!rule) continue;
+    const sev = Math.max(1, Math.min(3, Number(inj.severity || 1)));
+    if (rule.dailyHpCost) woundDamage += rule.dailyHpCost * sev;
+    if (rule.healingMultiplier) healingMultiplier *= Math.pow(rule.healingMultiplier, sev);
+  }
+  return {
+    hunger: nextHunger,
+    starvationDays,
+    ceiling,
+    hungerDamage: baseDamage + chronicDamage,
+    woundDamage,
+    healingMultiplier,
+  };
+}
+
+export function applyEngineSurvivalEndDayToState(gameState: any): {
+  hunger: number;
+  starvationDays: number;
+  ceiling: number;
+  hungerDamage: number;
+  woundDamage: number;
+  healingMultiplier: number;
+} {
+  if (!gameState.stats || typeof gameState.stats !== 'object') {
+    gameState.stats = { hp: 85, hunger: 30, sanity: 72, humanity: 65, trust: 0, mutation: 0, horde: 0, research: 0, campaign: 0, instinct: 20 };
+  }
+  if (!gameState.body || typeof gameState.body !== 'object') {
+    gameState.body = { starvationDays: 0, injuries: [] };
+  }
+  if (!Array.isArray(gameState.body.injuries)) {
+    gameState.body.injuries = [];
+  }
+  const previousStarvationDays = Number(gameState.body.starvationDays || 0);
+  const policy = computeEngineSurvivalDayPolicy(gameState);
+  const damage = policy.hungerDamage + policy.woundDamage;
+  const hpBeforeDamage = Number(gameState.stats.hp || 0);
+
+  gameState.stats.hunger = policy.hunger;
+  gameState.stats.sanity = Math.max(0, Math.min(100, Number(gameState.stats.sanity || 0) - 1));
+  gameState.body.starvationDays = policy.starvationDays;
+  if (damage > 0) {
+    gameState.stats.hp = Math.max(0, hpBeforeDamage - Math.min(hpBeforeDamage, damage));
+  }
+
+  const pushLog = (text: string, kind: 'danger' | 'routine' = 'danger') => {
+    if (!Array.isArray(gameState.log)) gameState.log = [];
+    gameState.serial = Number(gameState.serial || 0) + 1;
+    gameState.log = [
+      { id: gameState.serial, day: gameState.day || 1, text, kind },
+      ...gameState.log,
+    ].slice(0, 70);
+  };
+
+  if (policy.hungerDamage > 0) {
+    pushLog(
+      `ความหิวกัดกินร่าง · อดสะสม ${policy.starvationDays} วัน · สุขภาพ -${policy.hungerDamage} · เพดานฟื้นร่าง ${policy.ceiling}`,
+      'danger'
+    );
+  }
+  if (policy.woundDamage > 0) {
+    pushLog(`เนื้อเยื่อฉีกขาด · สุขภาพ -${policy.woundDamage}`, 'danger');
+  }
+  if (policy.starvationDays < previousStarvationDays) {
+    pushLog(
+      `ได้รับสารอาหารพอประทัง · อดสะสมเหลือ ${policy.starvationDays} วัน · เพดานฟื้นร่าง ${policy.ceiling}`,
+      'routine'
+    );
+  }
+  if (policy.hunger < 75 && hpBeforeDamage - damage >= 60 && gameState.body.injuries.length > 0) {
+    const updatedInjuries: Array<{ id: string; severity: number }> = [];
+    for (const inj of gameState.body.injuries) {
+      const rule = ENGINE_INJURY_RULES[inj.id];
+      if (!rule) continue;
+      const nextSeverity = Number(inj.severity || 1) - 1;
+      if (nextSeverity > 0) {
+        updatedInjuries.push({ id: inj.id, severity: nextSeverity });
+      }
+      pushLog(
+        `${rule.name} ฟื้นตัว · ${nextSeverity > 0 ? `เหลือระดับ ${nextSeverity}` : 'แผลปิดแล้ว'}`,
+        'routine'
+      );
+    }
+    gameState.body.injuries = updatedInjuries;
+  }
+
+  return policy;
+}
+
+export function applyFinalEndingToState(
+  gameState: any,
+  endingId: string,
+  day: number,
+  causeCode?: string,
+  currentBio?: CharacterBioDossier
+): void {
+  const safeDay = Math.max(1, Math.min(MAX_BOMBING_DAY, Number(day || gameState.day || 1)));
+  gameState.day = safeDay;
+  gameState.pending = null;
+  if (gameState.lifecycle && typeof gameState.lifecycle === 'object') {
+    gameState.lifecycle.activeTurn = null;
+  }
+  delete gameState.npcEncounter;
+
+  const derived = deriveDeathEndingPresentation(gameState, currentBio, {
+    id: endingId,
+    causeCode,
+  });
+  gameState.ending = {
+    id: endingId,
+    day: safeDay,
+    title: derived.title,
+    text: derived.text,
+    causeCode: derived.cause.code.toLowerCase(),
+    causeOfDeath: derived.cause,
+  };
+}
+
+export interface SharedTurnResolutionOptions {
+  consumesDay: boolean;
+  endingCandidate?: string;
+  currentBio?: CharacterBioDossier;
+  runSurvivalEndDay?: boolean;
+  runEnvironmentHazard?: boolean;
+  countersAlreadyCommitted?: boolean;
+  isColdContext?: boolean;
+  isAttackContext?: boolean;
+  diedBeforeEndDayOverride?: boolean;
+}
+
+export function resolveSharedActivityTurn(
+  gameState: any,
+  beforeState: any,
+  options: SharedTurnResolutionOptions
+): HazardTurnAttackResult {
+  const currentDay = Math.max(1, Math.min(MAX_BOMBING_DAY, Number(beforeState?.day || gameState?.day || 1)));
+  let hazardRes: HazardTurnAttackResult = {
+    attacked: false,
+    chancePercent: 0,
+    localThreat: 20,
+  };
+
+  if (!options.consumesDay) {
+    // Non-day-consuming activity:
+    // 1. Does NOT advance day or completedDays.
+    // 2. Resets feralDays if sanity > 0, never increments feralDays.
+    if (Number(gameState.stats?.sanity ?? 0) > 0) {
+      gameState.feralDays = 0;
+    } else {
+      gameState.feralDays = Number(beforeState?.feralDays ?? gameState.feralDays ?? 0);
+    }
+
+    // Immediate ending checks on non-day-consuming activity:
+    // Priority 1: HP <= 0 -> immediate death
+    if (Number(gameState.stats?.hp ?? 0) <= 0) {
+      const inferredCauseCode = options.isAttackContext
+        ? 'human_attack'
+        : options.isColdContext
+        ? 'hypothermia'
+        : Number(gameState.stats?.hunger ?? 0) >= 85 || Number(gameState.body?.starvationDays ?? 0) >= 2
+        ? 'starvation'
+        : 'fatal_trauma';
+      applyFinalEndingToState(gameState, 'death', currentDay, inferredCauseCode, options.currentBio);
+      return hazardRes;
+    }
+
+    // Priority 3: Confirmed ending candidate (only if not dead and not feral)
+    if (options.endingCandidate && Number(gameState.feralDays ?? 0) < 3) {
+      applyFinalEndingToState(
+        gameState,
+        options.endingCandidate,
+        currentDay,
+        options.endingCandidate === 'bombed' ? 'bombardment' : undefined,
+        options.currentBio
+      );
+    }
+    return hazardRes;
+  }
+
+  // Day-consuming activity:
+  const diedBeforeEndDay =
+    options.diedBeforeEndDayOverride !== undefined
+      ? options.diedBeforeEndDayOverride
+      : Number(gameState.stats?.hp ?? 0) <= 0;
+
+  let survivalPolicy = computeEngineSurvivalDayPolicy(gameState);
+  if (!diedBeforeEndDay) {
+    if (options.runSurvivalEndDay !== false) {
+      survivalPolicy = applyEngineSurvivalEndDayToState(gameState);
+    }
+    // Daily mutation regeneration (only if still alive after daily hunger/wound damage, capped by healing ceiling)
+    if (Number(gameState.stats?.hp ?? 0) > 0) {
+      const mutStage = getMutationStageInfo(Number(gameState.stats?.mutation ?? 0));
+      if (mutStage.dailyHpRegen > 0) {
+        const scaledRegen = Math.floor(mutStage.dailyHpRegen * survivalPolicy.healingMultiplier);
+        const maxRoom = Math.max(0, survivalPolicy.ceiling - Number(gameState.stats.hp || 0));
+        const actualRegen = Math.max(0, Math.min(scaledRegen, maxRoom));
+        if (actualRegen > 0) {
+          gameState.stats.hp = Math.min(100, Number(gameState.stats.hp || 0) + actualRegen);
+        }
+      }
+    }
+    // Daily weather & zone hazard turn
+    if (Number(gameState.stats?.hp ?? 0) > 0 && options.runEnvironmentHazard) {
+      hazardRes = applyDailyWeatherAndZoneHazardTurn(gameState, beforeState, { forceDayConsumed: true });
+    }
+  }
+
+  if (!options.countersAlreadyCommitted) {
+    gameState.completedDays = Math.min(MAX_BOMBING_DAY, Number(gameState.completedDays || 0) + 1);
+    gameState.feralDays =
+      Number(gameState.stats?.sanity ?? 0) <= 0
+        ? Math.min(MAX_BOMBING_DAY, Number(gameState.feralDays || 0) + 1)
+        : 0;
+  }
+
+  // Strict Ending Priority Order (Policy #5):
+  // 1. Death from HP <= 0
+  if (Number(gameState.stats?.hp ?? 0) <= 0) {
+    const weather = gameState.story?.flags?.['next.weather'];
+    const isRainOutdoor =
+      weather === 'rain' &&
+      ['streets', 'radio', 'tower', 'nest'].includes(String(gameState.place || '')) &&
+      Number(gameState.stats?.hunger ?? 0) < 85 &&
+      Number(gameState.body?.starvationDays ?? 0) < 2;
+    const inferredCauseCode =
+      hazardRes.attacked || options.isAttackContext
+        ? 'human_attack'
+        : options.isColdContext
+        ? 'hypothermia'
+        : !diedBeforeEndDay &&
+          (Number(gameState.stats?.hunger ?? 0) >= 85 || Number(gameState.body?.starvationDays ?? 0) >= 2)
+        ? 'starvation'
+        : isRainOutdoor
+        ? 'hypothermia'
+        : 'fatal_trauma';
+    applyFinalEndingToState(gameState, 'death', currentDay, inferredCauseCode, options.currentBio);
+    return hazardRes;
+  }
+
+  // 2. Feral from sanity === 0 for 3 consecutive completed days
+  if (Number(gameState.feralDays ?? 0) >= 3) {
+    const feralCauseCode =
+      Number(gameState.stats?.hunger ?? 0) >= 85 || Number(gameState.body?.starvationDays ?? 0) >= 2
+        ? 'starvation'
+        : 'feral_madness';
+    applyFinalEndingToState(gameState, 'feral', currentDay, feralCauseCode, options.currentBio);
+    return hazardRes;
+  }
+
+  // 3. Confirmed player ending that passed requirements
+  if (options.endingCandidate) {
+    applyFinalEndingToState(
+      gameState,
+      options.endingCandidate,
+      currentDay,
+      options.endingCandidate === 'bombed' ? 'bombardment' : undefined,
+      options.currentBio
+    );
+    return hazardRes;
+  }
+
+  // 4. Day 120 bombardment deadline after completing Day 120's day-consuming activity
+  if (currentDay >= MAX_BOMBING_DAY) {
+    applyFinalEndingToState(gameState, 'bombed', currentDay, 'bombardment', options.currentBio);
+    return hazardRes;
+  }
+
+  // 5. Otherwise advance to the next day
+  gameState.day = Math.min(MAX_BOMBING_DAY, currentDay + 1);
+  return hazardRes;
+}
+
 /**
  * Helper สำหรับจำลองหรือประมวลผลผลลัพธ์ของ LifeSimModalEvent ลงใน gameState (ใช้ร่วมกันทั้งใน UI และการทดสอบจำลองสมดุล)
  */
 export function applyLifeSimModalEffectsToState(
   gameState: any,
   modalEvent: LifeSimModalEvent,
-  choiceIndex: number
+  choiceIndex: number,
+  options?: {
+    currentBio?: CharacterBioDossier;
+    runEnvironmentHazard?: boolean;
+    canonicalPlaceId?: string;
+    onBeforeTurnResolve?: (nextState: any, beforeState: any, choice: LifeSimModalEvent['choices'][number]) => void;
+    onHazardResult?: (hazardRes: HazardTurnAttackResult) => void;
+  }
 ): any {
   const choice = modalEvent.choices[choiceIndex];
   if (!choice || !choice.enabled) return gameState;
-  const eff = choice.effects;
+  const eff = choice.effects || {};
+  const beforeState = JSON.parse(JSON.stringify(gameState));
+  const currentDay = Math.max(1, Math.min(MAX_BOMBING_DAY, Number(gameState.day || 1)));
+  const consumesDay = modalEvent.advanceDay !== false;
 
   if (!gameState.story || typeof gameState.story !== 'object') {
     gameState.story = { flags: {} };
@@ -2152,12 +2542,26 @@ export function applyLifeSimModalEffectsToState(
     }
   }
 
-  if (modalEvent.advanceDay !== false) {
-    gameState.day = (gameState.day || 1) + 1;
-    const mutStage = getMutationStageInfo(gameState.stats?.mutation || 0);
-    if (mutStage.dailyHpRegen > 0 && (gameState.stats?.hp || 0) > 0) {
-      gameState.stats.hp = Math.min(100, (gameState.stats.hp || 0) + mutStage.dailyHpRegen);
+  // Roam cooldown handling
+  const contentId = modalEvent.contentId || modalEvent.id.replace(/-\d+.*$/, '');
+  if (modalEvent.cooldownDays && modalEvent.cooldownDays > 0) {
+    if (!gameState.roamCooldowns || typeof gameState.roamCooldowns !== 'object') {
+      gameState.roamCooldowns = {};
     }
+    const baseCooldownDay = consumesDay ? Math.min(MAX_BOMBING_DAY, currentDay + 1) : currentDay;
+    gameState.roamCooldowns[contentId] = baseCooldownDay + modalEvent.cooldownDays;
+  }
+
+  // Event 23 (Wreck pile parts depletion)
+  if ((choice as any).partKey) {
+    const part = (choice as any).partKey;
+    const currentDepleted = Array.isArray(gameState.asokWreckDepletedParts)
+      ? [...gameState.asokWreckDepletedParts]
+      : [];
+    if (!currentDepleted.includes(part)) {
+      currentDepleted.push(part);
+    }
+    gameState.asokWreckDepletedParts = currentDepleted;
   }
 
   const applyClamped = (key: string, delta?: number, max = 100) => {
@@ -2165,8 +2569,21 @@ export function applyLifeSimModalEffectsToState(
     gameState.stats[key] = Math.min(max, Math.max(0, (gameState.stats[key] || 0) + delta));
   };
 
-  applyClamped('hp', eff.hp, 100);
+  // Apply hunger first so healing ceiling reflects feeding from this choice
   applyClamped('hunger', eff.hunger, 100);
+
+  if (eff.hp) {
+    if (eff.hp > 0) {
+      const policy = computeEngineSurvivalDayPolicy(gameState, gameState.stats.hunger);
+      const scaledHeal = Math.floor(eff.hp * policy.healingMultiplier);
+      const maxRoom = Math.max(0, policy.ceiling - Number(gameState.stats.hp || 0));
+      const actualHeal = Math.max(0, Math.min(scaledHeal, maxRoom));
+      applyClamped('hp', actualHeal, 100);
+    } else {
+      applyClamped('hp', eff.hp, 100);
+    }
+  }
+
   applyClamped('sanity', eff.sanity, 100);
   applyClamped('humanity', eff.humanity, 100);
   applyClamped('mutation', eff.mutation, 100);
@@ -2197,6 +2614,40 @@ export function applyLifeSimModalEffectsToState(
   }
   if (eff.carriedBloodBags) {
     gameState.carriedBloodBags = Math.max(0, (gameState.carriedBloodBags || 0) + eff.carriedBloodBags);
+  }
+
+  const placeKey =
+    options?.canonicalPlaceId ||
+    (modalEvent.placeId === 'tower' ? 'radio' : modalEvent.placeId || gameState.place || 'shelter');
+  if (eff.threatDelta && gameState.world?.locations?.[placeKey]) {
+    const loc = gameState.world.locations[placeKey];
+    loc.threat = Math.min(100, Math.max(0, (loc.threat || 20) + eff.threatDelta));
+  }
+
+  if (options?.onBeforeTurnResolve) {
+    options.onBeforeTurnResolve(gameState, beforeState, choice);
+  }
+
+  const modalTextCombined = `${modalEvent.title || ''} ${modalEvent.text || ''} ${choice.outcomeText || ''}`;
+  const isColdModalContext =
+    modalEvent.id.includes('black_rain') ||
+    /ฝนเขม่า|ฝนกรด|พายุฝน|หนาวสั่น|เย็นเฉียบ|อุณหภูมิร่างกายลด|ตู้แช่/.test(modalTextCombined);
+  const isAttackModalContext =
+    Boolean(eff.killTargetNpc) ||
+    /ยิง|กระสุน|ทหาร|แทง|อาวุธ|ปะทะ/.test(modalTextCombined);
+
+  const hazardRes = resolveSharedActivityTurn(gameState, beforeState, {
+    consumesDay,
+    endingCandidate: eff.triggerEndingId,
+    currentBio: options?.currentBio,
+    runSurvivalEndDay: true,
+    runEnvironmentHazard: Boolean(options?.runEnvironmentHazard),
+    isColdContext: isColdModalContext,
+    isAttackContext: isAttackModalContext,
+  });
+
+  if (options?.onHazardResult) {
+    options.onHazardResult(hazardRes);
   }
 
   return gameState;
@@ -2597,6 +3048,24 @@ export function syncZonePopulationsWithEngineState(
       }
     });
     materializeZoneResidents(zone, gameState.initialSeed || 1);
+  }
+
+  if (next.radio && next.tower) {
+    for (const radioNpc of next.radio.npcs) {
+      const towerNpc = next.tower.npcs.find(n => n.id === radioNpc.id || n.name === radioNpc.name);
+      if (!towerNpc) continue;
+      if (!towerNpc.alive) radioNpc.alive = false;
+      if (towerNpc.met) radioNpc.met = true;
+      if (towerNpc.seen) radioNpc.seen = true;
+      if (towerNpc.crisisResolved) radioNpc.crisisResolved = true;
+      if (towerNpc.trust !== radioNpc.trust && towerNpc.trust !== 0) {
+        radioNpc.trust = towerNpc.trust;
+        radioNpc.lastNote = towerNpc.lastNote;
+        if (towerNpc.relationship) radioNpc.relationship = structuredClone(towerNpc.relationship);
+      }
+      radioNpc.placeId = 'radio';
+    }
+    next.tower = { ...structuredClone(next.radio), placeId: 'tower' };
   }
 
   return next;
@@ -3249,6 +3718,11 @@ export function buildFreeformRoamModal(
 export interface DangerHumanAttackScenario {
   id: string;
   stageLevel: number;
+  tier: 'calm' | 'watch' | 'high' | 'lockdown';
+  tierLabel: string;
+  attackerSource: string;
+  weaponUsed: string;
+  injuryDetail: string;
   title: string;
   description: string;
   hpLoss: number;
@@ -3256,139 +3730,514 @@ export interface DangerHumanAttackScenario {
 }
 
 export const DANGER_HUMAN_ATTACK_SCENARIOS: DangerHumanAttackScenario[] = [
+  // ============================================================================
+  // TIER 1: CALM / LOW THREAT (Danger 25–34) — 8 เหตุการณ์ (เดิม 3 + เพิ่มใหม่ 5)
+  // บริบท: ความตื่นกลัวของชาวบ้านหลังเหล็กดัดตึกแถวและห้องเช่า การป้องกันตัวเฉพาะหน้าด้วยของใช้ในครัวเรือน
+  // ============================================================================
   {
     id: 'danger-attack-01-boiling-water',
     stageLevel: 1,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'ผู้อาศัยหลบภัยหลังหน้าต่างเหล็กดัด',
+    weaponUsed: 'น้ำต้มเดือดจากเตาแก๊สปิกนิกและกระป๋องสังกะสี',
+    injuryDetail: 'ผิวหนังพุพองจากน้ำร้อนและมีรอยฟกช้ำตามไหล่',
     title: 'คนหลบภัยหลังเหล็กดัดสาดน้ำร้อนและเขวี้ยงกระป๋องอาหารเก่าใส่',
     description:
-      'มือที่สั่นเทาหลังหน้าต่างเหล็กดัดชั้นล่างสาดน้ำต้มเดือดและเขวี้ยงกระป๋องสังกะสีใส่เจ้าพร้อมเสียงกรีดร้องไล่ให้พ้นหน้าบ้าน',
+      'มือที่สั่นเทาหลังหน้าต่างเหล็กดัดดัดโค้งชั้นล่างสาดน้ำต้มเดือดจากหม้ออะลูมิเนียม และเขวี้ยงกระป๋องปลากระป๋องเปล่าใส่ร่างของเจ้า พร้อมเสียงกรีดร้องไล่ให้ถอยห่างจากหน้าบ้าน',
     hpLoss: 2,
     sanityLoss: 0,
   },
   {
     id: 'danger-attack-02-bottles',
     stageLevel: 2,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'ชาวบ้านบนระเบียงตึกแถวชั้นสอง',
+    weaponUsed: 'ขวดเครื่องดื่มชูกำลังและก้อนอิฐตัวหนอนปูทางเท้า',
+    injuryDetail: 'ศีรษะและหัวไหล่ถูกของแข็งกระแทกมีแผลปริ',
     title: 'ชาวบ้านบนตึกแถวตกใจขว้างขวดแก้วและอิฐตัวหนอนใส่',
     description:
-      'เสียงตะโกนโหวกเหวกดังมาจากระเบียงชั้นสอง "เฮ้ย! ซอมบี้เดินมาทางนี้!" ก่อนที่ขวดแก้วและก้อนอิฐตัวหนอนจะถูกขว้างลงมากระแทกไหล่และศีรษะของเจ้าด้วยความตื่นกลัว',
+      'เสียงตะโกนโหวกเหวกดังมาจากระเบียงตากผ้าชั้นสอง "เฮ้ย! ผู้ติดเชื้อเดินเข้ามาในซอย!" ก่อนที่ขวดแก้วและก้อนอิฐตัวหนอนที่งัดจากทางเท้าจะถูกขว้างลงมากระแทกไหล่และศีรษะของเจ้าด้วยความตื่นกลัว',
     hpLoss: 3,
     sanityLoss: 0,
   },
   {
     id: 'danger-attack-03-moto-chain',
     stageLevel: 3,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'คนขับมอเตอร์ไซค์หาเสบียงรายย่อย',
+    weaponUsed: 'รถจักรยานยนต์จ่ายตลาดและโซ่คล้องล้อ',
+    injuryDetail: 'สีข้างถลอกและช้ำจากการถูกเฉี่ยวชนและฟาดด้วยโซ่',
     title: 'คนขี่มอเตอร์ไซค์เร่งเครื่องเฉี่ยวชนแล้วเหวี่ยงโซ่ล็อกล้อฟาดใส่',
     description:
-      'ผู้รอดชีวิตบนรถมอเตอร์ไซค์ดัดแปลงตกใจสุดขีดเมื่อเห็นเจ้าเดินพ้นหัวมุมตึก เขาบิดคันเร่งพุ่งเฉี่ยวสีข้างแล้วเหวี่ยงโซ่เหล็กเส้นหนาฟาดใส่ก่อนซิ่งหนีสุดชีวิต',
+      'ผู้รอดชีวิตบนรถมอเตอร์ไซค์ติดตะกร้าหน้าตกใจสุดขีดเมื่อเห็นเจ้าเดินพ้นหัวมุมตึก เขาบิดคันเร่งพุ่งเฉี่ยวสีข้างจนเจ้าเซถลา แล้วเหวี่ยงโซ่ล็อกล้อฟาดสกัดก่อนซิ่งหนีหายไปในตรอก',
     hpLoss: 4,
     sanityLoss: 0,
   },
   {
-    id: 'danger-attack-04-pipe',
+    id: 'danger-attack-04-bamboo-pole',
     stageLevel: 4,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'คนเฝ้าห้องเช่าหลังประตูเหล็กม้วน',
+    weaponUsed: 'ลำไม้ไผ่สอยมะม่วงผูกส้อมพรวนดิน',
+    injuryDetail: 'แผลถูกทิ่มถากบริเวณหน้าอกและต้นแขน',
+    title: 'คนในห้องเช่าใช้ลำไม้ไผ่ผูกส้อมพรวนดินกระทุ้งไล่ลอดช่องประตูเหล็ก',
+    description:
+      'เมื่อเงาของเจ้าทาบลงบนประตูเหล็กม้วนที่แง้มอยู่ครึ่งแข้ง ลำไม้ไผ่ยาวที่ผูกส้อมพรวนดินสนิมเขรอะก็พุ่งลอดช่องเหล็กออกมากระทุ้งใส่หน้าอกและต้นแขนอย่างลนลาน เพื่อดันให้เจ้าถอยพ้นชายคา',
+    hpLoss: 2,
+    sanityLoss: 0,
+  },
+  {
+    id: 'danger-attack-05-flowerpot-balcony',
+    stageLevel: 5,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'ผู้รอดชีวิตบนชั้นลอยอาคารพาณิชย์',
+    weaponUsed: 'กระถางต้นไม้ดินเผาและแผ่นกระเบื้องหลังคาลอนคู่',
+    injuryDetail: 'เศษดินเผาและกระเบื้องบาดไหล่และแผ่นหลัง',
+    title: 'กระถางต้นไม้ดินเผาและเศษกระเบื้องลอนคู่ถูกผลักตกจากกันสาด',
+    description:
+      'คนเป็นบนชั้นลอยไม่กล้าส่งเสียงเรียกใคร แต่เลือกผลักกระถางต้นไม้ดินเผาและแผ่นกระเบื้องหลังคาเก่าให้ร่วงผ่านกันสาดสังกะสีลงมากระแทกไหล่ของเจ้าจนแตกกระจายเกลื่อนฟุตปาธ',
+    hpLoss: 3,
+    sanityLoss: 0,
+  },
+  {
+    id: 'danger-attack-06-stray-dogs-plank',
+    stageLevel: 6,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'คนเฝ้าปากซอยและฝูงหมาจรจัดหน้าเซเว่นร้าง',
+    weaponUsed: 'ท่อนไม้หน้าสามและเขี้ยวหมาจรจัดเฝ้าซอย',
+    injuryDetail: 'รอยคมเขี้ยวที่น่องและรอยฟกช้ำจากไม้หน้าสาม',
+    title: 'หมาจรจัดเฝ้าซอยพุ่งงับน่องพร้อมท่อนไม้หน้าสามที่ขว้างซ้ำ',
+    description:
+      'ฝูงหมาจรจัดที่ชาวบ้านให้เศษอาหารเลี้ยงไว้เฝ้าปากซอยเห่ากรรโชกและพุ่งเข้ากัดชายกางเกงจนคมเขี้ยวฝังเข้าเนื้อน่อง ก่อนที่คนเฝ้าตึกจะเขวี้ยงท่อนไม้หน้าสามลงมากระแทกหลังซ้ำเพื่อไล่เจ้าออกไป',
+    hpLoss: 3,
+    sanityLoss: 0,
+  },
+  {
+    id: 'danger-attack-07-bleach-spray',
+    stageLevel: 7,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'แม่ค้าเก่าหลังหน้าต่างบานเกล็ด',
+    weaponUsed: 'น้ำยาซักผ้าขาวผสมน้ำส้มสายชูในกระบอกฉีดพ่นต้นไม้',
+    injuryDetail: 'เยื่อบุตาและผิวหนังใบหน้าระคายเคืองแสบไหม้',
+    title: 'น้ำยาซักผ้าขาวอัดแรงดันถูกฉีดพ่นลอดบานเกล็ดเข้าใส่ใบหน้า',
+    description:
+      'เสียงปั๊มลมกระบอกพ่นยาดังฟู่จากหลังหน้าต่างบานเกล็ดที่แตกแหว่ง น้ำยาซักผ้าขาวกลิ่นฉุนจัดผสมน้ำส้มสายชูถูกฉีดพ่นเข้าใส่ดวงตาและใบหน้าของเจ้าจนแสบพร่า ต้องยกแขนขึ้นบังแล้วถอยฉากออกมา',
+    hpLoss: 2,
+    sanityLoss: 0,
+  },
+  {
+    id: 'danger-attack-08-bird-firecrackers',
+    stageLevel: 8,
+    tier: 'calm',
+    tierLabel: 'ความตื่นตระหนกหลังเหล็กดัดตึกแถว',
+    attackerSource: 'วัยรุ่นเฝ้าดาดฟ้าหอพักนักศึกษา',
+    weaponUsed: 'ประทัดลูกบอลไล่นกและขวดโซดาแช่แข็ง',
+    injuryDetail: 'สะเก็ดประทัดลวกผิวหนังและหัวไหล่ช้ำจากขวดแก้ว',
+    title: 'ประทัดลูกบอลและขวดโซดาถูกปาลงมาจากระเบียงหอพัก',
+    description:
+      'เสียงประทัดลูกบอลระเบิดปังสนั่นข้างใบหูพร้อมควันขาวคลุ้ง วัยรุ่นที่ติดอยู่บนหอพักปาประทัดไล่และเขวี้ยงขวดโซดาตามลงมากระแทกไหล่ เพื่อดึงความสนใจไม่ให้เจ้าเดินเข้าใกล้ประตูรั้วหอพัก',
+    hpLoss: 4,
+    sanityLoss: 0,
+  },
+
+  // ============================================================================
+  // TIER 2: WATCH THREAT (Danger 35–59) — 8 เหตุการณ์ (เดิม 3 + เพิ่มใหม่ 5)
+  // บริบท: เวรยามอาสาประจำซอย แผงกั้นเหล็กกทม. กับดักระดับตรอกซอกซอย และอาวุธป้องกันตัวประดิษฐ์เบื้องต้น
+  // ============================================================================
+  {
+    id: 'danger-attack-09-pipe-scavengers',
+    stageLevel: 9,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'กลุ่มคนหาเสบียงในตรอกตึกแถว',
+    weaponUsed: 'ท่อเหล็กแป๊บน้ำประปาและไม้หน้าสามตอกตะปู',
+    injuryDetail: 'สีข้างและชายโครงช้ำหนักจากแรงฟาดของท่อเหล็ก',
     title: 'กลุ่มคนหาของใช้ท่อเหล็กแป๊บน้ำและไม้หน้าสามดักฟาดสกัด',
     description:
-      'คนหาของที่ซ่อนตัวหลังซากรถเข้าใจผิดคิดว่าเจ้ากำลังจะพุ่งเข้าขย้ำ พวกเขาจึงกระโจนออกมาใช้ท่อเหล็กแป๊บน้ำและไม้หน้าสามฟาดสกัดเข้าที่สีข้างอย่างแรงก่อนรีบวิ่งหนีเข้าตรอก',
+      'คนหาของที่ซ่อนตัวหลังซากรถแท็กซี่เข้าใจผิดคิดว่าเจ้ากำลังจะพุ่งเข้าขย้ำ พวกเขาจึงกระโจนออกมาใช้ท่อเหล็กแป๊บน้ำประปาและไม้หน้าสามฟาดสกัดเข้าที่สีข้างอย่างแรงก่อนรีบวิ่งหนีเข้าตรอกแคบ',
     hpLoss: 5,
     sanityLoss: 0,
   },
   {
-    id: 'danger-attack-05-car-battery-shock',
-    stageLevel: 5,
+    id: 'danger-attack-10-car-battery-shock',
+    stageLevel: 10,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'เวรยามเฝ้าแผงกั้นสังกะสีปากซอย',
+    weaponUsed: 'รั้วสังกะสีพ่วงแบตเตอรี่รถกระบะและสายไฟเปลือย',
+    injuryDetail: 'กล้ามเนื้อแขนและฝ่ามือไหม้เกรียมจากกระแสไฟช็อต',
     title: 'คนเฝ้าซอยปล่อยกระแสไฟจากแบตเตอรี่รถยนต์ช็อตสกัดที่รั้วสังกะสี',
     description:
-      'ทันทีที่มือของเจ้าแตะแผงกั้นสังกะสีในตรอกแคบ คนเฝ้ายามหลังแนวกระสอบทรายก็สับคัตเอาต์พ่วงแบตเตอรี่รถยนต์ กระแสไฟแล่นแปลบเผาเนื้อเยื่อจนเจ้ากระเด็นถอยหลัง',
+      'ทันทีที่มือของเจ้าแตะแผงกั้นสังกะสีในตรอกแคบ คนเฝ้ายามหลังแนวกระสอบทรายก็สับคัตเอาต์พ่วงแบตเตอรี่รถกระบะสองลูก กระแสไฟแล่นแปลบเผาเนื้อเยื่อฝ่ามือจนเจ้ากระเด็นถอยหลังชนถังขยะกทม.',
     hpLoss: 6,
     sanityLoss: 0,
   },
   {
-    id: 'danger-attack-06-buckshot',
-    stageLevel: 6,
-    title: 'เวรยามอาสาสมัครยิงหนังสติ๊กลูกเหล็กและปืนลูกซองไทยประดิษฐ์ถากลำตัว',
+    id: 'danger-attack-11-slingshot-bearing',
+    stageLevel: 11,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'อาสาสมัครเฝ้าป้อมยามหมู่บ้านจัดสรร',
+    weaponUsed: 'หนังสติ๊กยางเส้นคู่ยิงลูกเหล็กตลับลูกปืนรถจักรยานยนต์',
+    injuryDetail: 'ลูกเหล็กเจาะฝังใต้ผิวหนังบริเวณไหปลาร้าและโหนกแก้ม',
+    title: 'เวรยามป้อมหมู่บ้านระดมยิงหนังสติ๊กลูกเหล็กตลับลูกปืนใส่จากหลังแผงกั้น',
     description:
-      'อาสาสมัครเฝ้าซอยที่กำลังขวัญผวาเห็นเงาร่างของผู้ติดเชื้อในระยะประชิด จึงยิงลูกเหล็กและลั่นไกปืนลูกซองไทยประดิษฐ์ใส่ทันที สะเก็ดลูกปรายถากแขนและแผ่นหลังจนเนื้อเยื่อฉีกขาด',
+      'อาสาสมัครเฝ้าซอยหลังแผงเหล็กกั้นจราจรเห็นเงาร่างของผู้ติดเชื้อเดินฝ่าความมืดเข้ามา จึงง้างหนังสติ๊กยางเส้นคู่ยิงลูกเหล็กตลับลูกปืนมอเตอร์ไซค์ใส่ไม่ยั้ง ลูกเหล็กพุ่งกระแทกไหปลาร้าและโหนกแก้มจนเนื้อปริแตก',
+    hpLoss: 5,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-12-caustic-lime-drain',
+    stageLevel: 12,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'เวรยามชุมชนหลังแผงกั้นถังน้ำพลาสติกสีน้ำเงิน',
+    weaponUsed: 'ผงปูนขาวโรยฆ่าเชื้อและน้ำยาล้างท่ออุดตัน',
+    injuryDetail: 'ผิวหนังลำคอและแขนไหม้เคมีเป็นปื้นแสบสะท้าน',
+    title: 'ผงปูนขาวและน้ำยาล้างท่อถูกสาดสกัดจากหลังแนวถังน้ำกั้นซอย',
+    description:
+      'คนเฝ้าด่านซอยคว้าขันตักผงปูนขาวฆ่าเชื้อซัดเข้าใส่ใบหน้าจนฝุ่นขาวฟุ้งเข้าตา ตามด้วยน้ำยาล้างท่อที่สาดตามมาติด ๆ สารเคมีทำปฏิกิริยากับความชื้นบนผิวหนังจนเนื้อเยื่อลำคอและท่อนแขนไหม้พองแสบสะท้าน',
+    hpLoss: 6,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-13-pvc-air-dart',
+    stageLevel: 13,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'ช่างซ่อมรถประจำซอยบนหลังคาโรงจอดรถ',
+    weaponUsed: 'ปืนอัดลมท่อพีวีซีสูบจักรยานยิงลูกดอกตะปูพันนุ่น',
+    injuryDetail: 'ลูกดอกตะปูคอนกรีตปักลึกที่ต้นแขนและหัวไหล่',
+    title: 'ท่ออัดลมพีวีซียิงลูกดอกตะปูคอนกรีตปักสกัดจากหลังคาอู่ซ่อมรถ',
+    description:
+      'เสียงปล่อยลมยางอัดแรงดันดังปุ๊จากบนหลังคาสังกะสีอู่ซ่อมรถ ลูกดอกตะปูคอนกรีตพันนุ่นที่ยิงจากท่อพีวีซีพุ่งปักเข้าที่ต้นแขนของเจ้าสองดอกติดกัน พร้อมเสียงตะโกนขู่ให้หันหลังกลับไปเดี๋ยวนี้',
+    hpLoss: 5,
+    sanityLoss: 0,
+  },
+  {
+    id: 'danger-attack-14-win-moto-flare',
+    stageLevel: 14,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'ชุดลาดตระเวนวินมอเตอร์ไซค์เสื้อกั๊กส้ม',
+    weaponUsed: 'พลุควันฉุกเฉินติดรถยนต์และท่อนไม้คมแฝก',
+    injuryDetail: 'แผลไฟลวกจากประกายพลุและรอยฟาดที่สะบักหลัง',
+    title: 'วินมอเตอร์ไซค์ลาดตระเวนปาพลุควันใส่หน้าแล้วโฉบฟาดด้วยไม้คมแฝก',
+    description:
+      'มอเตอร์ไซค์สองคันของกลุ่มวินอาสาขับตีคู่เปิดไฟสูงส่องหน้า คนซ้อนท้ายโยนพลุควันสีแดงฉุกเฉินตกใส่แทบเท้าจนไฟพ่นลวกขา ก่อนที่อีกคันจะขับโฉบเข้ามาเหวี่ยงไม้คมแฝกฟาดเข้าที่สะบักหลังเต็มแรง',
+    hpLoss: 6,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-15-broken-glass-caltrops',
+    stageLevel: 15,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'แนวป้องกันตรอกหลังตลาดสด',
+    weaponUsed: 'เศษขวดแก้วปักปูนและลวดหนามขึงระดับหน้าแข้ง',
+    injuryDetail: 'ฝ่าเท้าและหน้าแข้งถูกเศษขวดแก้วและลวดหนามฉีกขาด',
+    title: 'เหยียบแนวเศษขวดแก้วปักปูนและลวดหนามพรางตาในตรอกมืด',
+    description:
+      'พื้นตรอกที่ปูคลุมด้วยกระดาษลังเก่าซ่อนแผ่นปูนปักเศษขวดเบียร์ปากฉลามและลวดหนามขึงต่ำไว้ ทันทีที่ก้าวเหยียบลงไป คมแก้วก็แทงทะลุรองเท้าเข้าฝ่าเท้าและลวดหนามเกี่ยวฉีกเนื้อหน้าแข้งจนเสียหลัก',
+    hpLoss: 4,
+    sanityLoss: 0,
+  },
+  {
+    id: 'danger-attack-16-nylon-snare-stall',
+    stageLevel: 16,
+    tier: 'watch',
+    tierLabel: 'การสกัดกั้นของเวรยามประจำซอย',
+    attackerSource: 'กลุ่มเฝ้าโกดังเก็บน้ำดื่มชุมชน',
+    weaponUsed: 'บ่วงเชือกไนลอนถ่วงถังปูนและสเปรย์พริกไทยกระป๋องใหญ่',
+    injuryDetail: 'ข้อเท้าพลิกและถูกแผงเหล็กล้มทับพร้อมแสบตาอย่างรุนแรง',
+    title: 'ติดบ่วงเชือกถ่วงถังปูนใต้แผงลอยร้างและถูกฉีดสเปรย์พริกไทยซ้ำ',
+    description:
+      'ข้อเท้าของเจ้าก้าวเข้าไปในบ่วงเชือกไนลอนที่ซ่อนใต้ผ้าใบแผงลอย ถังปูนถ่วงน้ำหนักหล่นกระตุกให้แผงเหล็กทั้งแผงล้มฟาดใส่ร่าง ก่อนที่คนเฝ้าโกดังจะโผล่มาฉีดสเปรย์พริกไทยผสมแอลกอฮอล์อัดใส่หน้า',
     hpLoss: 7,
     sanityLoss: 1,
   },
+
+  // ============================================================================
+  // TIER 3: HIGH THREAT (Danger 60–84) — 9 เหตุการณ์ (เดิม 4 + เพิ่มใหม่ 5)
+  // บริบท: ด่านปิดกั้นชุมชนเข้มงวด กลุ่มติดอาวุธประดิษฐ์ ปืนลูกซองไทยประดิษฐ์ มีดพร้าด้ามยาว ระเบิดขวด และหน้าไม้เหล็ก
+  // ============================================================================
   {
-    id: 'danger-attack-07-molotov',
-    stageLevel: 7,
-    title: 'ผู้รอดชีวิตบนดาดฟ้าปาระเบิดขวดน้ำมันก๊าดลงมาสกัดกั้นทางเดิน',
+    id: 'danger-attack-17-molotov-rooftop',
+    stageLevel: 17,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'เวรยามป้องกันแนวรั้วบนสะพานลอยคนข้าม',
+    weaponUsed: 'ขวดระเบิดเพลิงแก๊สโซฮอล์ผสมน้ำมันเครื่อง',
+    injuryDetail: 'แผลไฟไหม้ระดับรุนแรงตามแผ่นหลังและท่อนแขน',
+    title: 'เวรยามบนสะพานลอยปาขวดระเบิดเพลิงแก๊สโซฮอล์ลงมาสกัดกั้นทางเดิน',
     description:
-      'ขวดแก้วติดไฟถูกเขวี้ยงลงมาจากดาดฟ้าตึกแถว แตกกระจายเป็นเปลวเพลิงลุกท่วมพื้นถนนและลวกผิวหนังของเจ้าอย่างรุนแรงท่ามกลางเสียงตะโกนสาปแช่งผู้ติดเชื้อ',
-    hpLoss: 8,
-    sanityLoss: 1,
-  },
-  {
-    id: 'danger-attack-08-wire-snare',
-    stageLevel: 8,
-    title: 'กับดักลวดสลิงและไม้แหลมหน้าด่านชุมชนดีดรัดข้อเท้าจนเนื้อฉีก',
-    description:
-      'ฝีเท้าของเจ้าไปสะดุดเส้นเอ็นพรางตาหน้าแนวรั้วชุมชน ลวดสลิงเหล็กดีดตัวรัดข้อเท้าอย่างแรงพร้อมแผงไม้เสียบที่พุ่งกระแทกหน้าแข้ง ก่อนที่เสียงระฆังเตือนภัยจะดังลั่น',
+      'ขวดแก้วพันผ้าชุบแก๊สโซฮอล์ติดไฟถูกเขวี้ยงลงมาจากสะพานลอยคนข้าม แตกกระจายเป็นทะเลเพลิงลุกท่วมพื้นถนนและลวกผิวหนังของเจ้าอย่างรุนแรง ท่ามกลางเสียงเคาะเกราะเหล็กเตือนภัยดังก้อง',
     hpLoss: 9,
     sanityLoss: 1,
   },
   {
-    id: 'danger-attack-09-mob',
-    stageLevel: 9,
-    title: 'กลุ่มผู้รอดชีวิตคลุ้มคลั่งถือมีดพร้าและชะแลงเหล็กดักต้อนรุมตี',
+    id: 'danger-attack-18-wire-snare-spear',
+    stageLevel: 18,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'ชุดเฝ้าด่านกระสอบทรายปากทางเข้าชุมชน',
+    weaponUsed: 'บ่วงสลิงเบรกมอเตอร์ไซค์และหอกมีดพร้าผูกแป๊บน้ำ',
+    injuryDetail: 'ข้อเท้าถูกสลิงบาดลึกและสีข้างถูกคมมีดพร้าแทงถาก',
+    title: 'กับดักลวดสลิงดีดรัดข้อเท้าพร้อมหอกมีดพร้าที่แทงสกัดจากหลังบังเกอร์',
     description:
-      'ความหวาดกลัวซอมบี้ในย่านนี้พุ่งสูงจนผู้คนคลุ้มคลั่ง กลุ่มชายฉกรรจ์พร้อมชะแลงเหล็กและมีดพร้าดักต้อนเจ้าเข้ามุมตึกแล้วระดมฟาดใส่ไม่ยั้งด้วยความโกรธแค้น จนเจ้าต้องฝืนรับคมเหล็กเพื่อกระโจนหนีออกมา',
+      'ฝีเท้าของเจ้าไปสะดุดเส้นสลิงเบรกรถที่ขึงพรางไว้หน้าแนวรั้ว ลวดเหล็กดีดรัดข้อเท้าจนเนื้อฉีก ก่อนที่คนเฝ้าด่านหลังกระสอบทรายจะพุ่งด้ามแป๊บน้ำผูกมีดพร้าแทงสกัดเข้าที่สีข้างจนเจ้าต้องกระชากขาหนี',
+    hpLoss: 9,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-19-machete-mob',
+    stageLevel: 19,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'กลุ่มชายฉกรรจ์คุ้มกันเสบียงชุมชน',
+    weaponUsed: 'มีดพร้าหวดหญ้า ชะแลงงัดลัง และไม้เบสบอลพันลวดหนาม',
+    injuryDetail: 'บาดแผลฉีกขาดหลายแห่งตามไหล่และแผ่นหลัง',
+    title: 'กลุ่มคุ้มกันชุมชนถือมีดพร้าและชะแลงเหล็กดักต้อนรุมตีหน้าแนวตู้เหล็ก',
+    description:
+      'ความหวาดระแวงผู้ติดเชื้อในย่านนี้พุ่งสูงจนคนเป็นไม่คิดเจรจา กลุ่มชายฉกรรจ์สวมหมวกกันน็อกเต็มใบพร้อมชะแลงเหล็กและมีดพร้าดักต้อนเจ้าเข้ามุมตึกแล้วระดมฟาดใส่ไม่ยั้ง จนต้องฝืนรับคมเหล็กเพื่อพังวงล้อมหนีออกมา',
     hpLoss: 10,
     sanityLoss: 1,
   },
   {
-    id: 'danger-attack-10-crossbow',
-    stageLevel: 10,
-    title: 'พลซุ่มยิงประจำหอคอยชุมชนยิงหน้าไม้เหล็กดัดแปลงปักทะลุหัวไหล่',
+    id: 'danger-attack-20-rebar-crossbow',
+    stageLevel: 20,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'พลเฝ้าระวังบนป้ายโฆษณาและชั้นดาดฟ้าตึกแถว',
+    weaponUsed: 'หน้าไม้แหนบรถยนต์ดัดแปลงยิงลูกดอกเหล็กเส้นก่อสร้าง',
+    injuryDetail: 'เหล็กเส้นเจาะทะลุหัวไหล่และเนื้อเยื่อฉีกขาดรุนแรง',
+    title: 'พลเฝ้ายามบนดาดฟ้ายิงหน้าไม้แหนบรถยนต์ส่งลูกดอกเหล็กเส้นปักทะลุไหล่',
     description:
-      'เสียงสายสลิงดีดดังฉับจากหอสังเกตการณ์ชั้นบน ลูกดอกเหล็กเหลาแหลมพุ่งแหวกอากาศปักทะลุหัวไหล่ของเจ้าเต็มแรงจนร่างเซถลาชนกำแพง',
+      'เสียงสายสลิงหน้าไม้ที่ทำจากแหนบรถกระบะดีดดังฉับจากชั้นบนตึกแถว ลูกดอกเหล็กเส้นก่อสร้างเจียรปลายแหลมพุ่งแหวกอากาศปักทะลุหัวไหล่ของเจ้าเต็มแรงจนร่างเซถลาไปกระแทกเสาไฟฟ้า',
+    hpLoss: 11,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-21-thai-handmade-shotgun',
+    stageLevel: 21,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'เวรยามติดอาวุธหลังแนวตู้คอนเทนเนอร์กั้นถนน',
+    weaponUsed: 'ปืนลูกซองสั้นไทยประดิษฐ์ (ปืนอีโบ๊ะ) บรรจุลูกปรายตะกั่ว',
+    injuryDetail: 'เม็ดลูกปรายตะกั่วกระจายฝังตามท่อนแขนและหน้าอก',
+    title: 'ปืนลูกซองสั้นไทยประดิษฐ์ลั่นไกยิงสกัดจากช่องมองหลังตู้คอนเทนเนอร์',
+    description:
+      'ทันทีที่ก้าวเข้าใกล้แนวตู้คอนเทนเนอร์กั้นถนน เสียงสับนกปืนลูกซองสั้นไทยประดิษฐ์ก็ดังก้องขึ้นพร้อมกลุ่มควันดินปืนคลุ้ง เม็ดลูกปรายตะกั่วกระจายเจาะเข้าที่ท่อนแขนและหน้าอกจนเลือดดำคล้ำทะลักซึมเสื้อ',
     hpLoss: 12,
     sanityLoss: 1,
   },
   {
-    id: 'danger-attack-11-rifle',
-    stageLevel: 11,
-    title: 'ชุดลาดตระเวนเขตกักกันยิงพลุไฟและระดมยิงปืนไรเฟิลใส่เต็มแรง',
+    id: 'danger-attack-22-canal-harpoon',
+    stageLevel: 22,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'กลุ่มลาดตระเวนเรือหางยาวเลียบคลอง',
+    weaponUsed: 'ปืนฉมวกยิงปลาแรงดันสูงผูกเชือกไนลอน',
+    injuryDetail: 'คมฉมวกมีเงี่ยงฉีกเนื้อเยื่อสีข้างเป็นแผลเหวอะ',
+    title: 'ปืนฉมวกยิงปลาจากเรือหางยาวลาดตระเวนยิงปักสีข้างริมตลิ่ง',
     description:
-      'พลุไฟส่องสว่างถูกยิงขึ้นฟ้าพร้อมเสียงนกหวีดเตือนภัย! ชุดลาดตระเวนติดอาวุธเล็งลำแสงเลเซอร์มาที่ร่างของเจ้าแล้วลั่นกระสุนปืนไรเฟิลใส่เต็มแรง แรงกระสุนเจาะทะลุเนื้อเยื่อจนเจ้าต้องกลิ้งหลบเข้ามุมมืดแทบไม่ทัน',
+      'เรือหางยาวที่ดับเครื่องลอยลำในคลองมืดส่องไฟฉายคาดหัวจับร่างของเจ้า ก่อนจะลั่นปืนฉมวกเหล็กมีเงี่ยงพุ่งปักเข้าที่สีข้าง เจ้าต้องออกแรงกระชากคมฉมวกออกจนเนื้อฉีกขาดก่อนจะถูกดึงกระชากตกน้ำ',
+    hpLoss: 8,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-23-bangfai-nail-rocket',
+    stageLevel: 23,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'ป้อมสังเกตการณ์ดาดฟ้าตลาดสด',
+    weaponUsed: 'พลุบั้งไฟท่อพีวีซีพันตะปูเกลียวและเศษเหล็ก',
+    injuryDetail: 'สะเก็ดตะปูและแรงระเบิดฉีกผิวหนังบริเวณแผ่นหลังและขา',
+    title: 'พลุบั้งไฟดัดแปลงพันตะปูเกลียวถูกจุดยิงใส่จากดาดฟ้าตลาดสด',
+    description:
+      'เสียงฟู่แหลมสูงพุ่งลงมาจากแท่นรางไม้บนดาดฟ้าตลาด พลุบั้งไฟท่อพีวีซีที่พันรอบด้วยตะปูเกลียวพุ่งชนพื้นคอนกรีตข้างตัวแล้วระเบิดออก สะเก็ดตะปูและดินปืนสาดกระแทกแผ่นหลังและท่อนขาอย่างจัง',
+    hpLoss: 9,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-24-battery-acid-sprayer',
+    stageLevel: 24,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'หน่วยป้องกันด่านชุมชนหลังซากรถเมล์ครีม-แดง',
+    weaponUsed: 'ถังดับเพลิงเก่าดัดแปลงอัดแรงดันพ่นน้ำกรดแบตเตอรี่',
+    injuryDetail: 'เนื้อเยื่อไหล่และลำตัวไหม้กรดเป็นแผลลึกควันขึ้น',
+    title: 'ถังดับเพลิงดัดแปลงฉีดพ่นน้ำกรดแบตเตอรี่จากช่องหน้าต่างซากรถเมล์',
+    description:
+      'จากหลังซากรถเมล์ครีม-แดงที่จอดขวางถนน หัวฉีดถังดับเพลิงเก่าที่ถูกดัดแปลงบรรจุน้ำกรดแบตเตอรี่รถยนต์ก็พ่นสายน้ำเคมีเข้าใส่ร่างของเจ้า เสื้อผ้าและเนื้อเยื่อบริเวณไหล่ถูกกัดกร่อนจนเกิดควันฉุยและปวดแสบถึงกระดูก',
+    hpLoss: 10,
+    sanityLoss: 1,
+  },
+  {
+    id: 'danger-attack-25-nailboard-sledgehammer',
+    stageLevel: 25,
+    tier: 'high',
+    tierLabel: 'การซุ่มโจมตีหน้าด่านปิดกั้นชุมชน',
+    attackerSource: 'กลุ่มนักคุ้ยซากตึกติดอาวุธหนักประจำถิ่น',
+    weaponUsed: 'แผ่นไม้ตอกตะปูเรือใบและค้อนปอนด์ทุบคอนกรีต',
+    injuryDetail: 'ฝ่าเท้าถูกตะปูแทงทะลุและกระดูกไหปลาร้าร้าวจากค้อนปอนด์',
+    title: 'กับดักไม้ตะปูเรือใบและค้อนปอนด์ทุบตึกจากกลุ่มนักล่าเสบียง',
+    description:
+      'กลุ่มคนหาของที่กำลังงัดร้านค้าโยนแผ่นไม้ตอกตะปูเรือใบดักทางเดินจนเจ้าเหยียบเต็มแรง ก่อนที่ชายร่างใหญ่จะเหวี่ยงค้อนปอนด์ทุบปูนฟาดเข้าใส่หัวไหล่เพื่อชิงจังหวะแบกกระสอบเสบียงหนี',
+    hpLoss: 8,
+    sanityLoss: 1,
+  },
+
+  // ============================================================================
+  // TIER 4: LOCKDOWN THREAT (Danger 85–100) — 10 เหตุการณ์ (ปรับปรุงใหม่ 5 + เพิ่มใหม่ 5)
+  // บริบท: แนวปิดล้อมเขตกักกันกรุงเทพฯ ปี 2026 ที่ถูกตัดขาด ป้อมตำรวจ/ด่านกักกันร้างที่ยังมีกองกำลังติดค้าง
+  // อาวุธปราบจลาจล ปืนลูกซองยาว ปืนเล็กยาวเก่าเก็บ กับดักถังแก๊สหุงต้ม และรถน้ำเทศบาลดัดแปลงพ่นไฟ
+  // ============================================================================
+  {
+    id: 'danger-attack-26-riot-shotgun-barrier',
+    stageLevel: 26,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'ป้อมด่านกักกันหลังแท่งแบริเออร์ปูนใต้ทางด่วน',
+    weaponUsed: 'ไฟสปอตไลท์เครื่องปั่นไฟและปืนลูกซองยาวบรรจุลูกปรายจริง',
+    injuryDetail: 'แผลกระสุนลูกปรายฉีกเนื้อเยื่อหน้าอกและต้นขาอย่างรุนแรง',
+    title: 'ไฟสปอตไลท์ด่านกักกันส่องจับและระดมยิงด้วยปืนลูกซองยาวจากหลังแบริเออร์',
+    description:
+      'แสงสปอตไลท์พ่วงเครื่องปั่นไฟดีเซลสาดจับร่างของเจ้าท่ามกลางความมืดพร้อมเสียงนกหวีดเตือนภัย! เจ้าหน้าที่ผู้รอดชีวิตหลังแท่งแบริเออร์ปูนประทับปืนลูกซองยาวระดมยิงกระสุนลูกปรายจริงใส่เต็มแรง จนร่างของเจ้ากระเด็นไปอัดกับเสาตอม่อทางด่วน',
     hpLoss: 13,
     sanityLoss: 2,
   },
   {
-    id: 'danger-attack-12-armored-pickup',
-    stageLevel: 12,
-    title: 'รถกระบะติดเกราะของกลุ่มติดอาวุธพุ่งชนและกราดยิงปืนกลเบาจากท้ายกระบะ',
+    id: 'danger-attack-27-patrol-pickup-carbine',
+    stageLevel: 27,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'ชุดลาดตระเวนเขตกักกันบนรถกระบะติดตะแกรงเหล็ก',
+    weaponUsed: 'รถกระบะดัดแปลงติดโครงเหล็กกันชนและปืนเล็กยาวประจำการ',
+    injuryDetail: 'ซี่โครงร้าวจากแรงชนและมีแผลกระสุนเจาะทะลุสีข้าง',
+    title: 'รถกระบะติดตะแกรงเหล็กของชุดลาดตระเวนพุ่งชนและยิงกดด้วยปืนเล็กยาว',
     description:
-      'แสงไฟสปอตไลท์หน้ารถกระบะติดแผ่นเหล็กสาดส่องเข้ามาในซอย เสียงเครื่องยนต์คำรามพร้อมกันชนเหล็กที่พุ่งกระแทกร่างของเจ้า ตามด้วยชุดกระสุนปืนกลเบาจากท้ายกระบะที่ยิงกดจนเศษปูนแตกกระจายบาดทั่วร่าง',
+      'รถกระบะสายตรวจเก่าที่เชื่อมตะแกรงเหล็กกันซอมบี้รอบคันเปิดไฟไซเรนพุ่งไล่บี้บนถนนใหญ่ กันชนเหล็กกระแทกร่างของเจ้าจนกลิ้งไถล ก่อนที่คนบนท้ายกระบะจะลั่นกระสุนปืนเล็กยาวประจำการยิงซ้ำจนเศษยางมะตอยและเลือดสาดกระจาย',
     hpLoss: 15,
     sanityLoss: 2,
   },
   {
-    id: 'danger-attack-13-claymore-mine',
-    stageLevel: 13,
-    title: 'กับระเบิดสังหารบุคคลแบบลูกปรายหน้าแนวป้องกันด่านทหารทำงานเมื่อก้าวผ่าน',
+    id: 'danger-attack-28-lpg-picnic-trap',
+    stageLevel: 28,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'แนวเขตห้ามผ่านรอบด่านปิดตายกทม.',
+    weaponUsed: 'กับดักลวดสะดุดพ่วงถังแก๊สหุงต้มปิกนิกอัดเศษน็อตและลูกปืนเหล็ก',
+    injuryDetail: 'แรงอัดระเบิดและสะเก็ดเหล็กฉีกเนื้อเยื่อขาและลำตัวสาหัส',
+    title: 'ลวดสะดุดถังแก๊สปิกนิกอัดสะเก็ดเหล็กหน้าแนวปิดล้อมทำงานเมื่อก้าวผ่าน',
     description:
-      'เสียงคลิกเบา ๆ ดังขึ้นใต้ฝ่าเท้าก่อนที่กับระเบิดลูกปรายที่ฝังไว้รอบเขตปิดล้อมจะระเบิดออก! แรงอัดอากาศและสะเก็ดลูกเหล็กนับร้อยฉีกกระชากเนื้อเยื่อของเจ้าอย่างรุนแรง',
+      'เสียงดีดสลักดังคลิกใต้ฝ่าเท้าเมื่อเกี่ยวเข้ากับลวดเบรกจักรยานที่ขึงพรางไว้กับแผงเหล็กกทม. ถังแก๊สหุงต้มปิกนิกที่อัดแน่นด้วยเศษน็อตและลูกปืนเหล็กข้างกองขยะระเบิดตูมสนั่น! แรงอัดอากาศและสะเก็ดเหล็กฉีกกระชากเนื้อเยื่อของเจ้าอย่างรุนแรง',
     hpLoss: 16,
     sanityLoss: 2,
   },
   {
-    id: 'danger-attack-14-flamethrower',
-    stageLevel: 14,
-    title: 'หน่วยกวาดล้างชุดกันไฟฉีดพ่นหัวเชื้อเพลิงเหลวเผาทำลายในตรอกแคบ',
+    id: 'danger-attack-29-municipal-fire-truck',
+    stageLevel: 29,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'หน่วยกวาดล้างเชื้อประจำรถบรรทุกน้ำเทศบาลดัดแปลง',
+    weaponUsed: 'หัวฉีดแรงดันสูงพ่นน้ำมันก๊าดผสมทินเนอร์ติดไฟ',
+    injuryDetail: 'ผิวหนังและกล้ามเนื้อถูกไฟคลอกไหม้เกรียมเป็นบริเวณกว้าง',
+    title: 'รถน้ำเทศบาลดัดแปลงฉีดพ่นลำเพลิงน้ำมันก๊าดเผากวาดล้างตรอกปิดตาย',
     description:
-      'เจ้าหน้าที่ชุดกันไฟเดินเรียงหน้ากระดานปิดปากซอย ทันทีที่ตรวจพบความเคลื่อนไหว หัวพ่นไฟแรงดันสูงก็พ่นลำเพลิงสีส้มแดงเข้าใส่ร่างของเจ้าเต็ม ๆ จนผิวหนังไหม้เกรียมก่อนที่เจ้าจะพุ่งทะลุหน้าต่างหนีตายออกมาได้',
+      'เสียงเครื่องสูบน้ำแรงดันสูงคำรามก้องพร้อมรถบรรทุกน้ำเทศบาลที่ถูกดัดแปลงเป็นรถพ่นเชื้อเพลิง! ทันทีที่พบความเคลื่อนไหวในซอยปิดตาย หัวฉีดบนหลังคารถก็พ่นลำเพลิงน้ำมันก๊าดผสมทินเนอร์กวาดเข้าใส่ร่างของเจ้าจนไฟลุกท่วม ต้องพุ่งทะลุบานกระจกร้านค้ากลิ้งดับไฟเอาชีวิตรอด',
     hpLoss: 18,
+    sanityLoss: 3,
+  },
+  {
+    id: 'danger-attack-30-skywalk-sniper-killzone',
+    stageLevel: 30,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'ป้อมซุ่มยิงบนสกายวอล์ครถไฟฟ้าและบังเกอร์สองฝั่งถนน',
+    weaponUsed: 'ปืนซุ่มยิงติดกล้องและห่ากระสุนปืนลูกซองจากแนวบังเกอร์กระสอบทราย',
+    injuryDetail: 'กระสุนความเร็วสูงเจาะทะลุทรวงอกและไหล่จนแทบแหลกสลาย',
+    title: 'พลแม่นปืนบนสกายวอล์ครถไฟฟ้าและแนวบังเกอร์เปิดฉากระดมยิงสังหารพร้อมกัน',
+    description:
+      'ไซเรนมือหมุนเตือนภัยขั้นวิกฤตดังก้องใต้รางรถไฟฟ้าร้าง! สปอตไลท์จากบนทางเดินสกายวอล์คจับจ้องมาที่เจ้าเป็นจุดเดียว พลแม่นปืนบนสถานีและเวรยามหลังบังเกอร์กระสอบทรายสองฝั่งถนนเปิดฉากระดมยิงสกัดกั้นไม่ให้สิ่งมีชีวิตใดหลุดรอดแนวป้องกัน!',
+    hpLoss: 20,
+    sanityLoss: 3,
+  },
+  {
+    id: 'danger-attack-31-teargas-intersection-bunker',
+    stageLevel: 31,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'ป้อมควบคุมไฟจราจรดัดแปลงเป็นบังเกอร์ปิดตาย',
+    weaponUsed: 'กระป๋องแก๊สน้ำตาปราบจลาจลและปืนลูกซองยาวประจำป้อม',
+    injuryDetail: 'ปอดและดวงตาระคายเคืองรุนแรงพร้อมแผลกระสุนลูกปรายที่หัวไหล่',
+    title: 'แก๊สน้ำตาปราบจลาจลและห่ากระสุนลูกซองยิงถล่มจากป้อมตำรวจแยกไฟแดง',
+    description:
+      'กระป๋องแก๊สน้ำตาถูกยิงตกกระแทกพื้นถนนตรงหน้า พ่นควันพิษแสบตาจนทัศนวิสัยขาวโพลน ขณะที่เจ้ากำลังสำลักควันและเซถอย เสียงปืนลูกซองยาวจากช่องยิงของป้อมตำรวจแยกไฟแดงก็ลั่นซ้ำทะลุหมอกควันเข้ามาเจาะหัวไหล่และแผ่นอก',
+    hpLoss: 14,
     sanityLoss: 2,
   },
   {
-    id: 'danger-attack-15-heavy-killzone',
-    stageLevel: 15,
-    title: 'ป้อมปืนกลหนักประจำด่านปิดล้อมและพลซุ่มยิงเปิดฉากระดมยิงสังหารพร้อมกัน',
+    id: 'danger-attack-32-overpass-territorial-defense',
+    stageLevel: 32,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'ชุดรักษาการณ์อาสาสมัครและเจ้าหน้าที่ตกค้างบนสะพานข้ามแยก',
+    weaponUsed: 'รั้วลวดหนามหีบเพลงและปืนเล็กยาวเก่าเก็บระดมยิงจากที่สูง',
+    injuryDetail: 'ลวดหนามใบมีดบาดลึกและถูกยิงกดจากมุมสูงเข้าที่แผ่นหลัง',
+    title: 'ชุดรักษาการณ์บนสะพานข้ามแยกสาดไฟฉายและระดมยิงใส่แนวรั้วลวดหนามหีบเพลง',
     description:
-      'ไซเรนเตือนภัยขั้นสูงสุดดังก้องทั่วเขตปิดล้อมสังหาร! สปอตไลท์ทุกดวงจับจ้องมาที่เจ้าเป็นจุดเดียว ป้อมปืนกลหนักและพลซุ่มยิงบนอาคารสูงเปิดฉากระดมยิงกระสุนเจาะเกราะใส่ร่างของเจ้าอย่างบ้าคลั่งจนแทบแหลกสลาย!',
-    hpLoss: 20,
+      'แนวรั้วลวดหนามหีบเพลงใบมีดที่ขึงปิดทางขึ้นสะพานข้ามแยกเกี่ยวรั้งร่างของเจ้าไว้ ทันใดนั้นไฟฉายแรงสูงนับสิบดวงจากบนราวสะพานก็ส่องลงมา พร้อมเสียงปืนเล็กยาวและลูกซองระดมยิงใส่จากมุมสูงจนต้องกระชากร่างที่โชกเลือดหลบเข้าใต้ท้องรถบรรทุกพ่วง',
+    hpLoss: 15,
+    sanityLoss: 2,
+  },
+  {
+    id: 'danger-attack-33-extinguisher-ied-canal',
+    stageLevel: 33,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'แนวป้องกันสะพานข้ามคลองสายหลัก',
+    weaponUsed: 'ทุ่นระเบิดแสวงเครื่องจากถังดับเพลิงเก่าอัดดินปืนประทัดยักษ์และเหล็กเส้น',
+    injuryDetail: 'เนื้อเยื่อท่อนขาและชายโครงฉีกขาดจากแรงระเบิดและสะเก็ดเหล็กเส้น',
+    title: 'ทุ่นระเบิดแสวงเครื่องจากถังดับเพลิงเก่าทำงานกลางแนวป้องกันสะพานข้ามคลอง',
+    description:
+      'เมื่อก้าวขึ้นสู่เชิงสะพานข้ามคลองที่ถูกทิ้งร้าง แผ่นไม้กระดานพรางตาก็ยุบตัวลงและจุดชนวนถังดับเพลิงเก่าที่อัดดินปืนประทัดยักษ์ไว้ข้างใต้! เสียงระเบิดกัมปนาทส่งสะเก็ดเหล็กเส้นสับเข้าใส่ท่อนขาและชายโครงจนร่างกระเด็นตกกระแทกบันไดท่าน้ำ',
+    hpLoss: 17,
+    sanityLoss: 2,
+  },
+  {
+    id: 'danger-attack-34-steel-net-molotov-overpass',
+    stageLevel: 34,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'ป้อมปราการผู้รอดชีวิตติดอาวุธบนสะพานลอยคนข้ามถนนใหญ่',
+    weaponUsed: 'ตาข่ายเหล็กถ่วงล้อรถยนต์และห่ากระสุนพร้อมระเบิดขวดซ้ำ',
+    injuryDetail: 'ถูกตาข่ายเหล็กกดทับพร้อมบาดแผลถูกยิงและไฟคลอกตามลำตัว',
+    title: 'ตาข่ายเหล็กถ่วงล้อรถยนต์ทิ้งดิ่งจากสะพานลอยพร้อมห่ากระสุนและระเบิดเพลิงซ้ำ',
+    description:
+      'จังหวะที่ก้าวลอดใต้เงาสะพานลอยคนข้าม ตาข่ายเหล็กเส้นถ่วงด้วยยางรถยนต์เก่าก็ถูกปลดสลักทิ้งดิ่งลงมาคลุมร่างของเจ้า! คนข้างบนไม่รอช้า ระดมยิงปืนลูกซองและปาระเบิดขวดลงมาซ้ำใส่จุดที่ตาข่ายคลุมอยู่ จนเจ้าต้องฉีกกระชากเนื้อตัวเองหลุดพ้นกองไฟออกมาอย่างสะบักสะบอม',
+    hpLoss: 18,
+    sanityLoss: 3,
+  },
+  {
+    id: 'danger-attack-35-block-burnout-cordon',
+    stageLevel: 35,
+    tier: 'lockdown',
+    tierLabel: 'มาตรการกวาดล้างแนวปิดล้อมเขตกักกัน',
+    attackerSource: 'กองกำลังควบคุมพื้นที่สีแดงหน้าแนวตึกแถวถูกเผา',
+    weaponUsed: 'การวางเพลิงเผาบล็อกตึกแถวและแนวปืนระดมยิงสกัดผู้ติดเชื้อที่หนีไฟ',
+    injuryDetail: 'สำลักควันไฟร้อนจัดและถูกกระสุนยิงสกัดเข้าที่ลำตัวหลายนัด',
+    title: 'ปฏิบัติการจุดไฟเผาแนวตึกแถวและระดมยิงสกัดทุกชีวิตที่พุ่งหนีออกจากกองเพลิง',
+    description:
+      'กลุ่มติดอาวุธที่ควบคุมพื้นที่สีแดงตัดสินใจราดน้ำมันจุดไฟเผาตึกแถวทั้งบล็อกเพื่อบีบให้ผู้ติดเชื้อวิ่งออกมา! ทันทีที่เจ้าพุ่งทะลุกำแพงควันไฟร้อนระอุออกสู่ถนน เสียงปืนจากแนวบังเกอร์ฝั่งตรงข้ามก็ระดมยิงสกัดใส่ร่างที่กำลังไหม้เกรียมอย่างไร้ความปรานี',
+    hpLoss: 19,
     sanityLoss: 3,
   },
 ];
@@ -3512,24 +4361,24 @@ export function getDailyWeatherAndZoneHazard(
 
   if (localThreat >= 85) {
     threatTier = 'lockdown';
-    threatTierTitle = 'เขตปิดล้อมสังหาร';
+    threatTierTitle = 'เขตปิดล้อมกวาดล้าง';
     trustGainScalePercent = 35;
     baseAttackChance = 65;
-    humanAttackDamageRangeLabel = localThreat >= 95 ? '15–20 HP' : '10–20 HP';
+    humanAttackDamageRangeLabel = localThreat >= 95 ? '15–20 HP' : '13–20 HP';
     accentColor = 'border-rose-500/60 bg-rose-950/40 text-rose-200';
   } else if (localThreat >= 60) {
     threatTier = 'high';
     threatTierTitle = 'เขตอันตรายสูง';
     trustGainScalePercent = 50;
     baseAttackChance = 45;
-    humanAttackDamageRangeLabel = '5–12 HP';
+    humanAttackDamageRangeLabel = '8–12 HP';
     accentColor = 'border-amber-500/60 bg-amber-950/40 text-amber-200';
   } else if (localThreat >= 35) {
     threatTier = 'watch';
     threatTierTitle = 'เขตเฝ้าระวัง';
     trustGainScalePercent = 75;
     baseAttackChance = 25;
-    humanAttackDamageRangeLabel = '3–7 HP';
+    humanAttackDamageRangeLabel = '4–7 HP';
     accentColor = 'border-sky-500/40 bg-sky-950/30 text-sky-200';
   }
 
@@ -3539,15 +4388,15 @@ export function getDailyWeatherAndZoneHazard(
 
   let threatEffectSummary =
     humanAttackChancePercent > 0
-      ? `ผู้คนยังไม่ตื่นตระหนกมาก (ความไว้ใจขึ้นปกติ 100%) · มีโอกาส ${humanAttackChancePercent}% ที่ชาวบ้านตกใจทำร้าย (-${humanAttackDamageRangeLabel})`
-      : 'การตรวจการณ์เบาบาง ความไว้ใจของ NPC เพิ่มขึ้นตามปกติ (100%) และยังไม่มีความเสี่ยงถูกชาวบ้านดักทำร้าย';
+      ? `ผู้คนยังไม่ตื่นตระหนกมาก (ความไว้ใจขึ้นปกติ 100%) · มีความเสี่ยงที่ชาวบ้านหลังเหล็กดัดตึกแถวจะตกใจทำร้าย (-${humanAttackDamageRangeLabel})`
+      : 'การตรวจการณ์เบาบาง ความไว้ใจของคนในพื้นที่เพิ่มขึ้นตามปกติ (100%) และยังไม่มีความเสี่ยงถูกดักทำร้าย';
 
   if (localThreat >= 85) {
-    threatEffectSummary = `คนหวาดผวาซอมบี้สุดขีด! ความไว้ใจ NPC ในย่านนี้เพิ่มขึ้นยากมาก (-65%) · มีโอกาส ${humanAttackChancePercent}% ที่จะถูกชุดลาดตระเวน/ป้อมปืนกลระดมโจมตีหนัก (-${humanAttackDamageRangeLabel}) · สำรวจอิสระพบเสบียงด่านเพิ่ม (+2)`;
+    threatEffectSummary = `คนในพื้นที่หวาดผวาผู้ติดเชื้อสุดขีด! ความไว้ใจเพิ่มขึ้นยากมาก (-65%) · เสี่ยงสูงที่จะถูกด่านปิดล้อมเขตกักกันระดมยิงหรือวางกับดักกวาดล้าง (-${humanAttackDamageRangeLabel}) · สำรวจอิสระพบเสบียงด่านเพิ่ม (+2)`;
   } else if (localThreat >= 60) {
-    threatEffectSummary = `ผู้คนตั้งป้อมระแวงสูง! ความไว้ใจ NPC ในย่านนี้เพิ่มขึ้นยาก (-50%) · มีโอกาส ${humanAttackChancePercent}% ที่จะถูกชาวบ้าน/เวรยามดักตีหรือวางกับดักโจมตี (-${humanAttackDamageRangeLabel}) · สำรวจอิสระพบเสบียงโบนัส (+2)`;
+    threatEffectSummary = `ผู้คนตั้งด่านปิดกั้นระแวงสูง! ความไว้ใจเพิ่มขึ้นยาก (-50%) · เสี่ยงถูกเวรยามติดอาวุธประดิษฐ์และกับดักหน้าด่านชุมชนโจมตี (-${humanAttackDamageRangeLabel}) · สำรวจอิสระพบเสบียงโบนัส (+2)`;
   } else if (localThreat >= 35) {
-    threatEffectSummary = `คนในย่านเริ่มระแวงซอมบี้ ความไว้ใจ NPC เพิ่มขึ้นยากขึ้น (-25%) · มีโอกาส ${humanAttackChancePercent}% ที่จะถูกคนตื่นตกใจขว้างของหรือฟาดสกัด (-${humanAttackDamageRangeLabel})`;
+    threatEffectSummary = `คนในย่านจัดเวรยามเฝ้าซอย ความไว้ใจเพิ่มขึ้นยากขึ้น (-25%) · เสี่ยงถูกเวรยามอาสาหรือกับดักปากซอยสกัดกั้น (-${humanAttackDamageRangeLabel})`;
   }
 
   return {
@@ -3579,22 +4428,29 @@ export interface HazardTurnAttackResult {
 /**
  * ประมวลผลสภาพอากาศและระดับภัยคุกคามพื้นที่ (Danger/Threat) เมื่อข้ามวัน
  * 1) หากค่า Danger >= 35 การเพิ่มค่าความไว้ใจรวม (stats.trust) ในเทิร์นนั้นจะขึ้นยากขึ้นตามระดับความระแวงของคนในพื้นที่
- * 2) สุ่มโอกาสเป็น % (humanAttackChancePercent) ที่จะถูกมนุษย์/ชาวบ้าน/ชุดลาดตระเวนในพื้นที่โจมตี (15 ฉากเหตุการณ์ ลดเลือดตั้งแต่ -2 ถึงสูงสุด -20 HP ตามระดับ Danger)
+ * 2) สุ่มโอกาสตามระดับความตึงเครียดที่จะถูกคนในพื้นที่/เวรยามซอย/ด่านปิดล้อมเขตกักกันโจมตี (35 เหตุการณ์ แยกตาม 4 ระดับภัยคุกคาม)
  */
 export function applyDailyWeatherAndZoneHazardTurn(
   nextState: any,
-  beforeState: any
+  beforeState: any,
+  options?: { forceDayConsumed?: boolean }
 ): HazardTurnAttackResult {
   const emptyResult: HazardTurnAttackResult = {
     attacked: false,
     chancePercent: 0,
     localThreat: 20,
   };
-  if (!nextState || !nextState.stats || nextState.ending) return emptyResult;
+  if (!nextState || !nextState.stats) return emptyResult;
   const beforeDay = Number(beforeState?.day || 1);
   const nextDay = Number(nextState?.day || 1);
-  if (nextDay <= beforeDay) return emptyResult;
+  const dayConsumed =
+    Boolean(options?.forceDayConsumed) ||
+    nextDay > beforeDay ||
+    Number(nextState?.completedDays || 0) > Number(beforeState?.completedDays || 0);
+  if (!dayConsumed) return emptyResult;
   if ((nextState.stats.hp || 0) <= 0) return emptyResult;
+  const activeDay = Math.max(beforeDay, nextDay);
+  const logDay = beforeDay || nextDay || 1;
 
   const place = String(nextState.place || 'shelter');
   const info = getDailyWeatherAndZoneHazard(beforeState || nextState, place);
@@ -3654,45 +4510,53 @@ export function applyDailyWeatherAndZoneHazardTurn(
     clampStat('horde', 2, 0, 120);
   }
 
-  // 3) สุ่มโอกาสเป็น % (humanAttackChancePercent) ที่จะโดนคนในพื้นที่โจมตี (15 ฉาก ลดเลือดตั้งแต่ -2 ถึงสูงสุด -20 HP ตามระดับ Danger)
+  // 3) สุ่มเหตุการณ์ถูกคนในพื้นที่โจมตีตามระดับภัยคุกคาม (35 เหตุการณ์ แบ่งตาม 4 ระดับภัยคุกคามของเขตกักกันกรุงเทพฯ)
   if (info.humanAttackChancePercent > 0 && (nextState.stats.hp || 0) > 0) {
     const seed = Number(nextState.initialSeed || 101);
+    const serialSalt = Number(nextState.serial || 0);
+    const hpSalt = Number(nextState.stats?.hp || 0) * 131;
     let placeHash = 0;
     for (let i = 0; i < place.length; i++) {
       placeHash = (placeHash * 31 + place.charCodeAt(i)) >>> 0;
     }
     const rollHash =
-      ((seed ^ (nextDay * 2654435761) ^ (info.localThreat * 374761393) ^ placeHash) >>> 0);
+      ((seed ^
+        (activeDay * 2654435761) ^
+        (info.localThreat * 374761393) ^
+        placeHash ^
+        (serialSalt * 668265263) ^
+        hpSalt) >>>
+        0);
     const rollPercent = rollHash % 100;
 
     if (rollPercent < info.humanAttackChancePercent) {
-      let poolIndices: number[] = [0, 1, 2];
+      let tierPool = DANGER_HUMAN_ATTACK_SCENARIOS.filter(
+        (item) => item.tier === info.threatTier
+      );
       if (info.localThreat >= 95) {
-        poolIndices = [11, 12, 13, 14]; // ฉากที่ 12–15 (-15, -16, -18, -20 HP)
-      } else if (info.localThreat >= 85) {
-        poolIndices = [8, 9, 10, 11, 12, 13, 14]; // ฉากที่ 9–15 (-10 ถึง -20 HP)
-      } else if (info.localThreat >= 60) {
-        poolIndices = [3, 4, 5, 6, 7, 8, 9]; // ฉากที่ 4–10 (-5 ถึง -12 HP)
-      } else if (info.localThreat >= 35) {
-        poolIndices = [1, 2, 3, 4, 5]; // ฉากที่ 2–6 (-3 ถึง -7 HP)
-      } else {
-        poolIndices = [0, 1, 2]; // ฉากที่ 1–3 (-2 ถึง -4 HP)
+        const extremePool = tierPool.filter((item) => item.hpLoss >= 15);
+        if (extremePool.length > 0) {
+          tierPool = extremePool;
+        }
+      }
+      if (tierPool.length === 0) {
+        tierPool = DANGER_HUMAN_ATTACK_SCENARIOS;
       }
 
-      const scenarioIdx = poolIndices[(rollHash >>> 8) % poolIndices.length];
-      const scenario = DANGER_HUMAN_ATTACK_SCENARIOS[scenarioIdx] || DANGER_HUMAN_ATTACK_SCENARIOS[0];
+      const scenarioIdx = ((rollHash >>> 7) + activeDay * 17) % tierPool.length;
+      const scenario = tierPool[scenarioIdx] || DANGER_HUMAN_ATTACK_SCENARIOS[0];
 
       clampStat('hp', -scenario.hpLoss, 0, 100);
       if (scenario.sanityLoss > 0 && (nextState.stats.sanity || 0) > 10) {
         clampStat('sanity', -scenario.sanityLoss, 10, 100);
       }
 
-      const logText = `[ภัยพื้นที่ ${info.localThreat}/100 · โอกาสปะทะ ${info.humanAttackChancePercent}% — ฉากที่ ${scenario.stageLevel}/15: ${scenario.title}] ${scenario.description} (สภาพร่าง -${scenario.hpLoss}${scenario.sanityLoss > 0 ? ` · สติ -${scenario.sanityLoss}` : ''})`;
+      const logText = `[ภัยพื้นที่ · ปะทะคนเป็น — ${scenario.title}] ${scenario.description} (สภาพร่าง -${scenario.hpLoss}${scenario.sanityLoss > 0 ? ` · สติ -${scenario.sanityLoss}` : ''})`;
       if (Array.isArray(nextState.log)) {
         nextState.log = [
           {
             id: Date.now() + 17,
-            day: nextDay,
+            day: logDay,
             text: logText,
             kind: 'danger',
           },

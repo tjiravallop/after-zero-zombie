@@ -6,6 +6,7 @@ const dialogues = ['src/data/travelDialogues.json','src/data/communityTravelDial
 const community = JSON.parse(fs.readFileSync('src/data/communityEngineEvents.json', 'utf8'));
 const file = 'public/after-zero-bundle.js';
 let source = fs.readFileSync(file, 'utf8');
+const originalSource = source;
 const relationshipSource = fs.readFileSync('src/data/npcRelationships.js','utf8').replace(/^export /gm,'');
 const relationshipStart = '// BEGIN NPC RELATIONSHIP RULES', relationshipEnd = '// END NPC RELATIONSHIP RULES';
 const relationshipCode = `${relationshipStart}\n  const NpcRelationships = (() => {\n${relationshipSource}\nreturn {relationshipState,changeTrust,previewTrust,npcPosture,npcHuntEffects,relationshipTier,recordRescue,scaledTrust,rebalanceRelationshipCatalog,validateSavedEncounter};\n})();\n  ${relationshipEnd}`;
@@ -34,6 +35,26 @@ const code = `${start}
           ] });
           ENDINGS[d.id + '.ending'] = { title: d.ending, text: d.epilogue };
           ACTIONS.push({id:d.id+'.settle',name:'ตัดสินใจตั้งหลักดูแลย่านนี้ — '+d.ending,places:[d.id],ending:d.id+'.ending',min:{humanity:60,sanity:50,trust:55},requirements:{kind:'flag',id:flag,value:true},note:'จุดตัดสินใจวิถีชีวิต · ต้องเคยช่วยงานย่านนี้ มีสติ 50 ความเป็นมนุษย์ 60 และความไว้ใจ 55'});
+        }
+        const MAP_NEIGHBORS = {
+          radio: ['hospital', 'bkk_depot', 'bkk_cafe', 'shelter'],
+          bkk_depot: ['radio', 'hospital', 'bkk_stockroom', 'nest'],
+          bkk_cafe: ['radio', 'hospital', 'bkk_busyard', 'shelter', 'bkk_power'],
+          bkk_busyard: ['bkk_cafe', 'hospital', 'bkk_ward', 'shelter', 'bkk_winstop'],
+          hospital: ['radio', 'bkk_depot', 'bkk_cafe', 'bkk_busyard', 'bkk_ward', 'bkk_stockroom', 'shelter', 'streets', 'nest'],
+          bkk_ward: ['hospital', 'bkk_busyard', 'shelter', 'bkk_winstop', 'bkk_stockroom', 'bkk_pier'],
+          shelter: ['radio', 'bkk_cafe', 'bkk_busyard', 'hospital', 'bkk_ward', 'bkk_power', 'bkk_winstop', 'bkk_office', 'streets'],
+          bkk_power: ['bkk_cafe', 'shelter', 'bkk_winstop', 'bkk_office'],
+          bkk_winstop: ['shelter', 'bkk_power', 'bkk_busyard', 'bkk_ward', 'bkk_pier', 'bkk_office', 'streets'],
+          bkk_stockroom: ['bkk_depot', 'hospital', 'bkk_ward', 'bkk_pier', 'nest', 'streets'],
+          bkk_pier: ['bkk_stockroom', 'bkk_ward', 'bkk_winstop', 'bkk_office', 'streets', 'nest'],
+          bkk_office: ['bkk_power', 'shelter', 'bkk_winstop', 'bkk_pier', 'streets', 'bkk_market'],
+          nest: ['bkk_depot', 'hospital', 'bkk_stockroom', 'bkk_pier', 'streets', 'bkk_market'],
+          streets: ['hospital', 'shelter', 'bkk_winstop', 'bkk_stockroom', 'bkk_pier', 'bkk_office', 'nest', 'bkk_market'],
+          bkk_market: ['streets', 'nest', 'bkk_office']
+        };
+        for (const [placeId, neighbors] of Object.entries(MAP_NEIGHBORS)) {
+          if (PLACES[placeId]) PLACES[placeId].neighbors = [...neighbors];
         }
         const routes = ${JSON.stringify(routes)};
         const lateFlags = [
@@ -92,8 +113,14 @@ const code = `${start}
         ${end}`;
 if (source.includes(start)) source = source.slice(0, source.indexOf(start)) + code + source.slice(source.indexOf(end) + end.length);
 else source = source.replace('        return { PLACES, ACTIONS, EVENTS, ENDINGS, ROUTES:', code + '\n        return { PLACES, ACTIONS, EVENTS, ENDINGS, ROUTES:').replace('STRAINS: {}, FLAGS: {}, NPCS: {}, RESOURCES: {}', 'STRAINS: {}, FLAGS, NPCS: {}, RESOURCES: {}');
-fs.writeFileSync(file, source);
+if (source !== originalSource) {
+  fs.writeFileSync(file, source);
+}
 // Refresh the classic engine script when a new build changes its contents.
-const indexFile='index.html';
-const engineVersion=createHash('sha256').update(source).digest('hex').slice(0,12);
-fs.writeFileSync(indexFile,fs.readFileSync(indexFile,'utf8').replace(/\.\/after-zero-bundle\.js(?:\?v=[a-z0-9-]+)?/g,'./after-zero-bundle.js?v='+engineVersion));
+const indexFile = 'index.html';
+const engineVersion = createHash('sha256').update(source).digest('hex').slice(0, 12);
+const currentIndex = fs.readFileSync(indexFile, 'utf8');
+const nextIndex = currentIndex.replace(/\.\/after-zero-bundle\.js(?:\?v=[a-z0-9-]+)?/g, './after-zero-bundle.js?v=' + engineVersion);
+if (nextIndex !== currentIndex) {
+  fs.writeFileSync(indexFile, nextIndex);
+}

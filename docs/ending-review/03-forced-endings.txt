@@ -1,0 +1,31 @@
+function finishDay(s, endingCandidate) {
+            const turn = s.lifecycle.activeTurn;
+            if (!turn || turn === s.lifecycle.lastCommittedTurn) throw Error("Day already committed");
+            const diedBeforeEndDay = (s.stats.hp || 0) <= 0;
+            if (!diedBeforeEndDay) {
+              proposal(s, systems.Survival.endDay(K.snapshot(s), context(s, "endDay")), "survival");
+              proposal(s, systems.World.endDay(K.snapshot(s), context(s, "endDay")), "world");
+              U.normalize(s);
+            }
+            s.completedDays++;
+            s.lifecycle.lastCommittedTurn = turn;
+            s.lifecycle.activeTurn = null;
+            s.feralDays = s.stats.sanity === 0 ? s.feralDays + 1 : 0;
+            if (s.stats.hp <= 0) {
+              const deathCause = !diedBeforeEndDay && (s.stats.hunger >= 85 || (s.body?.starvationDays || 0) >= 2) ? "starvation" : (s.story?.flags?.["next.weather"] === "rain" && ["streets", "radio", "tower", "nest"].includes(s.place) && s.stats.hunger < 85 && (s.body?.starvationDays || 0) < 2) ? "hypothermia" : "fatal_trauma";
+              return finish(s, "death", deathCause);
+            }
+            if (s.feralDays >= 3) {
+              const feralCause = (s.stats.hunger >= 85 || (s.body?.starvationDays || 0) >= 2) ? "starvation" : "feral_madness";
+              return finish(s, "feral", feralCause);
+            }
+            if (endingCandidate) return finish(s, endingCandidate);
+            if (s.day >= S.MAX_DAY) return finish(s, "bombed", "bombardment");
+            proposal(s, systems.Evolution.evaluate(K.snapshot(s), context(s, "evolution")), "evolution");
+            s.day++;
+            const next = select(s, { kind: "morning" });
+            if (next) openEvent(s, next, false);
+          }
+          
+
+App.tsx: ตรวจ handleResolveLifeSimModal, handleSurrenderToZombieInstinct และ handleTriggerSliceOfLifeEnding ใน source/App.tsx.txt สำหรับการจบที่ UI สั่งโดยตรง

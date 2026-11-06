@@ -13,16 +13,12 @@ import { getEndingReadiness, getRouteGuidance, PROGRESSION_ROUTES } from './data
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   CheckCircle2,
-  Copy,
-  Check,
   Search,
   Download,
   Upload,
   Volume2,
   VolumeX,
   ArrowRight,
-  Wrench,
-  Terminal,
   Heart,
   Flame,
   Brain,
@@ -77,13 +73,16 @@ import {
   buildActionClimaxDecisionModal,
   getDailyWeatherAndZoneHazard,
   applyDailyWeatherAndZoneHazardTurn,
+  computeEngineSurvivalDayPolicy,
+  applyFinalEndingToState,
+  resolveSharedActivityTurn,
+  applyLifeSimModalEffectsToState,
   DangerHumanAttackScenario,
   HazardTurnAttackResult,
   normalizeCanonicalMemory,
   sanitizeCanonicalStoryFlags,
 } from './data/pastLifeEchoes';
 import {
-  AI_COLLABORATION_PROMPTS,
   ORGANIC_ENDING_CLIMAX_EVENTS,
   EXTERNAL_AI_ROAM_EVENTS,
   EXTERNAL_AI_NPCS,
@@ -167,9 +166,7 @@ declare global {
   }
 }
 
-type AppMode = 'game' | 'studio';
 type GameScreenStage = 'login' | 'hub' | 'playing';
-type StudioTab = 'ai-pack' | 'inspector' | 'patches';
 type MobileDrawerTab = 'play' | 'map' | 'bag' | 'people' | 'journal';
 type DesktopSideTab = 'map' | 'bag' | 'people' | 'journal';
 
@@ -460,21 +457,6 @@ function classifyActionLayer(id: string, move?: string, ending?: string): string
   return 'พื้นฐาน';
 }
 
-function classifyEventLayer(id: string): string {
-  if (id.startsWith('travel.')) return 'เดินทาง';
-  if (id.startsWith('bkk_')) return 'ย่านอาชีพ';
-  if (id.startsWith('route.')) return 'เส้นทาง';
-  if (id.startsWith('clinic.') || id.startsWith('pack.') || id.startsWith('remnant.')) {
-    return 'เนื้อเรื่อง';
-  }
-  if (id.startsWith('origins.')) return 'จุดกำเนิด';
-  if (id.startsWith('next.')) return 'เนื้อเรื่อง';
-  if (id.startsWith('c40.')) return 'คลินิก';
-  if (id.startsWith('c41.')) return 'ฝูง';
-  if (id.startsWith('c42.')) return 'ความทรงจำ';
-  return 'พื้นฐาน';
-}
-
 function computeStateDeltas(before: any, after: any): string[] {
   if (!before || !after) return [];
   const deltas: string[] = [];
@@ -517,7 +499,6 @@ function computeStateDeltas(before: any, after: any): string[] {
 }
 
 export default function App() {
-  const [appMode, setAppMode] = useState<AppMode>('game');
   const [screenStage, setScreenStage] = useState<GameScreenStage>('login');
   const [playerName, setPlayerName] = useState<string>(() => {
     try {
@@ -528,11 +509,9 @@ export default function App() {
   });
   const [loginInput, setLoginInput] = useState<string>(playerName);
 
-  const [studioTab, setStudioTab] = useState<StudioTab>('ai-pack');
   const [mobileTab, setMobileTab] = useState<MobileDrawerTab>('play');
   const [desktopSideTab, setDesktopSideTab] = useState<DesktopSideTab>('map');
 
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [ambientEnabled, setAmbientEnabled] = useState<boolean>(false);
   const [showRouteHints, setShowRouteHints] = useState(() => readPreference(STORAGE_KEY_ROUTE_HINTS));
@@ -650,15 +629,6 @@ export default function App() {
   const [importJsonText, setImportJsonText] = useState<string>('');
   const [showImportBox, setShowImportBox] = useState<boolean>(false);
 
-  // Live Engine Patches
-  const [patches, setPatches] = useState({
-    staggerLegacy02Story: true,
-    hideLockedCareSpoilers: true,
-    bridge03ToEndings: true,
-    midGameHorizonClues: true,
-    pastLifeEchoesEnabled: true,
-  });
-
   // Initialize or restore game state
   const [gameState, setGameState] = useState<any>(() => {
     const prod = window.AfterZeroEngine?.Production;
@@ -727,8 +697,6 @@ export default function App() {
   const [latestStory, setLatestStory] = useState<StoryMoment | null>(null);
   const [isCareExpanded, setIsCareExpanded] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [recordedCurrentEndingRunId, setRecordedCurrentEndingRunId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [layerFilter, setLayerFilter] = useState<string>('ALL');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const loginCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -763,6 +731,7 @@ export default function App() {
   const [isCrisisListExpanded, setIsCrisisListExpanded] = useState<boolean>(false);
   const [isPeopleCrisisSectionExpanded, setIsPeopleCrisisSectionExpanded] = useState<boolean>(true);
   const [expandedNpcCardCrisisIds, setExpandedNpcCardCrisisIds] = useState<Record<string, boolean>>({});
+  const [travelGoalId, setTravelGoalId] = useState<string | null>(null);
 
   // Active unresolved NPC crises in the current zone
   const activeZoneCrises = useMemo(() => {
@@ -787,14 +756,16 @@ export default function App() {
     }> = [];
 
     Object.entries(syncedZonePopulations).forEach(([placeId, zonePop]) => {
-      const placeInfo = placesCatalog[placeId];
-      const placeName = placeInfo?.short || placeInfo?.name || placeId;
-      const isCurrentZone = placeId === currentPlaceId;
+      if (placeId === 'tower' && syncedZonePopulations.radio) return;
+      const canonicalPlaceId = placeId === 'tower' ? 'radio' : placeId;
+      const placeInfo = placesCatalog[canonicalPlaceId];
+      const placeName = placeInfo?.short || placeInfo?.name || zonePop.placeName || canonicalPlaceId;
+      const isCurrentZone = canonicalPlaceId === currentPlaceId;
       zonePop.npcs.forEach(npc => {
         if (npc.alive && !npc.crisisResolved && npc.crisisDay && currentDay >= npc.crisisDay) {
           list.push({
             npc,
-            placeId,
+            placeId: canonicalPlaceId,
             placeName,
             isCurrentZone,
           });
@@ -870,12 +841,12 @@ export default function App() {
   useEffect(() => {
     soundFx.enabled = soundEnabled;
     soundFx.ambientEnabled = soundEnabled && ambientEnabled;
-    if (appMode === 'game' && screenStage === 'playing' && gameState) {
+    if (screenStage === 'playing' && gameState) {
       soundFx.syncSceneAmbience(gameState.place, gameState.ending?.id);
     } else {
       soundFx.stopAmbience();
     }
-  }, [soundEnabled, ambientEnabled, appMode, screenStage, gameState?.place, gameState?.ending?.id]);
+  }, [soundEnabled, ambientEnabled, screenStage, gameState?.place, gameState?.ending?.id]);
 
   useEffect(() => {
     try {
@@ -929,13 +900,13 @@ export default function App() {
   useEffect(() => {
     const scene = window.AfterZeroEngine?.Scene;
     if (!scene || typeof scene.draw !== 'function' || !gameState) return;
-    if (appMode === 'game' && screenStage === 'playing' && canvasRef.current) {
+    if (screenStage === 'playing' && canvasRef.current) {
       scene.draw(canvasRef.current, gameState, gameState.day || 1, { hideCharacter: true });
     }
-    if (appMode === 'game' && screenStage === 'login' && loginCanvasRef.current) {
+    if (screenStage === 'login' && loginCanvasRef.current) {
       scene.draw(loginCanvasRef.current, gameState, 1);
     }
-  }, [appMode, screenStage, gameState, mobileTab]);
+  }, [screenStage, gameState, mobileTab]);
 
   // Global reputation and the average trust of this zone are separate quantities.
   const effectiveGameState = useMemo(() => {
@@ -947,12 +918,17 @@ export default function App() {
     }
     if (clone.ending) {
       clone.pending = null;
-      const derived = deriveDeathEndingPresentation(gameState, currentBio, {
-        id: gameState.ending.id,
-        title: gameState.ending.title,
-        text: gameState.ending.text,
-        causeCode: gameState.ending.causeCode,
-      });
+      const derived = deriveDeathEndingPresentation(
+        gameState,
+        currentBio,
+        {
+          id: gameState.ending.id,
+          title: gameState.ending.title,
+          text: gameState.ending.text,
+          causeCode: gameState.ending.causeCode,
+        },
+        syncedZonePopulations
+      );
       clone.ending.causeCode = derived.cause.code.toLowerCase();
       clone.ending.causeOfDeath = derived.cause;
       clone.ending.title = derived.title;
@@ -1099,7 +1075,6 @@ export default function App() {
   const activeOrganicEchoPopup: OrganicEchoPopupEvent | null = useMemo(() => {
     if (
       screenStage !== 'playing' ||
-      !patches.pastLifeEchoesEnabled ||
       !gameState ||
       gameState.pending ||
       gameState.ending ||
@@ -1119,7 +1094,6 @@ export default function App() {
     );
   }, [
     screenStage,
-    patches.pastLifeEchoesEnabled,
     gameState,
     pastLives,
     triggeredEchoIds,
@@ -1142,7 +1116,7 @@ export default function App() {
           production.storyActionIds.includes(a.id) || a.id.startsWith('story.');
         const isConditionalCare = CONDITIONAL_CARE_ACTION_IDS.has(a.id);
 
-        if (patches.staggerLegacy02Story && LEGACY_02_STORY_ACTION_IDS.has(a.id)) {
+        if (LEGACY_02_STORY_ACTION_IDS.has(a.id)) {
           const flags = effectiveGameState.story?.flags || {};
           const unlockedWave2 =
             effectiveGameState.day >= 3 ||
@@ -1154,14 +1128,12 @@ export default function App() {
           }
         }
 
-        if (patches.hideLockedCareSpoilers) {
-          const availableWithoutPending = effectiveGameState.pending
-            ? production.engine.previewAction({ ...effectiveGameState, pending: null }, a.id).enabled
-            : a.preview?.enabled;
+        const availableWithoutPending = effectiveGameState.pending
+          ? production.engine.previewAction({ ...effectiveGameState, pending: null }, a.id).enabled
+          : a.preview?.enabled;
 
-          if ((isStory || isConditionalCare) && !availableWithoutPending && !effectiveGameState.ending) {
-            visible = false;
-          }
+        if ((isStory || isConditionalCare) && !availableWithoutPending && !effectiveGameState.ending) {
+          visible = false;
         }
 
         const currentSanityVal = Number(effectiveGameState.stats?.sanity ?? 100);
@@ -1203,13 +1175,13 @@ export default function App() {
         };
       })
       .filter(a => a.visible);
-  }, [rawViewModel, production, effectiveGameState, patches, showNumericSpoilers]);
+  }, [rawViewModel, production, effectiveGameState, showNumericSpoilers]);
 
   // Compute Mid-Game Horizon Clues
   const horizonClues = useMemo(() => {
-    if (!showRouteHints || !patches.midGameHorizonClues || !effectiveGameState) return [];
+    if (!showRouteHints || !effectiveGameState) return [];
     return getMidGameHorizonClues(effectiveGameState);
-  }, [showRouteHints, patches.midGameHorizonClues, effectiveGameState]);
+  }, [showRouteHints, effectiveGameState]);
 
   // Compute Slice-of-Life & Pre-Bombing Escape Endings
   const sliceOfLifeEndings = useMemo(() => {
@@ -1346,6 +1318,7 @@ export default function App() {
     setActiveThreatAmbushAlert(null);
     setIsScreenShaking(false);
     setLatestStory(null);
+    setTravelGoalId(null);
     setRecordedCurrentEndingRunId(null);
     setActiveLifeSimModal(null);
     setZonePopulations(createInitialZonePopulations(seed));
@@ -1359,7 +1332,11 @@ export default function App() {
     setActionToast(null);
   };
 
-  const recordStoryResult = (before: any, next: any, moment: Pick<StoryMoment, 'title' | 'choice' | 'text'>) => {
+  const recordStoryResult = (
+    before: any,
+    next: any,
+    moment: Pick<StoryMoment, 'title' | 'choice' | 'text'> & { extraLogKeys?: string[] }
+  ) => {
     const previousKeys = new Set((before.log || []).map(storyLogKey));
     const effects = computeStateDeltas(before, next);
     const nextZones = syncZonePopulationsWithEngineState(next.npcZones || syncedZonePopulations, next);
@@ -1371,15 +1348,19 @@ export default function App() {
       const delta = changed ? Math.round(changed.trust - npc.trust) : 0;
       if (delta) effects.push('ความไว้ใจของ' + npc.name + ' ' + (delta > 0 ? '+' : '') + delta);
     }
+    const { extraLogKeys = [], ...storyMoment } = moment;
+    const newLogKeys = (next.log || [])
+      .filter((entry: any) => entry.kind !== 'danger' && !previousKeys.has(storyLogKey(entry)))
+      .map(storyLogKey);
     setLatestStory({
-      ...moment, runId: next.runId, day: next.day || 1,
+      ...storyMoment, runId: next.runId, day: next.day || 1,
       place: production?.catalog.PLACES[next.place]?.short || '', effects,
-      logKeys: (next.log || []).filter((entry: any) => entry.kind !== 'danger' && !previousKeys.has(storyLogKey(entry))).map(storyLogKey),
+      logKeys: Array.from(new Set([...newLogKeys, ...extraLogKeys])),
     });
     setActionToast(null);
   };
 
-  // Drink a carried blood bag directly from inventory
+  // Drink a carried blood bag directly from inventory (non-day-consuming)
   const handleDrinkCarriedBloodBag = () => {
     if (!gameState || (gameState.carriedBloodBags || 0) <= 0) return;
     if (soundEnabled) soundFx.success();
@@ -1388,8 +1369,16 @@ export default function App() {
     const next = structuredClone(gameState);
     next.carriedBloodBags = Math.max(0, (next.carriedBloodBags || 0) - 1);
     next.stats.hunger = Math.max(0, (next.stats.hunger || 0) - 28);
-    next.stats.hp = Math.min(100, (next.stats.hp || 0) + 4);
+    const policy = computeEngineSurvivalDayPolicy(next, next.stats.hunger);
+    const scaledHeal = Math.floor(4 * policy.healingMultiplier);
+    const maxRoom = Math.max(0, policy.ceiling - Number(next.stats.hp || 0));
+    const actualHeal = Math.max(0, Math.min(scaledHeal, maxRoom));
+    next.stats.hp = Math.min(100, (next.stats.hp || 0) + actualHeal);
     next.stats.sanity = Math.min(100, (next.stats.sanity || 0) + 2);
+    resolveSharedActivityTurn(next, before, {
+      consumesDay: false,
+      currentBio,
+    });
     next.log = [
       {
         id: Date.now(),
@@ -1418,11 +1407,12 @@ export default function App() {
       setActionToast('ไม่พบผู้รอดชีวิตที่ยังมีชีวิตอยู่ในเขตนี้แล้ว');
       return;
     }
-    const zone = syncedZonePopulations[modal.placeId];
+    const canonicalModalPlaceId = modal.placeId === 'tower' ? 'radio' : modal.placeId;
+    const zone = syncedZonePopulations[canonicalModalPlaceId] || syncedZonePopulations[modal.placeId];
     if (zone?.npcs.some(npc => npc.id === modal.targetNpcId && !npc.met && !npc.seen)) {
       setZonePopulations(zones => ({
         ...zones,
-        [modal.placeId]: {...zone, npcs: zone.npcs.map(npc => npc.id === modal.targetNpcId ? {...npc, seen: true} : npc)},
+        [canonicalModalPlaceId]: {...zone, npcs: zone.npcs.map(npc => npc.id === modal.targetNpcId ? {...npc, seen: true} : npc)},
       }));
     }
     setActiveLifeSimModal(modal);
@@ -1508,9 +1498,10 @@ export default function App() {
     if (resolvingModalRef.current) return;
     resolvingModalRef.current = modalEvent.id;
     try {
+      const canonicalModalPlaceId = modalEvent.placeId === 'tower' ? 'radio' : modalEvent.placeId;
       const relationshipReason = npcChoiceReason(
         gameState,
-        syncedZonePopulations[modalEvent.placeId] || syncedZonePopulations[gameState.place || 'shelter'],
+        syncedZonePopulations[canonicalModalPlaceId] || syncedZonePopulations[gameState.place || 'shelter'],
         modalEvent,
         choice
       );
@@ -1536,229 +1527,89 @@ export default function App() {
       delete next.npcEncounter;
       next.memory = normalizeCanonicalMemory(next.memory);
       const eff = choice.effects || {};
+      const contentId = modalEvent.contentId || modalEvent.id.replace(/-\d+.*$/, '');
 
-    // Advance 1 day only if the modal event consumes a day
-    if (modalEvent.advanceDay !== false) {
-      next.day = (next.day || 1) + 1;
-      // System 1: Apply daily mutation tissue regeneration if stage >= 2
-      const mutStage = getMutationStageInfo(next.stats?.mutation || 0);
-      if (mutStage.dailyHpRegen > 0 && (next.stats?.hp || 0) > 0) {
-        next.stats.hp = Math.min(100, (next.stats.hp || 0) + mutStage.dailyHpRegen);
-      }
-    }
+      const nextZones = structuredClone(syncedZonePopulations);
+      const zone = nextZones[canonicalModalPlaceId] || nextZones[modalEvent.placeId];
+      const target = zone?.npcs.find(npc => npc.id === modalEvent.targetNpcId);
+      const knewTarget = target?.met;
+      let outcomeText = choice.outcomeText;
 
-    // Roam cooldown handling (starts after choosing any option including retreat)
-    const contentId = modalEvent.contentId || modalEvent.id.replace(/-\d+.*$/, '');
-    if (modalEvent.cooldownDays && modalEvent.cooldownDays > 0) {
-      if (!next.roamCooldowns || typeof next.roamCooldowns !== 'object') {
-        next.roamCooldowns = {};
-      }
-      next.roamCooldowns[contentId] = (next.day || 1) + modalEvent.cooldownDays;
-    }
-
-    // Event 23 (Wreck pile parts depletion)
-    if ((choice as any).partKey) {
-      const part = (choice as any).partKey;
-      const currentDepleted = Array.isArray(next.asokWreckDepletedParts) ? [...next.asokWreckDepletedParts] : [];
-      if (!currentDepleted.includes(part)) {
-        currentDepleted.push(part);
-      }
-      next.asokWreckDepletedParts = currentDepleted;
-    }
-
-    const applyClampedStat = (key: string, delta?: number, max = 100) => {
-      if (!delta) return;
-      next.stats[key] = Math.min(max, Math.max(0, (next.stats[key] || 0) + delta));
-    };
-
-    applyClampedStat('hp', eff.hp, 100);
-    applyClampedStat('hunger', eff.hunger, 100);
-    applyClampedStat('sanity', eff.sanity, 100);
-    applyClampedStat('humanity', eff.humanity, 100);
-    applyClampedStat('mutation', eff.mutation, 100);
-    applyClampedStat('research', eff.research, 100);
-    applyClampedStat('horde', eff.horde, 120);
-    for (const key of ['corpseMeals', 'endured'] as const) {
-      if (eff[key]) {
-        next.memory[key] = Math.min(120, (next.memory[key] || 0) + eff[key]!);
-      }
-    }
-    next.memory = normalizeCanonicalMemory(next.memory);
-
-    if (eff.supplies) {
-      next.items.supplies = Math.max(0, (next.items.supplies || 0) + eff.supplies);
-    }
-    if (eff.medicine) {
-      next.items.medicine = Math.max(0, (next.items.medicine || 0) + eff.medicine);
-    }
-    if (eff.samples) {
-      next.items.samples = Math.max(0, (next.items.samples || 0) + eff.samples);
-    }
-    if (eff.carriedBloodBags) {
-      next.carriedBloodBags = Math.max(0, (next.carriedBloodBags || 0) + eff.carriedBloodBags);
-    }
-
-    // Persist story flags from timeline crises and follow-up roam events
-    if (!next.story || typeof next.story !== 'object') {
-      next.story = { flags: {} };
-    }
-    if (!next.story.flags || typeof next.story.flags !== 'object') {
-      next.story.flags = {};
-    }
-    if (Array.isArray(modalEvent.onResolveSetFlags)) {
-      for (const flagKey of modalEvent.onResolveSetFlags) {
-        if (flagKey) next.story.flags[flagKey] = true;
-      }
-    }
-    if (eff.setFlag) {
-      next.story.flags[eff.setFlag] = true;
-    }
-    if (Array.isArray(eff.setFlags)) {
-      for (const flagKey of eff.setFlags) {
-        if (flagKey) next.story.flags[flagKey] = true;
-      }
-    }
-    if (next.story?.flags && production?.catalog?.FLAGS) {
-      next.story.flags = sanitizeCanonicalStoryFlags(next.story.flags, production.catalog.FLAGS);
-    }
-
-    if (eff.threatDelta && next.world?.locations?.[modalEvent.placeId]) {
-      const loc = next.world.locations[modalEvent.placeId];
-      loc.threat = Math.min(100, Math.max(0, (loc.threat || 20) + eff.threatDelta));
-    }
-
-    // Trust, crisis resolution and lives saved are independent outcomes.
-    const nextZones = structuredClone(syncedZonePopulations);
-    const zone = nextZones[modalEvent.placeId];
-    const target = zone?.npcs.find(npc => npc.id === modalEvent.targetNpcId);
-    const knewTarget = target?.met;
-    if(zone)applyNpcRelationships(next,zone,modalEvent,choice,before.day||1);
-    const outcomeText = target?.met && !knewTarget
-      ? choice.outcomeText + ' ก่อนแยกกัน อีกฝ่ายบอกให้เจ้าเรียกว่า ' + target.name
-      : choice.outcomeText;
-    next.npcZones=nextZones;
-
-    // System 1b: Apply Daily Bangkok Weather & Zone Danger (threat) turn modifiers if day advanced
-    let hazardAttacked = false;
-    if (modalEvent.advanceDay !== false) {
-      const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before);
-      hazardAttacked = Boolean(hazardRes.attacked);
-      if (hazardRes.attacked && hazardRes.scenario) {
-        triggerThreatAmbushAlert(
-          hazardRes,
-          next,
-          next.day || 1,
-          production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
-        );
-      }
-    }
-
-    // Check if this choice inside a Climax Trigger Event directly culminates in an Ending!
-    const modalTextCombined = `${modalEvent.title || ''} ${modalEvent.text || ''} ${choice.outcomeText || ''}`;
-    const isColdModalContext =
-      modalEvent.id.includes('black_rain') ||
-      /ฝนเขม่า|ฝนกรด|พายุฝน|หนาวสั่น|เย็นเฉียบ|อุณหภูมิร่างกายลด|ตู้แช่/.test(modalTextCombined);
-
-    if (eff.triggerEndingId) {
-      next.pending = null;
-      const derived = deriveDeathEndingPresentation(next, currentBio, {
-        id: eff.triggerEndingId,
-        causeCode: eff.triggerEndingId === 'bombed' ? 'bombardment' : undefined,
+      applyLifeSimModalEffectsToState(next, modalEvent, choiceIndex, {
+        currentBio,
+        runEnvironmentHazard: true,
+        canonicalPlaceId: canonicalModalPlaceId,
+        onBeforeTurnResolve: (nextState, beforeState, selectedChoice) => {
+          if (nextState.story?.flags && production?.catalog?.FLAGS) {
+            nextState.story.flags = sanitizeCanonicalStoryFlags(
+              nextState.story.flags,
+              production.catalog.FLAGS
+            );
+          }
+          if (zone) {
+            applyNpcRelationships(nextState, zone, modalEvent, selectedChoice, beforeState.day || 1);
+          }
+          const killedDiff = (nextState.memory?.killed || 0) - (beforeState.memory?.killed || 0);
+          if (killedDiff > 0) {
+            const currentHumanityDrop =
+              (beforeState.stats?.humanity || 0) - (nextState.stats?.humanity || 0);
+            if (currentHumanityDrop < 15 * killedDiff) {
+              nextState.stats.humanity = Math.max(
+                0,
+                (beforeState.stats?.humanity || 0) - 15 * killedDiff
+              );
+            }
+          }
+          outcomeText =
+            target?.met && !knewTarget
+              ? selectedChoice.outcomeText + ' ก่อนแยกกัน อีกฝ่ายบอกให้เจ้าเรียกว่า ' + target.name
+              : selectedChoice.outcomeText;
+          nextState.npcZones = nextZones;
+        },
+        onHazardResult: hazardRes => {
+          if (hazardRes.attacked && hazardRes.scenario) {
+            triggerThreatAmbushAlert(
+              hazardRes,
+              next,
+              before.day || 1,
+              production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
+            );
+          }
+        },
       });
-      next.ending = {
-        id: eff.triggerEndingId,
-        day: next.day,
-        title: derived.title,
-        text: derived.text,
-        causeCode: derived.cause.code.toLowerCase(),
-        causeOfDeath: derived.cause,
-      };
-    } else if (next.stats.hp <= 0) {
-      next.pending = null;
-      const inferredCauseCode =
-        next.day >= MAX_BOMBING_DAY
-          ? 'bombardment'
-          : isColdModalContext
-          ? 'hypothermia'
-          : hazardAttacked || /ยิง|กระสุน|ทหาร|แทง|อาวุธ|ปะทะ/.test(modalTextCombined)
-          ? 'human_attack'
-          : (next.stats.hunger >= 85 || (next.body?.starvationDays || 0) >= 2)
-          ? 'starvation'
-          : 'fatal_trauma';
-      const derived = deriveDeathEndingPresentation(next, currentBio, {
-        id: 'death',
-        causeCode: inferredCauseCode,
-      });
-      next.ending = {
-        id: 'death',
-        day: next.day,
-        title: derived.title,
-        text: derived.text,
-        causeCode: derived.cause.code.toLowerCase(),
-        causeOfDeath: derived.cause,
-      };
-    } else if (next.stats.sanity <= 0 || next.stats.hunger >= 100) {
-      next.pending = null;
-      const inferredCauseCode =
-        next.stats.hunger >= 85 || (next.body?.starvationDays || 0) >= 2
-          ? 'starvation'
-          : 'feral_madness';
-      const derived = deriveDeathEndingPresentation(next, currentBio, {
-        id: 'feral',
-        causeCode: inferredCauseCode,
-      });
-      next.ending = {
-        id: 'feral',
-        day: next.day,
-        title: derived.title,
-        text: derived.text,
-        causeCode: derived.cause.code.toLowerCase(),
-        causeOfDeath: derived.cause,
-      };
-    } else if (next.day >= MAX_BOMBING_DAY) {
-      next.pending = null;
-      const derived = deriveDeathEndingPresentation(next, currentBio, {
-        id: 'bombed',
-        causeCode: 'bombardment',
-      });
-      next.ending = {
-        id: 'bombed',
-        day: next.day,
-        title: derived.title,
-        text: derived.text,
-        causeCode: derived.cause.code.toLowerCase(),
-        causeOfDeath: derived.cause,
-      };
-    }
 
-    next.log = [
-      {
-        id: Date.now(),
-        day: next.day,
-        text: outcomeText,
-        kind: eff.triggerEndingId ? 'ending' : 'lifesim',
-      },
-      ...(next.log || []),
-    ];
-
-    setTriggeredEchoIds(prev => {
-      let updated = prev.includes(modalEvent.id) ? prev : [...prev, modalEvent.id];
-      const shouldLockContentId =
-        contentId &&
-        !updated.includes(contentId) &&
-        (!modalEvent.allowRepeatUntilDepleted || Boolean(eff.setFlag));
-      if (shouldLockContentId) {
-        updated = [...updated, contentId];
+      if (next.story?.flags && production?.catalog?.FLAGS) {
+        next.story.flags = sanitizeCanonicalStoryFlags(next.story.flags, production.catalog.FLAGS);
       }
-      return updated;
-    });
-    setZonePopulations(nextZones);
-    setActiveLifeSimModal(null);
-    recordStoryResult(before, next, { title: modalEvent.title, choice: choice.text, text: outcomeText });
-    setGameState(next);
-    if (eff.triggerEndingId) {
-      setMobileTab('play');
-    }
+
+      next.log = [
+        {
+          id: Date.now(),
+          day: before.day || 1,
+          text: outcomeText,
+          kind: next.ending ? 'ending' : 'lifesim',
+        },
+        ...(next.log || []),
+      ];
+
+      setTriggeredEchoIds(prev => {
+        let updated = prev.includes(modalEvent.id) ? prev : [...prev, modalEvent.id];
+        const shouldLockContentId =
+          contentId &&
+          !updated.includes(contentId) &&
+          (!modalEvent.allowRepeatUntilDepleted || Boolean(eff.setFlag));
+        if (shouldLockContentId) {
+          updated = [...updated, contentId];
+        }
+        return updated;
+      });
+      setZonePopulations(nextZones);
+      setActiveLifeSimModal(null);
+      recordStoryResult(before, next, { title: modalEvent.title, choice: choice.text, text: outcomeText });
+      setGameState(next);
+      if (next.ending || eff.triggerEndingId) {
+        setMobileTab('play');
+      }
     } finally {
       resolvingModalRef.current = null;
     }
@@ -1770,8 +1621,12 @@ export default function App() {
     if (soundEnabled) soundFx.warning();
 
     const next = structuredClone(gameState);
+    delete next.npcEncounter;
     next.stats.sanity = 0;
     next.pending = null;
+    if (next.lifecycle && typeof next.lifecycle === 'object') {
+      next.lifecycle.activeTurn = null;
+    }
     const causeOfDeath = deriveCauseOfDeath(next, {
       id: 'madness',
       causeCode: 'surrender',
@@ -1820,19 +1675,30 @@ export default function App() {
     if (!readiness.enabled) { setActionToast(readiness.reasons.join(' · ')); return; }
     if (soundEnabled) soundFx.success();
 
+    const before = structuredClone(gameState);
     const next = structuredClone(gameState);
+    delete next.npcEncounter;
     next.pending = null;
-    const causeOfDeath = deriveCauseOfDeath(next, {
-      id: option.id,
-      title: option.title,
-      text: option.endingText,
+    resolveSharedActivityTurn(next, before, {
+      consumesDay: false,
+      endingCandidate: option.id,
+      currentBio,
     });
-    next.ending = {
-      id: option.id,
-      day: next.day || 1,
-      causeCode: causeOfDeath.code.toLowerCase(),
-      causeOfDeath,
-    };
+    if (next.ending?.id === option.id) {
+      const causeOfDeath = deriveCauseOfDeath(next, {
+        id: option.id,
+        title: option.title,
+        text: option.endingText,
+      });
+      next.ending = {
+        id: option.id,
+        day: next.day || 1,
+        title: option.endingTitle || option.title,
+        text: option.endingText,
+        causeCode: causeOfDeath.code.toLowerCase(),
+        causeOfDeath,
+      };
+    }
     next.log = [
       {
         id: Date.now(),
@@ -1849,7 +1715,7 @@ export default function App() {
       pastLives.length + 1,
       currentBio,
       {
-        id: option.id,
+        id: next.ending?.id || option.id,
         title: option.endingTitle,
         text: option.endingText,
       }
@@ -1861,7 +1727,7 @@ export default function App() {
     setMobileTab('play');
   };
 
-  // Choose an option inside the Subtle Unlabelled Echo Modal Popup
+  // Choose an option inside the Subtle Unlabelled Echo Modal Popup (non-day-consuming)
   const handleChooseOrganicEchoOption = (
     echo: OrganicEchoPopupEvent,
     choiceIndex: number
@@ -1875,23 +1741,35 @@ export default function App() {
 
     if (choice.effects?.stat && choice.effects?.delta) {
       const k = choice.effects.stat;
-      next.stats[k] = Math.min(100, Math.max(0, (next.stats[k] || 0) + choice.effects.delta));
+      let delta = choice.effects.delta;
+      if (k === 'hp' && delta > 0) {
+        const policy = computeEngineSurvivalDayPolicy(next, next.stats.hunger);
+        const scaledHeal = Math.floor(delta * policy.healingMultiplier);
+        const maxRoom = Math.max(0, policy.ceiling - Number(next.stats.hp || 0));
+        delta = Math.max(0, Math.min(scaledHeal, maxRoom));
+      }
+      next.stats[k] = Math.min(100, Math.max(0, (next.stats[k] || 0) + delta));
     }
     if (choice.effects?.item && choice.effects?.itemDelta) {
       const ik = choice.effects.item;
       if (ik === 'carriedBloodBags') {
-        next.carriedBloodBags = (next.carriedBloodBags || 0) + choice.effects.itemDelta;
+        next.carriedBloodBags = Math.max(0, (next.carriedBloodBags || 0) + choice.effects.itemDelta);
       } else {
-        next.items[ik] = (next.items[ik] || 0) + choice.effects.itemDelta;
+        next.items[ik] = Math.max(0, (next.items[ik] || 0) + choice.effects.itemDelta);
       }
     }
+
+    resolveSharedActivityTurn(next, before, {
+      consumesDay: false,
+      currentBio,
+    });
 
     next.log = [
       {
         id: Date.now(),
         day: next.day || 1,
         text: choice.outcomeLog,
-        kind: 'event',
+        kind: next.ending ? 'ending' : 'event',
       },
       ...(next.log || []),
     ];
@@ -1956,41 +1834,46 @@ export default function App() {
     }
     next.carriedBloodBags = before.carriedBloodBags || 0;
 
-    // System 1: Apply daily mutation regeneration & weather/zone-threat modifiers if day advanced
+    // System 1: Apply daily mutation regeneration & weather/zone-threat modifiers if a day turn was committed
     let actionAttackToast: string | null = null;
-    if ((next.day || 1) > (before.day || 1) && (next.stats?.hp || 0) > 0 && !next.ending) {
+    const actionDayCommitted = Number(next.completedDays || 0) > Number(before.completedDays || 0);
+    if (
+      actionDayCommitted &&
+      (next.stats?.hp || 0) > 0 &&
+      next.ending?.id !== 'death' &&
+      next.ending?.id !== 'feral'
+    ) {
+      const policy = computeEngineSurvivalDayPolicy(next, next.stats.hunger);
       const mutStage = getMutationStageInfo(next.stats?.mutation || 0);
       if (mutStage.dailyHpRegen > 0) {
-        next.stats.hp = Math.min(100, (next.stats.hp || 0) + mutStage.dailyHpRegen);
+        const scaledRegen = Math.floor(mutStage.dailyHpRegen * policy.healingMultiplier);
+        const maxRoom = Math.max(0, policy.ceiling - Number(next.stats.hp || 0));
+        const actualRegen = Math.max(0, Math.min(scaledRegen, maxRoom));
+        if (actualRegen > 0) {
+          next.stats.hp = Math.min(100, (next.stats.hp || 0) + actualRegen);
+        }
       }
-      const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before);
+      const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before, { forceDayConsumed: true });
       if (hazardRes.attacked && hazardRes.scenario) {
-        actionAttackToast = `⚠️ [ภัยพื้นที่ ${hazardRes.localThreat}/100 · โอกาสปะทะ ${hazardRes.chancePercent}%] ${hazardRes.scenario.title}: ${hazardRes.scenario.description} (สภาพร่าง -${hazardRes.scenario.hpLoss}${hazardRes.scenario.sanityLoss > 0 ? ` · สติ -${hazardRes.scenario.sanityLoss}` : ''})`;
+        actionAttackToast = `⚠️ ถูกคนในพื้นที่โจมตี — ${hazardRes.scenario.title} (สภาพร่าง -${hazardRes.scenario.hpLoss}${hazardRes.scenario.sanityLoss > 0 ? ` · สติ -${hazardRes.scenario.sanityLoss}` : ''})`;
         triggerThreatAmbushAlert(
           hazardRes,
           next,
-          next.day || 1,
+          before.day || 1,
           production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
         );
       }
-      if (next.stats.hp <= 0 && !next.ending) {
-        next.pending = null;
+      if (next.stats.hp <= 0) {
         const inferredCauseCode =
           hazardRes?.attacked || actionId === 'raid'
             ? 'human_attack'
             : (next.stats.hunger >= 85 || (next.body?.starvationDays || 0) >= 2)
             ? 'starvation'
             : 'fatal_trauma';
-        const derived = deriveDeathEndingPresentation(next, currentBio, { id: 'death', causeCode: inferredCauseCode });
-        next.ending = {
-          id: 'death',
-          day: next.day,
-          title: derived.title,
-          text: derived.text,
-          causeCode: derived.cause.code.toLowerCase(),
-          causeOfDeath: derived.cause,
-        };
+        applyFinalEndingToState(next, 'death', before.day || 1, inferredCauseCode, currentBio);
       }
+    } else if (next.ending?.id === 'death' && actionId === 'raid') {
+      applyFinalEndingToState(next, 'death', before.day || 1, 'human_attack', currentBio);
     }
 
     // Enforce humanity penalty if this action directly killed a human
@@ -2006,10 +1889,17 @@ export default function App() {
       if (actionAttackToast) soundFx.warning();
       else soundFx.click();
     }
+    if (actionId.startsWith('move:') && next.place === travelGoalId) {
+      setTravelGoalId(null);
+    }
+    const fromPlaceName = production?.catalog?.PLACES?.[before.place]?.short || production?.catalog?.PLACES?.[before.place]?.name || 'จุดเดิม';
+    const toPlaceName = production?.catalog?.PLACES?.[next.place]?.name || 'ย่านใหม่';
     recordStoryResult(before, next, {
       title: catalogAction?.name || (actionId.startsWith('move:') ? 'ออกเดินทาง' : 'การตัดสินใจของเจ้า'),
       text: actionId.startsWith('move:')
-        ? 'เจ้าเดินทางมาถึง' + (production?.catalog?.PLACES?.[next.place]?.name || 'ย่านใหม่')
+        ? next.pending
+          ? `ระหว่างเดินทางจาก${fromPlaceName} มุ่งหน้าสู่${toPlaceName} มีเหตุการณ์เกิดขึ้นระหว่างทาง`
+          : `เจ้าเดินทางจาก${fromPlaceName} มาถึง${toPlaceName}`
         : next.pending ? 'สถานการณ์ตรงหน้ารอให้เจ้าตัดสินใจ'
         : (next.log || []).find((entry: any) => entry.kind === 'routine' && entry.text !== catalogAction?.name && !(before.log || []).some((old: any) => storyLogKey(old) === storyLogKey(entry)))?.text || 'เจ้า' + (catalogAction?.name || 'ลงมือทำสิ่งที่เลือก'),
     });
@@ -2035,38 +1925,41 @@ export default function App() {
       return;
     }
 
-    // System 1: Apply daily mutation regeneration & weather/zone-threat modifiers if day advanced
-    if ((next.day || 1) > (before.day || 1) && (next.stats?.hp || 0) > 0 && !next.ending) {
+    // System 1: Apply daily mutation regeneration & weather/zone-threat modifiers if a day turn was committed
+    const pendingDayCommitted = Number(next.completedDays || 0) > Number(before.completedDays || 0);
+    if (
+      pendingDayCommitted &&
+      (next.stats?.hp || 0) > 0 &&
+      next.ending?.id !== 'death' &&
+      next.ending?.id !== 'feral'
+    ) {
+      const policy = computeEngineSurvivalDayPolicy(next, next.stats.hunger);
       const mutStage = getMutationStageInfo(next.stats?.mutation || 0);
       if (mutStage.dailyHpRegen > 0) {
-        next.stats.hp = Math.min(100, (next.stats.hp || 0) + mutStage.dailyHpRegen);
+        const scaledRegen = Math.floor(mutStage.dailyHpRegen * policy.healingMultiplier);
+        const maxRoom = Math.max(0, policy.ceiling - Number(next.stats.hp || 0));
+        const actualRegen = Math.max(0, Math.min(scaledRegen, maxRoom));
+        if (actualRegen > 0) {
+          next.stats.hp = Math.min(100, (next.stats.hp || 0) + actualRegen);
+        }
       }
-      const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before);
+      const hazardRes = applyDailyWeatherAndZoneHazardTurn(next, before, { forceDayConsumed: true });
       if (hazardRes.attacked && hazardRes.scenario) {
         triggerThreatAmbushAlert(
           hazardRes,
           next,
-          next.day || 1,
+          before.day || 1,
           production?.catalog?.PLACES?.[next.place]?.name || 'พื้นที่อันตราย'
         );
       }
-      if (next.stats.hp <= 0 && !next.ending) {
-        next.pending = null;
+      if (next.stats.hp <= 0) {
         const inferredCauseCode =
           hazardRes?.attacked
             ? 'human_attack'
             : (next.stats.hunger >= 85 || (next.body?.starvationDays || 0) >= 2)
             ? 'starvation'
             : 'fatal_trauma';
-        const derived = deriveDeathEndingPresentation(next, currentBio, { id: 'death', causeCode: inferredCauseCode });
-        next.ending = {
-          id: 'death',
-          day: next.day,
-          title: derived.title,
-          text: derived.text,
-          causeCode: derived.cause.code.toLowerCase(),
-          causeOfDeath: derived.cause,
-        };
+        applyFinalEndingToState(next, 'death', before.day || 1, inferredCauseCode, currentBio);
       }
     }
 
@@ -2134,10 +2027,27 @@ export default function App() {
     }
 
     if (soundEnabled) soundFx.success();
+    const isTravelEncounter = Boolean((event as any)?.travelDialogue || (before.pending?.context?.from && before.pending?.context?.to));
+    if (isTravelEncounter) {
+      const arrivedPlaceName = production?.catalog?.PLACES?.[next.place]?.name || '';
+      if (arrivedPlaceName && !outcomeText.includes(arrivedPlaceName)) {
+        outcomeText = [outcomeText, `เจ้าเดินทางมาถึง${arrivedPlaceName}`].filter(Boolean).join(' ');
+      }
+      if (next.place === travelGoalId) {
+        setTravelGoalId(null);
+      }
+    }
+    const sameTurnRoutineLogKeys = before.pending?.turn
+      ? (before.log || [])
+          .filter((entry: any) => entry.day === before.day && entry.kind === 'routine')
+          .slice(0, 1)
+          .map(storyLogKey)
+      : [];
     recordStoryResult(before, next, {
       title: event?.title || 'การตัดสินใจของเจ้า',
       choice: chosen?.text,
       text: outcomeText,
+      extraLogKeys: sameTurnRoutineLogKeys,
     });
     setGameState(next);
   };
@@ -2239,52 +2149,13 @@ export default function App() {
       if (soundEnabled) soundFx.success();
       setScreenStage('playing');
       setLatestStory(null);
+      setTravelGoalId(null);
       setActionToast('นำเข้าเซฟสำเร็จ! เล่นต่อจากจุดเดิมได้ทันที');
     } catch (err: any) {
       if (soundEnabled) soundFx.warning();
       setActionToast(`ไฟล์เซฟไม่ถูกต้อง: ${err?.message || 'ไม่สามารถอ่าน JSON ได้'}`);
     }
   };
-
-  const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    if (soundEnabled) soundFx.copy();
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2200);
-  };
-
-  const catalogActions = useMemo(() => {
-    if (!production) return [];
-    return production.catalog.ACTIONS.map(a => ({
-      ...a,
-      layer: classifyActionLayer(a.id, a.move, a.ending),
-    })).filter(a => {
-      const matchesLayer = layerFilter === 'ALL' || a.layer.includes(layerFilter);
-      const matchesSearch =
-        !searchQuery ||
-        a.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.note && a.note.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesLayer && matchesSearch;
-    });
-  }, [production, layerFilter, searchQuery]);
-
-  const catalogEvents = useMemo(() => {
-    if (!production) return [];
-    return production.catalog.EVENTS.map(e => ({
-      ...e,
-      layer: classifyEventLayer(e.id),
-    })).filter(e => {
-      const matchesLayer = layerFilter === 'ALL' || e.layer.includes(layerFilter);
-      const matchesSearch =
-        !searchQuery ||
-        e.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.text.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesLayer && matchesSearch;
-    });
-  }, [production, layerFilter, searchQuery]);
-
 
   // District settlement endings are explicit choices; core endings use climax events.
   const storyActionsList = filteredActions.filter(a => (a.group === 'story' && !a.ending) || a.id.startsWith('bkk_') || a.id.startsWith('route.'));
@@ -2300,6 +2171,10 @@ export default function App() {
 
   const mapPlaces = useMemo(() => buildMapLocations(production, effectiveGameState, syncedZonePopulations, triggeredEchoIds, {currentBio,pastLives}, {showRouteHints}),
     [production, effectiveGameState, syncedZonePopulations, triggeredEchoIds, currentBio, pastLives, showRouteHints]);
+  const activeTravelGoalPlace = useMemo(
+    () => (travelGoalId && gameState?.place !== travelGoalId ? mapPlaces.find(p => p.id === travelGoalId) : undefined),
+    [travelGoalId, gameState?.place, mapPlaces]
+  );
   const mapNotificationCount = mapPlaces.filter(p => p.signals.length > 0).length;
   const mapHasUrgentNews = mapPlaces.some(p => p.signals.some(s => s.kind === 'crisis'));
   const currentWeatherAndHazard = useMemo(
@@ -2324,7 +2199,8 @@ export default function App() {
     activeProactiveAllyModal ||
     activeEndingClimaxModal ||
     activeDynamicEngineModal;
-  const currentActiveLifeSimModal=rawActiveLifeSimModal&&gameState?prepareNpcModal(rawActiveLifeSimModal,gameState,syncedZonePopulations[rawActiveLifeSimModal.placeId]):null;
+  const canonicalRawModalPlaceId = rawActiveLifeSimModal?.placeId === 'tower' ? 'radio' : rawActiveLifeSimModal?.placeId;
+  const currentActiveLifeSimModal=rawActiveLifeSimModal&&gameState?prepareNpcModal(rawActiveLifeSimModal,gameState,(canonicalRawModalPlaceId?syncedZonePopulations[canonicalRawModalPlaceId]:undefined)||syncedZonePopulations[rawActiveLifeSimModal.placeId]):null;
 
   const openStoryHistory = () => {
     setMobileTab('journal');
@@ -2383,18 +2259,17 @@ export default function App() {
   };
 
   return (
-    <div data-ending={Boolean(appMode === 'game' && screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={appMode === 'game' && screenStage === 'playing'} className={`game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950 ${isScreenShaking ? 'screen-shake' : ''}`}>
+    <div data-ending={Boolean(screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={screenStage === 'playing'} className={`game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950 ${isScreenShaking ? 'screen-shake' : ''}`}>
       {isScreenShaking && <div className="damage-vignette" />}
       {/* STICKY COMPACT TOP HUD */}
       <header className="game-hud sticky top-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-b border-emerald-950/80 px-3 sm:px-6 py-2.5">
         <div className="max-w-[1380px] mx-auto flex flex-col gap-2">
-          {/* Top Row: Brand, Timeline Date, Kill Count Badge, Mode Switcher & Controls */}
+          {/* Top Row: Brand, Timeline Date, Kill Count Badge & Controls */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 type="button"
                 onClick={() => {
-                  setAppMode('game');
                   setScreenStage('hub');
                 }}
                 className="text-sm sm:text-base font-extrabold tracking-tight text-lime-300 whitespace-nowrap shrink-0 flex items-center gap-1.5"
@@ -2403,7 +2278,7 @@ export default function App() {
                 AFTER ZERO <span className="text-xs font-mono text-emerald-400/90">1.0</span>
               </button>
 
-              {rawViewModel && appMode === 'game' && screenStage === 'playing' && (
+              {rawViewModel && screenStage === 'playing' && (
                 <div className="hud-desktop-context hidden lg:flex items-center gap-1.5 text-xs text-slate-300 truncate">
                   <span className="text-slate-600">·</span>
                   <span className="font-mono text-amber-300 font-semibold shrink-0 flex items-center gap-1">
@@ -2442,34 +2317,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <div className="hud-mode-switch flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setAppMode('game')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
-                    appMode === 'game'
-                      ? 'bg-lime-400 text-slate-950'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  ตัวเกม 1.0
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAppMode('studio')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors flex items-center gap-1 ${
-                    appMode === 'studio'
-                      ? 'bg-lime-400 text-slate-950'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Terminal className="w-3 h-3" />
-                  <span className="hidden sm:inline">โค้ด & Prompt</span>
-                  <span className="sm:hidden">โค้ด</span>
-                </button>
-              </div>
-
-              {appMode === 'game' && screenStage !== 'login' && (
+              {screenStage !== 'login' && (
                 <button
                   type="button"
                   onClick={() => setScreenStage('hub')}
@@ -2531,14 +2379,14 @@ export default function App() {
             </div>
           </div>
 
-          {appMode === 'game' && screenStage === 'playing' && rawViewModel && (
+          {screenStage === 'playing' && rawViewModel && (
             <div className="mobile-dayline lg:hidden flex justify-between gap-3 text-xs">
               <span className="font-bold text-amber-200">วันที่ {rawViewModel.day} · {formatTimelineDate(rawViewModel.day)}</span>
               <span className="truncate text-emerald-200">{rawViewModel.place?.short}</span>
             </div>
           )}
           {/* Second Row (Only when actively playing): Always-Visible Compact Vital Statistics */}
-          {appMode === 'game' && screenStage === 'playing' && rawViewModel && (
+          {screenStage === 'playing' && rawViewModel && (
             <div className="hud-vitals grid grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2.5 pt-0.5">
               {rawViewModel.vitals.map((v: any) => {
                 const isHunger = v.id === 'hunger';
@@ -2633,7 +2481,7 @@ export default function App() {
       {/* =====================================================================
           STAGE 1: LOGIN SCREEN
          ===================================================================== */}
-      {appMode === 'game' && screenStage === 'login' && (
+      {screenStage === 'login' && (
         <main className="flex-1 flex items-center justify-center px-4 py-8">
           <div className="max-w-md w-full rounded-2xl overflow-hidden bg-slate-900/95 border border-slate-800 shadow-2xl">
             <div className="relative">
@@ -2702,7 +2550,7 @@ export default function App() {
       {/* =====================================================================
           STAGE 2: SAVE LOAD & CHARACTER ROLL HUB
          ===================================================================== */}
-      {appMode === 'game' && screenStage === 'hub' && rawViewModel && gameState && (
+      {screenStage === 'hub' && rawViewModel && gameState && (
         <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
           <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -2850,10 +2698,10 @@ export default function App() {
       {/* =====================================================================
           STAGE 3: PLAYING SCREEN
          ===================================================================== */}
-      {appMode === 'game' && screenStage === 'playing' && rawViewModel?.ending && gameState && (
+      {screenStage === 'playing' && rawViewModel?.ending && gameState && (
         <EndingExperience state={effectiveGameState} ending={effectiveGameState.ending} bio={currentBio} zones={syncedZonePopulations} chronicle={endingChronicle} onNewLife={handleRollCharacterPreview} onHub={()=>setScreenStage('hub')} />
       )}
-      {appMode === 'game' && screenStage === 'playing' && rawViewModel && !rawViewModel.ending && gameState && (
+      {screenStage === 'playing' && rawViewModel && !rawViewModel.ending && gameState && (
         <main className="flex-1 max-w-[1380px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
           {/* Consequence Feedback Toast (Fixed Floating) */}
           {actionToast && (
@@ -3271,6 +3119,43 @@ export default function App() {
                     </div>
                   </div>
                 </section>
+                {activeTravelGoalPlace && activeTravelGoalPlace.travelTarget && !gameState.pending && (
+                  <div className="p-3 rounded-xl bg-sky-950/50 border border-sky-500/40 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-sky-200 flex items-center gap-1.5">
+                        <MapPin size={14} className="text-sky-300 shrink-0" />
+                        กำลังเดินทางไป: {activeTravelGoalPlace.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setTravelGoalId(null)}
+                        className="text-[11px] text-slate-400 hover:text-slate-200 underline underline-offset-2"
+                      >
+                        หยุดพักที่นี่
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-sky-200/90">
+                      เส้นทางที่เหลือ ({activeTravelGoalPlace.route.length - 1} ช่วง):{' '}
+                      {activeTravelGoalPlace.route
+                        .map(id => production?.catalog?.PLACES?.[id]?.short || id)
+                        .join(' → ')}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!activeTravelGoalPlace.preview.enabled}
+                      onClick={() => handlePerformAction('move:' + activeTravelGoalPlace.travelTarget)}
+                      className="w-full py-2.5 px-3 rounded-lg bg-lime-300 hover:bg-lime-200 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <span>
+                        เดินทางช่วงถัดไปไป
+                        {production?.catalog?.PLACES?.[activeTravelGoalPlace.travelTarget]?.short ||
+                          activeTravelGoalPlace.travelTarget}{' '}
+                        · 1 วัน
+                      </span>
+                      <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
                 <button type="button" className="travel-map-action" onClick={() => { setMobileTab('map'); setDesktopSideTab('map'); }}>
                   <MapPin size={18} aria-hidden="true" /> เปิดแผนที่เดินทาง <ArrowRight size={16} aria-hidden="true" />
                 </button>
@@ -3319,7 +3204,16 @@ export default function App() {
 
               {/* Map is the only place to confirm travel. */}
               {(mobileTab === 'map' || (mobileTab === 'play' && desktopSideTab === 'map')) && (
-                <PixelCityMap places={mapPlaces} pinnedPlaceId={pinnedPlaceId} onTravel={id => handlePerformAction('move:' + id)} />
+                <PixelCityMap
+                  places={mapPlaces}
+                  pinnedPlaceId={pinnedPlaceId}
+                  travelGoalId={activeTravelGoalPlace?.id || null}
+                  onClearTravelGoal={() => setTravelGoalId(null)}
+                  onTravel={(nextHopId, destinationId) => {
+                    setTravelGoalId(destinationId && destinationId !== nextHopId ? destinationId : null);
+                    handlePerformAction('move:' + nextHopId);
+                  }}
+                />
               )}
 
               {/* PANEL 2: BAG (CARRIED ITEMS ONLY + SIGNATURE ITEM) & BODY / MUTATION STAGE STATS */}
@@ -4108,7 +4002,7 @@ export default function App() {
       )}
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      {appMode === 'game' && screenStage === 'playing' && !rawViewModel?.ending && (
+      {screenStage === 'playing' && !rawViewModel?.ending && (
         <nav aria-label="เมนูเกม" className="mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-5 px-1 py-1.5">
           {(
             [
@@ -4143,8 +4037,7 @@ export default function App() {
       {/* =====================================================================
           BLOCKING POPUP MODAL 1: PENDING ENGINE EVENT
          ===================================================================== */}
-      {appMode === 'game' &&
-        screenStage === 'playing' &&
+      {screenStage === 'playing' &&
         rawViewModel?.pending &&
         !rawViewModel?.ending && (
           <div role="dialog" aria-modal="true" className="game-dialog fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -4222,8 +4115,7 @@ export default function App() {
       {/* =====================================================================
           BLOCKING POPUP MODAL 2: LIFE-SIMULATION, FIXED TIMELINE EVENT & ALLY AID
          ===================================================================== */}
-      {appMode === 'game' &&
-        screenStage === 'playing' &&
+      {screenStage === 'playing' &&
         !rawViewModel?.pending &&
         !rawViewModel?.ending &&
         currentActiveLifeSimModal && (
@@ -4321,128 +4213,236 @@ export default function App() {
       {/* =====================================================================
           BLOCKING POPUP MODAL: THREAT AMBUSH DAMAGE ALERT (ซุ่มโจมตีในเขตภัยคุกคามสูง)
          ===================================================================== */}
-      {appMode === 'game' &&
-        screenStage === 'playing' &&
-        activeThreatAmbushAlert && (
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            className="game-dialog fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
-          >
-            <div className="max-w-xl w-full p-6 sm:p-7 rounded-2xl bg-gradient-to-b from-rose-950/95 via-slate-900 to-slate-950 border-2 border-rose-500 shadow-2xl shadow-rose-950/80 space-y-4 my-auto relative animate-in fade-in zoom-in-95 duration-200">
-              {/* Header Badges */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-rose-900/60">
-                <span className="flex items-center gap-2 text-xs font-mono font-extrabold uppercase tracking-wider text-rose-400">
-                  <AlertTriangle className="w-4 h-4 text-rose-500 animate-bounce" />
-                  ถูกลอบโจมตี! · การปะทะในเขตอันตราย
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800/80 text-xs font-mono font-bold">
-                  วันที่ {activeThreatAmbushAlert.day} · เขต {activeThreatAmbushAlert.locationName}
-                </span>
-              </div>
+      {screenStage === 'playing' &&
+        activeThreatAmbushAlert && (() => {
+          const scen = activeThreatAmbushAlert.scenario;
+          const tier = scen.tier || (
+            activeThreatAmbushAlert.localThreat >= 85
+              ? 'lockdown'
+              : activeThreatAmbushAlert.localThreat >= 60
+              ? 'high'
+              : activeThreatAmbushAlert.localThreat >= 35
+              ? 'watch'
+              : 'calm'
+          );
+          const tierVisual =
+            tier === 'lockdown'
+              ? {
+                  badgeText: 'พื้นที่สีแดง · แนวปิดล้อมกวาดล้างเขตกักกัน',
+                  zoneStatusLabel: 'เขตปิดล้อมกวาดล้างขั้นวิกฤต',
+                  borderClass: 'border-rose-500/90 shadow-rose-950/90',
+                  headerBg: 'from-rose-950/95 via-slate-900 to-slate-950',
+                  pillClass: 'bg-rose-950/90 text-rose-200 border-rose-700/70',
+                }
+              : tier === 'high'
+              ? {
+                  badgeText: 'ปะทะด่านชุมชน · เขตอันตรายสูง',
+                  zoneStatusLabel: 'ด่านปิดกั้นชุมชนเข้มงวด',
+                  borderClass: 'border-orange-500/80 shadow-orange-950/80',
+                  headerBg: 'from-orange-950/90 via-slate-900 to-slate-950',
+                  pillClass: 'bg-orange-950/80 text-orange-200 border-orange-700/60',
+                }
+              : tier === 'watch'
+              ? {
+                  badgeText: 'ถูกเวรยามซอยสกัดกั้น · เขตเฝ้าระวัง',
+                  zoneStatusLabel: 'ตรอกซอกซอยมีเวรยามและกับดัก',
+                  borderClass: 'border-amber-500/75 shadow-amber-950/75',
+                  headerBg: 'from-amber-950/85 via-slate-900 to-slate-950',
+                  pillClass: 'bg-amber-950/80 text-amber-200 border-amber-700/60',
+                }
+              : {
+                  badgeText: 'ความตื่นตระหนกของคนเป็น · เขตระแวงภัย',
+                  zoneStatusLabel: 'ชาวบ้านหลบภัยหลังเหล็กดัดตึกแถว',
+                  borderClass: 'border-rose-500/65 shadow-slate-950/90',
+                  headerBg: 'from-rose-950/80 via-slate-900 to-slate-950',
+                  pillClass: 'bg-slate-900/90 text-amber-200 border-amber-800/50',
+                };
 
-              {/* Threat context tag */}
-              <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-                <span className="px-2 py-1 rounded bg-slate-950/80 text-amber-300 border border-amber-900/40">
-                  ระดับภัยคุกคามในเขต: <strong className="text-amber-200">{activeThreatAmbushAlert.localThreat}/100</strong>
-                </span>
-                <span className="px-2 py-1 rounded bg-slate-950/80 text-rose-300 border border-rose-900/40">
-                  โอกาสปะทะรอบนี้: <strong className="text-rose-200">{activeThreatAmbushAlert.chancePercent}%</strong>
-                </span>
-                <span className="px-2 py-1 rounded bg-slate-950/80 text-slate-300 border border-slate-800">
-                  ฉากปะทะที่ {activeThreatAmbushAlert.scenario.stageLevel}/15
-                </span>
-              </div>
+          const hpStateLabel =
+            activeThreatAmbushAlert.remainingHp <= 25
+              ? 'สาหัสวิกฤต'
+              : activeThreatAmbushAlert.remainingHp <= 55
+              ? 'บาดเจ็บต้องระวัง'
+              : 'ยังพยุงร่างต่อได้';
 
-              {/* Title & Description */}
-              <div className="space-y-2">
-                <h2 className="text-xl sm:text-2xl font-black text-rose-100 leading-snug flex items-center gap-2">
-                  <Skull className="w-5 h-5 text-rose-400 shrink-0" />
-                  {activeThreatAmbushAlert.scenario.title}
-                </h2>
-                <p className="text-sm sm:text-base text-slate-200 leading-relaxed bg-slate-950/60 p-4 rounded-xl border border-rose-950/80">
-                  {activeThreatAmbushAlert.scenario.description}
-                </p>
-              </div>
+          return (
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              className="game-dialog fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+            >
+              <div
+                className={`max-w-xl w-full p-5 sm:p-7 rounded-2xl bg-gradient-to-b ${tierVisual.headerBg} border-2 ${tierVisual.borderClass} shadow-2xl space-y-4 my-auto relative animate-in fade-in zoom-in-95 duration-200`}
+              >
+                {/* Header Badges */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-rose-900/50">
+                  <span className="flex items-center gap-2 text-xs font-mono font-extrabold uppercase tracking-wider text-rose-300">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 animate-bounce shrink-0" />
+                    {tierVisual.badgeText}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-md bg-slate-950/90 text-slate-200 border border-slate-800 text-xs font-mono font-semibold">
+                    วันที่ {activeThreatAmbushAlert.day} ({formatTimelineDate(activeThreatAmbushAlert.day)}) · {activeThreatAmbushAlert.locationName}
+                  </span>
+                </div>
 
-              {/* Damage & Impact Card */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/50 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-rose-300 uppercase tracking-wide flex items-center gap-1.5">
-                      <Heart className="w-3.5 h-3.5 text-rose-400" />
-                      ความเสียหายต่อสภาพร่าง
+                {/* Diegetic Quarantine Context Tags (No internal scene counts or raw RNG percentages) */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className={`px-2.5 py-1 rounded-md border font-medium ${tierVisual.pillClass}`}>
+                    สถานะพื้นที่: <strong className="font-bold">{tierVisual.zoneStatusLabel}</strong>
+                    {showNumericSpoilers ? ` (${activeThreatAmbushAlert.localThreat}/100)` : ''}
+                  </span>
+                  {scen.attackerSource && (
+                    <span className="px-2.5 py-1 rounded-md bg-slate-950/85 text-slate-300 border border-slate-800">
+                      ผู้ลงมือ: <strong className="text-slate-100">{scen.attackerSource}</strong>
+                    </span>
+                  )}
+                </div>
+
+                {/* Title, Narrative Description & Weapon/Wound Breakdown */}
+                <div className="space-y-3">
+                  <h2 className="text-lg sm:text-xl font-black text-rose-100 leading-snug flex items-start gap-2.5">
+                    <Skull className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{scen.title}</span>
+                  </h2>
+
+                  <div className="bg-slate-950/75 p-4 rounded-xl border border-rose-950/80 space-y-3">
+                    <p className="text-sm sm:text-base text-slate-200 leading-relaxed">
+                      {scen.description}
+                    </p>
+
+                    {(scen.weaponUsed || scen.injuryDetail) && (
+                      <div className="pt-2.5 border-t border-slate-800/90 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        {scen.weaponUsed && (
+                          <div className="bg-slate-900/70 px-3 py-2 rounded-lg border border-slate-800/80">
+                            <div className="text-[11px] font-mono text-slate-400 uppercase">อาวุธ / สิ่งสกัดกั้น</div>
+                            <div className="text-slate-200 font-medium mt-0.5">{scen.weaponUsed}</div>
+                          </div>
+                        )}
+                        {scen.injuryDetail && (
+                          <div className="bg-rose-950/35 px-3 py-2 rounded-lg border border-rose-900/40">
+                            <div className="text-[11px] font-mono text-rose-300/80 uppercase">ลักษณะบาดแผล</div>
+                            <div className="text-rose-100 font-medium mt-0.5">{scen.injuryDetail}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Damage & Impact Card */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
+                  <div className="p-3.5 rounded-xl bg-rose-950/55 border border-rose-500/45 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-rose-200 flex items-center gap-1.5">
+                        <Heart className="w-3.5 h-3.5 text-rose-400" />
+                        ความเสียหายต่อร่าง
+                      </div>
+                      <span className="text-lg font-black text-rose-400">
+                        -{activeThreatAmbushAlert.hpLoss} HP
+                      </span>
                     </div>
-                    <div className="text-2xl font-black text-rose-400 mt-0.5">
-                      -{activeThreatAmbushAlert.hpLoss} <span className="text-sm font-bold text-rose-300">HP</span>
+                    <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden border border-rose-950">
+                      <div
+                        className={`h-full transition-all ${
+                          activeThreatAmbushAlert.remainingHp <= 25
+                            ? 'bg-rose-500'
+                            : activeThreatAmbushAlert.remainingHp <= 55
+                            ? 'bg-amber-400'
+                            : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(0, activeThreatAmbushAlert.remainingHp))}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">สภาพร่างคงเหลือ ({hpStateLabel})</span>
+                      <span
+                        className={`font-mono font-bold ${
+                          activeThreatAmbushAlert.remainingHp <= 25
+                            ? 'text-rose-400 animate-pulse'
+                            : 'text-slate-200'
+                        }`}
+                      >
+                        {activeThreatAmbushAlert.remainingHp}/100
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[11px] text-slate-400">สภาพร่างคงเหลือ</div>
-                    <div className={`text-base font-extrabold ${activeThreatAmbushAlert.remainingHp <= 25 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
-                      {activeThreatAmbushAlert.remainingHp}/100
+
+                  <div className="p-3.5 rounded-xl bg-slate-950/75 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Brain className="w-3.5 h-3.5 text-sky-400" />
+                        ผลกระทบต่อสติ
+                      </div>
+                      <span className="text-lg font-black text-sky-300">
+                        {activeThreatAmbushAlert.sanityLoss > 0
+                          ? `-${activeThreatAmbushAlert.sanityLoss} สติ`
+                          : 'สติไม่ลดลง'}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden border border-slate-800">
+                      <div
+                        className="h-full bg-sky-400 transition-all"
+                        style={{ width: `${Math.min(100, Math.max(0, activeThreatAmbushAlert.remainingSanity))}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">สติสัมปชัญญะคงเหลือ</span>
+                      <span className="font-mono font-bold text-sky-300">
+                        {activeThreatAmbushAlert.remainingSanity}/100
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
-                      <Brain className="w-3.5 h-3.5 text-sky-400" />
-                      ผลกระทบต่อสติ
-                    </div>
-                    <div className="text-2xl font-black text-sky-300 mt-0.5">
-                      {activeThreatAmbushAlert.sanityLoss > 0 ? `-${activeThreatAmbushAlert.sanityLoss}` : '0'}{' '}
-                      <span className="text-sm font-bold text-slate-400">สติ</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[11px] text-slate-400">สติคงเหลือ</div>
-                    <div className="text-base font-extrabold text-sky-300">
-                      {activeThreatAmbushAlert.remainingSanity}/100
-                    </div>
-                  </div>
+                {/* Survival Tip */}
+                <div className="p-3.5 rounded-xl bg-slate-950/85 border border-slate-800/90 text-xs leading-relaxed text-slate-300">
+                  {activeThreatAmbushAlert.remainingHp <= 25 ? (
+                    <p className="text-rose-300 font-semibold flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span>
+                        เนื้อเยื่อเสียหายหนักจนจวนเจียนจะล้มพับ! รีบใช้ถุงเลือดสำรอง พักฟื้นร่างกาย หรือถอยออกจากย่านนี้ไปยังจุดพักพิงที่มีความระแวงต่ำกว่าทันที
+                      </span>
+                    </p>
+                  ) : tier === 'lockdown' || tier === 'high' ? (
+                    <p className="flex items-start gap-2 text-slate-300">
+                      <span className="text-amber-400 shrink-0 mt-0.5">💡</span>
+                      <span>
+                        ย่านนี้มีการตั้งด่านและเวรยามติดอาวุธคอยดักซุ่มผู้ติดเชื้อ อาศัยวันที่มีฝนเขม่าหรือหมอกควันทึบเพื่อพรางตัว ลอบตัดไฟด่านตรวจ หรือย้ายไปตั้งหลักในย่านที่ผู้คนไม่ตื่นตระหนก
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-2 text-slate-300">
+                      <span className="text-amber-400 shrink-0 mt-0.5">💡</span>
+                      <span>
+                        คนเป็นในตึกแถวและตรอกซอกซอยของกรุงเทพฯ ที่ถูกตัดขาดกำลังหวาดกลัวผู้ติดเชื้อ การเดินเข้าใกล้ประตูบ้านหรือแผงกั้นซอยโดยไม่มีคนคุ้นเคยรับรองอาจทำให้ถูกทำร้ายได้เสมอ
+                      </span>
+                    </p>
+                  )}
                 </div>
-              </div>
 
-              {/* Survival Tip */}
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs leading-relaxed text-slate-300">
-                {activeThreatAmbushAlert.remainingHp <= 25 ? (
-                  <p className="text-rose-300 font-semibold flex items-start gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                    <span>⚠️ สภาพร่างวิกฤตมาก! เลือดเหลือเพียง {activeThreatAmbushAlert.remainingHp} HP รีบออกล่าหาเลือด/อาหาร หรือย้ายหลบภัยไปยังเขตที่มีค่าความเป็นภัยต่ำกว่านี้โดยด่วน!</span>
-                  </p>
-                ) : (
-                  <p className="flex items-start gap-1.5 text-slate-300">
-                    <span className="text-amber-400 shrink-0">💡</span>
-                    <span>ระดับความเป็นภัยในเขตนี้สูง ({activeThreatAmbushAlert.localThreat}/100) มนุษย์กลุ่มติดอาวุธหรือชาวบ้านกำลังหวาดระแวงและคอยซุ่มโจมตีสิ่งมีชีวิตผิดปกติ ควรระวังตัวหรือพิจารณาหลบหนีไปย่านที่ปลอดภัยกว่า</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Confirm / Dismiss button */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveThreatAmbushAlert(null);
-                    if (soundEnabled) soundFx.click();
-                  }}
-                  className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm sm:text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-950/60 active:scale-[0.99]"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                  รับทราบสถานการณ์ (ตั้งหลักและสังเกตรอบด้าน)
-                </button>
+                {/* Confirm / Dismiss button */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveThreatAmbushAlert(null);
+                      if (soundEnabled) soundFx.click();
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-sm sm:text-base transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-950/60 active:scale-[0.99]"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    ประคองร่างถอยเข้ามุมมืดและไปต่อ
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       {/* =====================================================================
           BLOCKING POPUP MODAL: MUTATION MILESTONE AWAKENING ALERT (25, 50, 75)
          ===================================================================== */}
-      {appMode === 'game' &&
-        screenStage === 'playing' &&
+      {screenStage === 'playing' &&
         activeMutationMilestoneAlert && (
           <div role="dialog" aria-modal="true" className="game-dialog fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
             <div
@@ -4512,8 +4512,7 @@ export default function App() {
       {/* =====================================================================
           BLOCKING POPUP MODAL 3: SUBTLE UNLABELLED ECHO POPUP
          ===================================================================== */}
-      {appMode === 'game' &&
-        screenStage === 'playing' &&
+      {screenStage === 'playing' &&
         !rawViewModel?.pending &&
         !rawViewModel?.ending &&
         !currentActiveLifeSimModal &&
@@ -4800,249 +4799,6 @@ export default function App() {
         </div>
       )}
 
-      {/* =====================================================================
-          MODE 2: DEV STUDIO
-         ===================================================================== */}
-      {appMode === 'studio' && (
-        <main className="flex-1 max-w-[1380px] w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
-            <div className="flex flex-wrap items-center gap-2">
-              {(
-                [
-                  ['ai-pack', 'Prompt & โครงสร้างอีเวนต์ (แจกงาน AI ตัวอื่น)'],
-
-                  ['inspector', 'ฐานข้อมูลกิจกรรมและเหตุการณ์ปัจจุบัน'],
-                  ['patches', 'ตั้งค่าระบบ'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setStudioTab(id)}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    studioTab === id
-                      ? 'bg-lime-400 text-slate-950'
-                      : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-
-          </div>
-
-          {studioTab === 'ai-pack' && (
-            <section className="space-y-6">
-              <div className="p-6 rounded-2xl bg-slate-900 border border-lime-500/40 space-y-3">
-                <h2 className="text-lg sm:text-xl font-extrabold text-lime-300">
-                  ระบบแยกส่วนอีเวนต์ (Modular Event Architecture) & Prompt สำหรับให้ AI ตัวอื่นช่วยแต่ง
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  คุณสามารถก๊อปปี้ Prompt ด้านล่างไปวางให้ ChatGPT, Claude หรือ Gemini ตัวอื่นช่วยแต่ง{' '}
-                  <strong className="text-white">
-                    (1) อีเวนต์สำรวจกรุงเทพฯ, (2) อีเวนต์จุดทริกเกอร์ฉากจบ (Ending Climax Triggers), หรือ (3) ตัวละคร NPC ผู้รอดชีวิตรายบุคคล
-                  </strong>{' '}
-                  แล้วนำโค้ด JSON/TypeScript ที่ได้กลับมาส่งให้ผมรวบรวมเข้าไฟล์{' '}
-                  <code className="text-amber-300 font-mono">src/data/externalEventsPack.ts</code> ได้ทันที!
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="font-mono text-sky-300 font-bold">
-                      1. ผู้รอดชีวิตกรุงเทพฯ (NPC Pack):
-                    </div>
-                    <div className="text-slate-300 mt-1">
-                      รวมแล้ว +{EXTERNAL_AI_NPCS.length} คน (กระจายครบ 5 เขต พร้อมวิกฤตวันที่ 5–38)
-                    </div>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="font-mono text-emerald-300 font-bold">
-                      2. อีเวนต์สำรวจกรุงเทพฯ (Roam Pack):
-                    </div>
-                    <div className="text-slate-300 mt-1">
-                      รวมแล้ว {EXTERNAL_AI_ROAM_EVENTS.length} เหตุการณ์ใน{' '}
-                      <code className="font-mono">EXTERNAL_AI_ROAM_EVENTS</code>
-                    </div>
-                  </div>
-                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                    <div className="font-mono text-amber-300 font-bold">
-                      3. ทริกเกอร์ฉากจบอัตโนมัติ (Climax Pack):
-                    </div>
-                    <div className="text-slate-300 mt-1">
-                      รวมแล้ว {ORGANIC_ENDING_CLIMAX_EVENTS.length} สายฉากจบ (เด้งขึ้นเองจากผลการกระทำ 100%)
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {AI_COLLABORATION_PROMPTS.map(item => (
-                <div
-                  key={item.id}
-                  className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-base sm:text-lg font-extrabold text-white">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1">{item.description}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(item.id, item.promptText)}
-                      className="px-4 py-2 rounded-lg bg-lime-400 hover:bg-lime-300 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 shrink-0"
-                    >
-                      {copiedId === item.id ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          คัดลอก Prompt นี้แล้ว!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          คัดลอก Prompt ไปให้ AI ตัวอื่น
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap leading-relaxed select-all">
-                    {item.promptText}
-                  </pre>
-                </div>
-              ))}
-            </section>
-          )}
-
-          {studioTab === 'inspector' && (
-            <section className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[240px]">
-                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="ค้นหา Action หรือ Event..."
-                    className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-100"
-                  />
-                </div>
-                {['ALL', 'พื้นฐาน', 'เนื้อเรื่อง', 'คลินิก', 'ฝูง', 'ความทรงจำ', 'จุดกำเนิด', 'ย่านอาชีพ', 'เส้นทาง', 'เดินทาง', 'บทจบ'].map(f => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => setLayerFilter(f)}
-                    className={`px-3 py-1.5 text-xs rounded-md ${
-                      layerFilter === f
-                        ? 'bg-lime-400 text-slate-950 font-bold'
-                        : 'bg-slate-900 text-slate-400'
-                    }`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-slate-200">
-                    Actions ({catalogActions.length})
-                  </h3>
-                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                    {catalogActions.map(a => (
-                      <div
-                        key={a.id}
-                        className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1"
-                      >
-                        <div className="flex justify-between font-mono text-[11px] text-lime-300">
-                          <span>{a.id}</span>
-                          <span>{a.layer}</span>
-                        </div>
-                        <div className="font-bold text-slate-100">{a.name}</div>
-                        <div className="text-slate-400">{a.note}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="text-sm font-bold text-slate-200">
-                    Events ({catalogEvents.length})
-                  </h3>
-                  <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
-                    {catalogEvents.map(e => (
-                      <div
-                        key={e.id}
-                        className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1"
-                      >
-                        <div className="flex justify-between font-mono text-[11px] text-amber-300">
-                          <span>{e.id}</span>
-                          <span>{e.layer}</span>
-                        </div>
-                        <div className="font-bold text-slate-100">{e.title}</div>
-                        <div className="text-slate-400 line-clamp-2">{e.text}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {studioTab === 'patches' && (
-            <section className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-lime-300" />
-                <span>สวิตช์เปิด-ปิดระบบรุ่น 1.0 (Live Engine Toggles)</span>
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                {(
-                  [
-                    [
-                      'pastLifeEchoesEnabled',
-                      'ระบบกิมมิคเงียบจากการกระทำจริงในชีวิตก่อน',
-                      'ไม่แสดงป้ายบอกตรงๆ แต่บรรยายชุดและสิ่งของของร่างเก่าให้คนเล่นสังเกตเห็นเอง',
-                    ],
-                    [
-                      'midGameHorizonClues',
-                      'เบาะแสบทจบระยะกลางเกม (Mid-Game Horizon Clues)',
-                      'เปิดเผยเบาะแสและปุ่มบทจบเมื่อผู้เล่นพัฒนาสายนั้นเกิน ~35% โดยไม่เฉลยตั้งแต่วันแรก',
-                    ],
-                    [
-                      'staggerLegacy02Story',
-                      'จัดจังหวะการเปิดเนื้อเรื่อง',
-                      'ลดปุ่มเนื้อเรื่องชนกัน 5 ปุ่มในวันที่ 1–2 โดยให้ story.clinic/pack/remnant เปิดในวันที่ 3+ หรือหลังสำรวจครั้งแรก',
-                    ],
-                    [
-                      'hideLockedCareSpoilers',
-                      'ซ่อนปุ่ม Care พิเศษที่ยังไม่ปลดล็อก Flag',
-                      'ซ่อน next.rest, c40.clinic_scavenge, c42.shelter_backdoor จนกว่าจะผ่านเนื้อเรื่อง',
-                    ],
-                  ] as const
-                ).map(([key, title, desc]) => (
-                  <label
-                    key={key}
-                    className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start gap-3 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={patches[key]}
-                      onChange={e =>
-                        setPatches(prev => ({ ...prev, [key]: e.target.checked }))
-                      }
-                      className="mt-1 accent-lime-400"
-                    />
-                    <div>
-                      <div className="font-bold text-slate-100">{title}</div>
-                      <div className="text-slate-400 mt-0.5 leading-relaxed">{desc}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </section>
-          )}
-        </main>
-      )}
     </div>
   );
 }

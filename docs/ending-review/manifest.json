@@ -1,0 +1,41 @@
+{
+  "exportedAt": "2026-11-06T07:00:16.217Z",
+  "endingCount": 23,
+  "endingIds": [
+    "death",
+    "feral",
+    "madness",
+    "king",
+    "evolved",
+    "human",
+    "extinction",
+    "survivor",
+    "bombed",
+    "silent_guardian",
+    "escape_companion",
+    "horde_breakout",
+    "conscious_exile",
+    "bkk_winstop.ending",
+    "bkk_market.ending",
+    "bkk_ward.ending",
+    "bkk_power.ending",
+    "bkk_depot.ending",
+    "bkk_cafe.ending",
+    "bkk_office.ending",
+    "bkk_pier.ending",
+    "bkk_stockroom.ending",
+    "bkk_busyard.ending"
+  ],
+  "sources": [
+    "public/after-zero-bundle.js",
+    "src/App.tsx",
+    "src/data/pastLifeEchoes.ts",
+    "src/data/externalEventsPack.ts",
+    "src/data/eventEngine.ts",
+    "src/data/progressionRules.ts",
+    "src/data/progressionRoutes.json",
+    "src/data/bangkokLocations.json",
+    "src/data/endingPresentation.ts",
+    "src/components/EndingExperience.tsx"
+  ]
+}

@@ -10,16 +10,79 @@ export type MapLocation = {
   preview: { enabled: boolean; reasons: string[]; notices: { text: string }[]; costSummary?: string[] };
 };
 
+export const MAP_POSITIONS: Record<string, [number, number]> = {
+  radio: [15, 34], bkk_depot: [12, 58], bkk_cafe: [43, 10], bkk_busyard: [44, 30],
+  hospital: [31, 43], bkk_ward: [45, 49], shelter: [64, 21], bkk_winstop: [74, 40],
+  bkk_power: [87, 10], bkk_office: [88, 54], bkk_stockroom: [46, 66], bkk_pier: [67, 61],
+  streets: [77, 78], nest: [49, 87], bkk_market: [88, 93],
+};
+
+export const MAP_LABELS: Record<string, string> = {
+  radio: 'พระราม 8', bkk_depot: 'พระนคร', bkk_cafe: 'อารีย์', bkk_busyard: 'อนุสาวรีย์ชัยฯ',
+  hospital: 'รพ.ราชวิถี', bkk_ward: 'หอผู้ป่วย', shelter: 'ดินแดง', bkk_winstop: 'คิววิน',
+  bkk_power: 'ห้วยขวาง', bkk_office: 'พระราม 9', bkk_stockroom: 'ประตูน้ำ', bkk_pier: 'ท่าแสนแสบ',
+  streets: 'พระราม 4', nest: 'สามย่าน', bkk_market: 'คลองเตย',
+};
+
+function routeGeometricLength(path: string[]): number {
+  let sum = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    const [x1, y1] = MAP_POSITIONS[path[i]] || [50, 50];
+    const [x2, y2] = MAP_POSITIONS[path[i + 1]] || [50, 50];
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    // Slight cross-track straightness penalty relative to the overall start->end line
+    const [sx, sy] = MAP_POSITIONS[path[0]] || [50, 50];
+    const [ex, ey] = MAP_POSITIONS[path[path.length - 1]] || [50, 50];
+    const totalLen = Math.hypot(ex - sx, ey - sy) || 1;
+    const cross = Math.abs((x2 - sx) * (ey - sy) - (y2 - sy) * (ex - sx)) / totalLen;
+    sum += Math.hypot(dx, dy) + cross * 0.15;
+  }
+  return Math.round(sum * 1000) / 1000;
+}
+
+function canonicalRouteKey(path: string[]): string {
+  const fwd = path.join('>');
+  const rev = [...path].reverse().join('>');
+  return fwd < rev ? fwd : rev;
+}
+
 export function findMapRoute(places: Record<string, { neighbors?: string[] }>, from: string, to: string): string[] {
-  const queue = [[from]], visited = new Set([from]);
+  if (!places?.[from] || !places?.[to]) return [];
+  if (from === to) return [from];
+  const queue: string[][] = [[from]];
+  const minDepth = new Map<string, number>([[from, 0]]);
+  const candidates: string[][] = [];
+  let targetDepth = Infinity;
+
   while (queue.length) {
     const path = queue.shift()!;
-    if (path.at(-1) === to) return path;
-    for (const next of places[path.at(-1)!]?.neighbors || []) if (!visited.has(next)) {
-      visited.add(next); queue.push([...path, next]);
+    const depth = path.length - 1;
+    if (depth > targetDepth) break;
+    const current = path[path.length - 1]!;
+    if (current === to) {
+      targetDepth = depth;
+      candidates.push(path);
+      continue;
+    }
+    if (depth >= targetDepth) continue;
+    for (const next of places[current]?.neighbors || []) {
+      if (path.includes(next)) continue;
+      const nextDepth = depth + 1;
+      const seenDepth = minDepth.get(next);
+      if (seenDepth !== undefined && nextDepth > seenDepth) continue;
+      minDepth.set(next, nextDepth);
+      queue.push([...path, next]);
     }
   }
-  return [];
+
+  if (!candidates.length) return [];
+  candidates.sort((a, b) => {
+    const diff = routeGeometricLength(a) - routeGeometricLength(b);
+    if (Math.abs(diff) > 0.01) return diff;
+    return canonicalRouteKey(a).localeCompare(canonicalRouteKey(b));
+  });
+  return candidates[0]!;
 }
 
 export function buildMapLocations(production: any, state: any, zones: Record<string, ZonePopulationState>, triggeredIds: string[] = [], context?: {currentBio:CharacterBioDossier;pastLives:PastLifeRecord[]}, options: {showRouteHints?: boolean} = {}): MapLocation[] {

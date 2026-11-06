@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import * as rules from '../src/data/progressionRules';
-import {buildMapLocations} from '../src/data/mapLocations';
+import {buildMapLocations, findMapRoute, MAP_POSITIONS} from '../src/data/mapLocations';
 import {generateCharacter, createCharacterState} from '../src/data/characterPool';
 import type {ZonePopulationState} from '../src/data/pastLifeEchoes';
 
@@ -64,4 +64,29 @@ assert.ok(shown.some(p => p.signals.some(s => s.id.startsWith('route.'))), 'fixt
 assert.equal(hidden.some(p => p.signals.some(s => s.kind === 'ending' || s.id.startsWith('route.'))), false);
 assert.ok(hidden.find(p => p.id === 'shelter')!.signals.some(s => s.kind === 'crisis'));
 assert.deepEqual(hidden.map(p => [p.route, p.travelTarget]), shown.map(p => [p.route, p.travelTarget]), 'hint visibility cannot change travel');
-console.log('PASS route readiness boundaries, next tasks, and spoiler-free map');
+
+// Verify Bangkok map graph symmetry, coordinate coverage, and non-backtracking route consistency
+const placesCatalog = production.catalog.PLACES;
+const allPlaceIds = Object.keys(placesCatalog);
+assert.equal(allPlaceIds.length, 15, 'all 15 Bangkok locations must exist');
+for (const id of allPlaceIds) {
+  assert.ok(MAP_POSITIONS[id], `missing map coordinates for ${id}`);
+  for (const neighbor of placesCatalog[id].neighbors) {
+    assert.ok(
+      placesCatalog[neighbor]?.neighbors?.includes(id),
+      `asymmetric neighbor link between ${id} and ${neighbor}`
+    );
+  }
+}
+for (const a of allPlaceIds) {
+  for (const b of allPlaceIds) {
+    const fwd = findMapRoute(placesCatalog, a, b);
+    const rev = findMapRoute(placesCatalog, b, a);
+    assert.ok(fwd.length >= 1, `missing route from ${a} to ${b}`);
+    assert.deepEqual(fwd, [...rev].reverse(), `route ${a}->${b} must match reversed ${b}->${a}`);
+  }
+}
+assert.deepEqual(findMapRoute(placesCatalog, 'bkk_power', 'bkk_office'), ['bkk_power', 'bkk_office']);
+assert.deepEqual(findMapRoute(placesCatalog, 'radio', 'bkk_depot'), ['radio', 'bkk_depot']);
+assert.deepEqual(findMapRoute(placesCatalog, 'bkk_busyard', 'hospital'), ['bkk_busyard', 'hospital']);
+console.log('PASS route readiness boundaries, next tasks, map topology symmetry, and spoiler-free map');

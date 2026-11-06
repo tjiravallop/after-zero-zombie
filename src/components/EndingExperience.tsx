@@ -1,19 +1,19 @@
 import {useEffect,useRef,useState} from 'react';
 import ZombiePortrait from './ZombiePortrait';
 import {deriveCauseOfDeath,deriveDeathEndingPresentation,type CharacterBioDossier,type ZonePopulationState} from '../data/pastLifeEchoes';
-import {endingMetrics,endingReflections} from '../data/endingPresentation';
+import {endingMetrics,endingReflections,isStaticEndingText} from '../data/endingPresentation';
 import {soundFx} from '../utils/soundFx';
 
 export default function EndingExperience({state,ending,bio,zones,chronicle,onNewLife,onHub}:{state:any;ending:any;bio:CharacterBioDossier;zones:Record<string,ZonePopulationState>;chronicle:any;onNewLife:()=>void;onHub:()=>void}) {
   const scene=useRef<HTMLCanvasElement>(null),portrait=useRef<HTMLDivElement>(null);
   const [saveError,setSaveError]=useState('');
   const metrics=endingMetrics(state,zones);
-  const derived=deriveDeathEndingPresentation(state,bio,ending);
+  const derived=deriveDeathEndingPresentation(state,bio,ending,zones);
   const cause=derived.cause;
   const isGenericTitle = (t?: string) =>
     !t || t === 'ตายเป็นครั้งที่สอง' || t === 'ร่างนี้สิ้นแรงและหยุดเดิน' || t === 'บทจบของชีวิต';
   const isGenericText = (txt?: string) =>
-    !txt || txt.includes('ครั้งแรกเจ้าเสียหัวใจ');
+    !txt || txt.includes('ครั้งแรกเจ้าเสียหัวใจ') || isStaticEndingText(ending?.id || state?.ending?.id, txt);
   const displayTitle = ending?.title && !isGenericTitle(ending.title) ? ending.title : derived.title;
   const displayText = ending?.text && !isGenericText(ending.text) ? ending.text : derived.text;
   const effectiveMutation = state?.ending?.id === 'human' ? 0 : Number(state?.stats?.mutation || 0);
@@ -62,7 +62,7 @@ export default function EndingExperience({state,ending,bio,zones,chronicle,onNew
     <section className="ending-world" id="ending-world">
       <p className="ending-eyebrow">ร่องรอยจากการเลือกของเจ้า</p>
       <h2>โลกที่เจ้าเปลี่ยนไว้</h2>
-      <ul>{endingReflections(state).map(line=><li key={line}>{line}</li>)}</ul>
+      <ul>{endingReflections(state, zones).map(line=><li key={line}>{line}</li>)}</ul>
       <details><summary>อ่านบันทึกช่วงสุดท้าย</summary><p>{cause.title}</p><p>{cause.description}</p>
         {chronicle?.milestones?.map((m:any,i:number)=><p key={m.id||i}>{m.day?`วันที่ ${m.day} · `:''}{m.text}</p>)}</details>
       <a className="ending-scroll" href="#ending-card">เก็บชีวิตนี้ไว้ ↓</a>
