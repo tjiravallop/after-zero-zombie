@@ -630,6 +630,7 @@ export default function App() {
   const [showImportBox, setShowImportBox] = useState<boolean>(false);
 
   // Initialize or restore game state
+  const restoredRunRef = useRef(false);
   const [gameState, setGameState] = useState<any>(() => {
     const prod = window.AfterZeroEngine?.Production;
     if (!prod) return null;
@@ -652,6 +653,7 @@ export default function App() {
         validated.characterProfile = snapshotCharacter(currentBio);
         validated.roamCooldowns = (parsed && typeof parsed.roamCooldowns === 'object' && parsed.roamCooldowns !== null && !Array.isArray(parsed.roamCooldowns)) ? parsed.roamCooldowns : {};
         validated.asokWreckDepletedParts = Array.isArray(parsed?.asokWreckDepletedParts) ? parsed.asokWreckDepletedParts.filter((p: any) => typeof p === 'string') : [];
+        restoredRunRef.current = true;
         return validated;
       }
     } catch {
@@ -661,6 +663,7 @@ export default function App() {
     const fresh = createCharacterState(prod, currentBio, seed);
     return structuredClone(fresh);
   });
+  const [hasStartedRun, setHasStartedRun] = useState(restoredRunRef.current);
 
   useEffect(() => {
     const runId = gameState?.runId || '';
@@ -790,14 +793,14 @@ export default function App() {
 
   // Persist state, past lives, bio, and zone populations to localStorage
   useEffect(() => {
-    if (gameState) {
+    if (hasStartedRun && gameState) {
       try {
         localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({...gameState,npcZones:syncedZonePopulations}));
       } catch {
         // ignore
       }
     }
-  }, [gameState, syncedZonePopulations]);
+  }, [hasStartedRun, gameState, syncedZonePopulations]);
 
   // Monitor mutation level and auto-record significant milestones (25, 50, 75) to the player's life log / journal
   useEffect(() => {
@@ -857,36 +860,40 @@ export default function App() {
   }, [pastLives]);
 
   useEffect(() => {
+    if (!hasStartedRun) return;
     try {
       localStorage.setItem(STORAGE_KEY_BIO_ID, currentBioId);
     } catch {
       // ignore
     }
-  }, [currentBioId]);
+  }, [hasStartedRun, currentBioId]);
 
   useEffect(() => {
+    if (!hasStartedRun) return;
     try {
       localStorage.setItem(STORAGE_KEY_TRIGGERED_ECHOES, JSON.stringify(triggeredEchoIds));
     } catch {
       // ignore
     }
-  }, [triggeredEchoIds]);
+  }, [hasStartedRun, triggeredEchoIds]);
 
   useEffect(() => {
+    if (!hasStartedRun) return;
     try {
       localStorage.setItem(STORAGE_KEY_MUTATION_MILESTONES, JSON.stringify(recordedMutationMilestones));
     } catch {
       // ignore
     }
-  }, [recordedMutationMilestones]);
+  }, [hasStartedRun, recordedMutationMilestones]);
 
   useEffect(() => {
+    if (!hasStartedRun) return;
     try {
       localStorage.setItem(STORAGE_KEY_ZONE_POPS, JSON.stringify(syncedZonePopulations));
     } catch {
       // ignore
     }
-  }, [syncedZonePopulations]);
+  }, [hasStartedRun, syncedZonePopulations]);
 
   useEffect(() => {
     try {
@@ -1326,6 +1333,7 @@ export default function App() {
     freshState.roamCooldowns = {};
     freshState.asokWreckDepletedParts = [];
     setGameState(freshState);
+    setHasStartedRun(true);
     setRolledPreviewCandidate(null);
     setScreenStage('playing');
     setMobileTab('play');
@@ -2053,6 +2061,7 @@ export default function App() {
   };
 
   const handleExportSaveJson = () => {
+    if (!hasStartedRun) return;
     const payload = {
       version: 'after-zero-1.0-save-bundle',
       exportedAt: new Date().toISOString(),
@@ -2137,6 +2146,7 @@ export default function App() {
       setCurrentBio(importedBio);
       setRouteGuidanceSession({runId: validated.runId, pinnedRouteId: null, dismissedRouteIds: []});
       setGameState(validated);
+      setHasStartedRun(true);
       setActiveLifeSimModal(validated.npcEncounter||null);
       setZonePopulations(importedZones);
       if (parsed.gameState) {
@@ -2589,39 +2599,42 @@ export default function App() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-emerald-300 font-bold">เซฟปัจจุบันในเครื่อง</span>
-                  <span className="text-amber-300">{formatTimelineDate(rawViewModel.day)}</span>
+                  {hasStartedRun && <span className="text-amber-300">{formatTimelineDate(rawViewModel.day)}</span>}
                 </div>
-                <h2 className="text-lg font-extrabold text-white">
-                  อดีต{currentBio.occupation} (เพศ{currentBio.gender} · อายุ {currentBio.age} ปี)
-                </h2>
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-1.5 text-slate-300">
-                  <div>
-                    <span className="text-slate-500">สถานที่ปัจจุบัน:</span>{' '}
-                    <span className="font-semibold text-lime-200">{rawViewModel.place?.name}</span>
+                {hasStartedRun ? <>
+                  <h2 className="text-lg font-extrabold text-white">
+                    อดีต{currentBio.occupation} (เพศ{currentBio.gender} · อายุ {currentBio.age} ปี)
+                  </h2>
+                  <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-1.5 text-slate-300">
+                    <div>
+                      <span className="text-slate-500">สถานที่ปัจจุบัน:</span>{' '}
+                      <span className="font-semibold text-lime-200">{rawViewModel.place?.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">ของติดตัวก่อนตาย:</span>{' '}
+                      <span className="text-amber-200">{currentBio.signatureItemName}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">สถานะร่าง:</span>{' '}
+                      <span className="font-mono">
+                        HP {Math.floor(gameState.stats?.hp || 0)}/100 · สติ{' '}
+                        {Math.floor(gameState.stats?.sanity || 0)}/100 · ความเป็นมนุษย์{' '}
+                        {currentHumanity}/100 · ฆ่าคน {currentKillCount} ศพ
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-500">ของติดตัวก่อนตาย:</span>{' '}
-                    <span className="text-amber-200">{currentBio.signatureItemName}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">สถานะร่าง:</span>{' '}
-                    <span className="font-mono">
-                      HP {Math.floor(gameState.stats?.hp || 0)}/100 · สติ{' '}
-                      {Math.floor(gameState.stats?.sanity || 0)}/100 · ความเป็นมนุษย์{' '}
-                      {currentHumanity}/100 · ฆ่าคน {currentKillCount} ศพ
-                    </span>
-                  </div>
-                </div>
+                </> : <p className="text-sm text-slate-300">ยังไม่มีเซฟ เริ่มจากสุ่มตัวละครใหม่หรือนำเข้าไฟล์เซฟของเจ้า</p>}
               </div>
 
               <div className="space-y-2.5">
                 <button
                   type="button"
+                  disabled={!hasStartedRun}
                   onClick={() => {
                     if (soundEnabled) soundFx.click();
                     setScreenStage('playing');
                   }}
-                  className="w-full py-3.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-sm transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   {gameState.ending ? 'ดูบทสรุปของเซฟนี้' : 'โหลดเซฟเล่นต่อทันที'}
@@ -2630,8 +2643,9 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    disabled={!hasStartedRun}
                     onClick={handleExportSaveJson}
-                    className="flex-1 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Download className="w-3.5 h-3.5 text-lime-300" />
                     ส่งออกเซฟ (.json)
@@ -2915,8 +2929,6 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mobile-story-feed">{storyFeed}</div>
-
               {/* CURRENT SITUATION & MUTATION STAGE AWAKENING (Compact on Mobile) */}
               <details className="current-situation p-2.5 sm:p-4 rounded-xl bg-slate-900/80 border border-slate-800/90 space-y-2">
                 <summary className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-400 cursor-pointer">
@@ -3033,24 +3045,26 @@ export default function App() {
                   {primaryStoryAction && renderStoryAction(primaryStoryAction, true)}
 
                   {/* Group A: Freeform Zombie Life Simulation & Random NPC Encounters */}
-                  <button type="button" onClick={() => {
-                    if (!currentZonePop?.npcs.some(npc => npc.alive)) {
-                      if (soundEnabled) soundFx.warning();
-                      setActionToast('ไม่มีผู้รอดชีวิตที่ยังมีชีวิตอยู่ในเขตนี้แล้ว');
-                    } else {
-                      handleOpenFreeformNpcModal();
-                    }
-                  }} className={`story-action ${!currentZonePop?.npcs.some(npc => npc.alive) ? 'opacity-70' : ''}`}>
-                    <span className="story-action-title"><Users size={18} aria-hidden="true" /> พบผู้รอดชีวิต <ArrowRight size={16} aria-hidden="true" /></span>
-                    <span className="story-action-description">พูดคุย ช่วยเหลือ แบ่งของ หรือล่า · ผู้คน {currentZoneTrustStats.livingCount} คน</span>
-                    {!currentZonePop?.npcs.some(npc => npc.alive) && (
-                      <span className="story-action-description text-amber-300 font-medium">🔒 ไม่มีผู้รอดชีวิตเหลืออยู่ในเขตนี้</span>
-                    )}
-                  </button>
-                  <button type="button" onClick={handleOpenFreeformRoamModal} className="story-action">
-                    <span className="story-action-title"><Search size={18} aria-hidden="true" /> สำรวจบริเวณนี้ <ArrowRight size={16} aria-hidden="true" /></span>
-                    <span className="story-action-description">ค้นหาของประทังชีวิตและร่องรอยในย่านนี้</span>
-                  </button>
+                  <div className="scene-quick-actions">
+                    <button type="button" onClick={() => {
+                      if (!currentZonePop?.npcs.some(npc => npc.alive)) {
+                        if (soundEnabled) soundFx.warning();
+                        setActionToast('ไม่มีผู้รอดชีวิตที่ยังมีชีวิตอยู่ในเขตนี้แล้ว');
+                      } else {
+                        handleOpenFreeformNpcModal();
+                      }
+                    }} className={`story-action ${!currentZonePop?.npcs.some(npc => npc.alive) ? 'opacity-70' : ''}`}>
+                      <span className="story-action-title"><Users size={18} aria-hidden="true" /> พบผู้รอดชีวิต <ArrowRight size={16} aria-hidden="true" /></span>
+                      <span className="story-action-description">พูดคุย ช่วยเหลือ แบ่งของ หรือล่า · ผู้คน {currentZoneTrustStats.livingCount} คน</span>
+                      {!currentZonePop?.npcs.some(npc => npc.alive) && (
+                        <span className="story-action-description text-amber-300 font-medium">🔒 ไม่มีผู้รอดชีวิตเหลืออยู่ในเขตนี้</span>
+                      )}
+                    </button>
+                    <button type="button" onClick={handleOpenFreeformRoamModal} className="story-action">
+                      <span className="story-action-title"><Search size={18} aria-hidden="true" /> สำรวจบริเวณนี้ <ArrowRight size={16} aria-hidden="true" /></span>
+                      <span className="story-action-description">ค้นหาของประทังชีวิตและร่องรอยในย่านนี้</span>
+                    </button>
+                  </div>
                   {otherStoryActions.length > 0 && <details className="other-story-actions" key={gameState.place}>
                     <summary>เหตุการณ์และเส้นทางอื่น ({otherStoryActions.length}) <ChevronDown size={16} aria-hidden="true" /></summary>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">{otherStoryActions.map(action => renderStoryAction(action))}</div>
@@ -3160,6 +3174,7 @@ export default function App() {
                   <MapPin size={18} aria-hidden="true" /> เปิดแผนที่เดินทาง <ArrowRight size={16} aria-hidden="true" />
                 </button>
               </div>
+              <div className="mobile-story-feed">{storyFeed}</div>
             </div>
 
             {/* ===============================================================
@@ -4003,7 +4018,7 @@ export default function App() {
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       {screenStage === 'playing' && !rawViewModel?.ending && (
-        <nav aria-label="เมนูเกม" className="mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-5 px-1 py-1.5">
+        <nav aria-label="เมนูเกม" className="mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#101b15] border-t border-[#354a3b] grid grid-cols-5 px-1 py-1.5">
           {(
             [
               ['play', 'กิจกรรมวันนี้', Sparkles],
@@ -4020,13 +4035,10 @@ export default function App() {
                 setMobileTab(id);
                 if (id !== 'play') setDesktopSideTab(id);
               }}
-              className={`relative flex flex-col items-center justify-center py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                mobileTab === id
-                  ? 'text-lime-300 bg-slate-900'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              aria-current={mobileTab === id ? 'page' : undefined}
+              className="relative flex flex-col items-center justify-center py-1 rounded-lg text-[11px] font-medium text-[#acbeaf] transition-colors hover:text-slate-100"
             >
-              <Icon className="w-4 h-4 mb-0.5" />
+              <Icon className="w-4 h-4 mb-0.5" aria-hidden="true" />
               {id === 'map' && mapNotificationCount > 0 && <span className={`map-tab-notice ${mapHasUrgentNews ? 'has-urgent-news' : ''}`} aria-label={`${mapNotificationCount} ย่านมีเรื่องพิเศษ`}>{mapNotificationCount}</span>}
               <span className="truncate max-w-full px-0.5">{label}</span>
             </button>

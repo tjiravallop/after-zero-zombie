@@ -5,12 +5,6 @@
     "ast_hash": "289b4ec17b0a3ef9816dd3043229849c",
     "semantic_hash": ""
   },
-  ".venv-graphify/Scripts/Activate.ps1": {
-    "mtime": 1793891501.1399484,
-    "seen": 1793892598.285056,
-    "ast_hash": "0e96b6e0cf83baabd5289d691a2668ef",
-    "semantic_hash": ""
-  },
   "metadata.json": {
     "mtime": 1793890823.972615,
     "seen": 1793892598.285056,
@@ -18,9 +12,9 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1793890823.997441,
-    "seen": 1793892598.285056,
-    "ast_hash": "9c2ea7fc87a0af0599672f4679cd2380",
+    "mtime": 1793981439.0078578,
+    "seen": 1793988434.9742227,
+    "ast_hash": "7cd1d3a1f266b70f021c63dc4d38d6a7",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -30,9 +24,9 @@
     "semantic_hash": ""
   },
   "public/after-zero-bundle.js": {
-    "mtime": 1793896323.3649077,
-    "seen": 1793896357.7116168,
-    "ast_hash": "1e6a4f9b43bc52831f7871c9bdd7f9b9",
+    "mtime": 1793988568.0087278,
+    "seen": 1793989211.4632664,
+    "ast_hash": "afa7404f23a5d8500b58f6e7f3f97efd",
     "semantic_hash": ""
   },
   "scripts/build-export-bundles.mjs": {
@@ -60,9 +54,9 @@
     "semantic_hash": ""
   },
   "scripts/sync-bangkok-content.mjs": {
-    "mtime": 1793896095.4322956,
-    "seen": 1793896209.7959619,
-    "ast_hash": "a3bb4f4f3f4d1cbc2ce0f1f3c593ef56",
+    "mtime": 1793981439.0378602,
+    "seen": 1793988434.9770455,
+    "ast_hash": "6cab19516807425113cab54bb6564f21",
     "semantic_hash": ""
   },
   "scripts/test-batch2-continuation-events.ts": {
@@ -72,9 +66,9 @@
     "semantic_hash": ""
   },
   "scripts/test-death-endings.ts": {
-    "mtime": 1793890825.2315357,
-    "seen": 1793892598.285056,
-    "ast_hash": "d1963a4bf52cf7a39259ee17f36ce406",
+    "mtime": 1793981439.0408118,
+    "seen": 1793988434.9770455,
+    "ast_hash": "21422471919db0030ef7ce750dbd76ef",
     "semantic_hash": ""
   },
   "scripts/test-ending-presentation.ts": {
@@ -102,9 +96,9 @@
     "semantic_hash": ""
   },
   "scripts/test-route-guidance.ts": {
-    "mtime": 1793890825.3943295,
-    "seen": 1793892598.285056,
-    "ast_hash": "bef2bd840633d504677892356d4e7635",
+    "mtime": 1793981439.0424402,
+    "seen": 1793988434.9770455,
+    "ast_hash": "7b82d0e49e518d39d5645762e6b39bac",
     "semantic_hash": ""
   },
   "scripts/test-story-feed.ts": {
@@ -120,21 +114,21 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1793896802.1208608,
-    "seen": 1793896821.9151278,
-    "ast_hash": "bc45a0142904aff68a7bbebc8737bfe1",
+    "mtime": 1794059959.3588848,
+    "seen": 1794059984.0434055,
+    "ast_hash": "1f38cacebaf70157ab85161dadfafb84",
     "semantic_hash": ""
   },
   "src/components/EndingExperience.tsx": {
-    "mtime": 1793890825.6404445,
-    "seen": 1793892598.285056,
-    "ast_hash": "e1f6014786899b5ec1cfb8235162503f",
+    "mtime": 1793981439.059544,
+    "seen": 1793988434.9770455,
+    "ast_hash": "f5bd32879285a8a17af22c4fe9a40df9",
     "semantic_hash": ""
   },
   "src/components/PixelCityMap.tsx": {
-    "mtime": 1793890825.6724956,
-    "seen": 1793892598.285056,
-    "ast_hash": "7375f1c86f8851fdc23a9c37add82159",
+    "mtime": 1793981439.0617166,
+    "seen": 1793988434.9770455,
+    "ast_hash": "26d8addb90a2106ddb341f27ced35436",
     "semantic_hash": ""
   },
   "src/components/StoryFeed.tsx": {
@@ -144,9 +138,9 @@
     "semantic_hash": ""
   },
   "src/components/ZombiePortrait.tsx": {
-    "mtime": 1793890825.737602,
-    "seen": 1793892598.285056,
-    "ast_hash": "09a84440d8280fc3309912cc62c44d83",
+    "mtime": 1793898992.5660453,
+    "seen": 1793988434.9770455,
+    "ast_hash": "a1c17e15dc404e3e80ef73ff1900647b",
     "semantic_hash": ""
   },
   "src/data/bangkokBios.ts": {
@@ -156,15 +150,15 @@
     "semantic_hash": ""
   },
   "src/data/bangkokLocations.json": {
-    "mtime": 1793890825.8276331,
-    "seen": 1793892598.285056,
-    "ast_hash": "a7994edbe19fa12a65054fe2d997b4cd",
+    "mtime": 1793981439.064164,
+    "seen": 1793988434.980475,
+    "ast_hash": "b870493a47d46e73ff21520021d680ef",
     "semantic_hash": ""
   },
   "src/data/characterPool.ts": {
-    "mtime": 1793890825.8673298,
-    "seen": 1793892598.285056,
-    "ast_hash": "bdc68a9636d6cc4d6040f3b6072c6964",
+    "mtime": 1793898833.518529,
+    "seen": 1793988434.980475,
+    "ast_hash": "eb1069abc1dfb220489e9a69a550c3e5",
     "semantic_hash": ""
   },
   "src/data/communityEngineEvents.json": {
@@ -186,9 +180,9 @@
     "semantic_hash": ""
   },
   "src/data/endingPresentation.ts": {
-    "mtime": 1793890825.9973936,
-    "seen": 1793892598.285056,
-    "ast_hash": "606ab55a57c6549cae39eaea329d7f26",
+    "mtime": 1793981439.0663733,
+    "seen": 1793988434.981914,
+    "ast_hash": "09b37f7fbafeab4fe425ecab7af0aff5",
     "semantic_hash": ""
   },
   "src/data/eventEngine.ts": {
@@ -210,9 +204,9 @@
     "semantic_hash": ""
   },
   "src/data/mapLocations.ts": {
-    "mtime": 1793893564.6617737,
-    "seen": 1793893718.7255988,
-    "ast_hash": "bc5078b0b4963ade0d40757770936363",
+    "mtime": 1793981439.0686224,
+    "seen": 1793988434.981914,
+    "ast_hash": "bb209a360f133608af8e9350b8a1505e",
     "semantic_hash": ""
   },
   "src/data/npcInteractions.ts": {
@@ -228,9 +222,9 @@
     "semantic_hash": ""
   },
   "src/data/pastLifeEchoes.ts": {
-    "mtime": 1793896147.2624555,
-    "seen": 1793896209.8053844,
-    "ast_hash": "5e40f043a3d27ca19e067a1f54927380",
+    "mtime": 1793981439.073731,
+    "seen": 1793988434.981914,
+    "ast_hash": "b87e9e72afb2cebb37b93b04a28ae457",
     "semantic_hash": ""
   },
   "src/data/progressionRoutes.json": {
@@ -330,21 +324,141 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1793896323.3735378,
-    "seen": 1793896357.7252638,
-    "ast_hash": "83d4018d4e797cae2f38c4485c8d22b7",
+    "mtime": 1793988568.0087278,
+    "seen": 1793989211.4938703,
+    "ast_hash": "d95d4e4de9935d0a43a17e12f2d8b01e",
     "semantic_hash": ""
   },
   "public/after-zero-bangkok-standalone.html": {
-    "mtime": 1793890824.852291,
-    "seen": 1793892598.285056,
-    "ast_hash": "a772c4201a0d8efd121c22ab16bd05a6",
+    "mtime": 1793981439.025519,
+    "seen": 1793988434.9923778,
+    "ast_hash": "ceecec5a358e222615e0a3156ebedb9f",
     "semantic_hash": ""
   },
   "src/data/zoneResidents.ts": {
     "mtime": 1793895293.0606601,
     "seen": 1793895336.5385242,
     "ast_hash": "1a4fabbe7f8f555665a4c3f8480ccedc",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/01-ending-catalog.json": {
+    "mtime": 1793981438.9415169,
+    "seen": 1793988434.9736443,
+    "ast_hash": "5745edbe8ad3348724b8d6f09ea9d216",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/02-rules-and-dynamic-text.json": {
+    "mtime": 1793981438.9472673,
+    "seen": 1793988434.9736443,
+    "ast_hash": "580d4be8e1c1460759eec35fd78c1973",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/manifest.json": {
+    "mtime": 1793981438.9641058,
+    "seen": 1793988434.9736443,
+    "ast_hash": "a3251bf169a7b991317e24556f59b27b",
+    "semantic_hash": ""
+  },
+  "scripts/test-tailored-phase2-endings.ts": {
+    "mtime": 1793981439.0491667,
+    "seen": 1793988434.9770455,
+    "ast_hash": "6d5210d6ad1631d6bd019d5261b002a6",
+    "semantic_hash": ""
+  },
+  "scripts/test-tailored-pilot-endings.ts": {
+    "mtime": 1793981439.0507846,
+    "seen": 1793988434.9770455,
+    "ast_hash": "c8d3a034f4b7a5e99c193de6943ac4e8",
+    "semantic_hash": ""
+  },
+  "scripts/test-zombie-portrait.ts": {
+    "mtime": 1793899066.6952252,
+    "seen": 1793988434.9770455,
+    "ast_hash": "cced8e2a310f32ab445ecb94b07a7ef7",
+    "semantic_hash": ""
+  },
+  "scripts/verify-mobile-portraits.mjs": {
+    "mtime": 1793899099.9581635,
+    "seen": 1793988434.9770455,
+    "ast_hash": "839d317eae2cd6389fddbe91c5f62bf1",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/03-forced-endings.txt": {
+    "mtime": 1793981438.9590325,
+    "seen": 1793988434.9891636,
+    "ast_hash": "85dc89b5146ed5f72f8baba0831ed300",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/ENDINGS-\u0e2d\u0e48\u0e32\u0e19\u0e01\u0e48\u0e2d\u0e19\u0e23\u0e35\u0e27\u0e34\u0e27.md": {
+    "mtime": 1793981438.9606876,
+    "seen": 1793988434.9891636,
+    "ast_hash": "7962aeb30b6152f4f86377a428e2eac1",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/PROMPT-\u0e23\u0e35\u0e27\u0e34\u0e27\u0e09\u0e32\u0e01\u0e08\u0e1a.md": {
+    "mtime": 1793981438.9624538,
+    "seen": 1793988434.9891636,
+    "ast_hash": "276bf12a9f5f74a37dbd75e3d7883cee",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/App.tsx.txt": {
+    "mtime": 1793981438.9698985,
+    "seen": 1793988434.9891636,
+    "ast_hash": "722c7da22699e7aa94ae878fa019c439",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/EndingExperience.tsx.txt": {
+    "mtime": 1793981438.972255,
+    "seen": 1793988434.9891636,
+    "ast_hash": "f5bd32879285a8a17af22c4fe9a40df9",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/after-zero-bundle.js.txt": {
+    "mtime": 1793981438.984379,
+    "seen": 1793988434.9891636,
+    "ast_hash": "2d77c570d2a503e26b94b69338175ac7",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/bangkokLocations.json.txt": {
+    "mtime": 1793981438.987086,
+    "seen": 1793988434.9891636,
+    "ast_hash": "b870493a47d46e73ff21520021d680ef",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/endingPresentation.ts.txt": {
+    "mtime": 1793981438.987086,
+    "seen": 1793988434.9891636,
+    "ast_hash": "c1afed0863de440e4729523d2f98483f",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/eventEngine.ts.txt": {
+    "mtime": 1793981438.991089,
+    "seen": 1793988434.9891636,
+    "ast_hash": "7118c9178c77dac2cd501634cca814f4",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/externalEventsPack.ts.txt": {
+    "mtime": 1793981438.9926383,
+    "seen": 1793988434.9891636,
+    "ast_hash": "a322ba8a18e58de7104bd048775b06b1",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/pastLifeEchoes.ts.txt": {
+    "mtime": 1793981438.9988694,
+    "seen": 1793988434.9891636,
+    "ast_hash": "b87e9e72afb2cebb37b93b04a28ae457",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/progressionRoutes.json.txt": {
+    "mtime": 1793981439.000911,
+    "seen": 1793988434.9891636,
+    "ast_hash": "7df1d20e733edd154db4142d80babb08",
+    "semantic_hash": ""
+  },
+  "docs/ending-review/source/progressionRules.ts.txt": {
+    "mtime": 1793981439.0026958,
+    "seen": 1793988434.9891636,
+    "ast_hash": "8a0f7bf19c412894718e57f69c7b8c8d",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {
