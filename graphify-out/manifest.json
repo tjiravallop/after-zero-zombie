@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "public/after-zero-bundle.js": {
-    "mtime": 1793988568.0087278,
-    "seen": 1793989211.4632664,
-    "ast_hash": "afa7404f23a5d8500b58f6e7f3f97efd",
+    "mtime": 1794069340.5720649,
+    "seen": 1794069523.095933,
+    "ast_hash": "8ed51a394368b27933ed6ab70a28fbc3",
     "semantic_hash": ""
   },
   "scripts/build-export-bundles.mjs": {
@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1794059959.3588848,
-    "seen": 1794059984.0434055,
-    "ast_hash": "1f38cacebaf70157ab85161dadfafb84",
+    "mtime": 1794063927.6581545,
+    "seen": 1794063954.977416,
+    "ast_hash": "52ede1bcad9cbf4ba88330895f948bd8",
     "semantic_hash": ""
   },
   "src/components/EndingExperience.tsx": {
@@ -324,15 +324,15 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1793988568.0087278,
-    "seen": 1793989211.4938703,
-    "ast_hash": "d95d4e4de9935d0a43a17e12f2d8b01e",
+    "mtime": 1794069446.32192,
+    "seen": 1794069523.1274168,
+    "ast_hash": "4a0ed514055fd84010a49531d4777335",
     "semantic_hash": ""
   },
   "public/after-zero-bangkok-standalone.html": {
-    "mtime": 1793981439.025519,
-    "seen": 1793988434.9923778,
-    "ast_hash": "ceecec5a358e222615e0a3156ebedb9f",
+    "mtime": 1794069463.7380629,
+    "seen": 1794069523.1274168,
+    "ast_hash": "dc042322b706759fafdf34bc0cb73daa",
     "semantic_hash": ""
   },
   "src/data/zoneResidents.ts": {
@@ -459,6 +459,12 @@
     "mtime": 1793981439.0026958,
     "seen": 1793988434.9891636,
     "ast_hash": "8a0f7bf19c412894718e57f69c7b8c8d",
+    "semantic_hash": ""
+  },
+  "src/assets/title-bangkok.png": {
+    "mtime": 1794060675.237217,
+    "seen": 1794060924.5709255,
+    "ast_hash": "55b89a50b875324a26009833f4acfb41",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

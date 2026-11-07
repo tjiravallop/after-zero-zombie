@@ -4,6 +4,7 @@ import { generateCharacter, resolveSavedCharacter, snapshotCharacter, getCharact
 import PixelCityMap from './components/PixelCityMap';
 import { buildMapLocations } from './data/mapLocations';
 import ZombiePortrait from './components/ZombiePortrait';
+import titleBackground from './assets/title-bangkok.png?inline';
 import { getEndingReadiness, getRouteGuidance, PROGRESSION_ROUTES } from './data/progressionRules';
 /**
  * @license
@@ -160,7 +161,7 @@ declare global {
         storyActionIds: string[];
       };
       Scene?: {
-        draw: (canvas: HTMLCanvasElement | null, state: any, tick?: number, options?: { hideCharacter?: boolean }) => void;
+        draw: (canvas: HTMLCanvasElement | null, state: any, tick?: number, options?: { hideCharacter?: boolean; livingCount?: number }) => void;
       };
     };
   }
@@ -702,7 +703,6 @@ export default function App() {
   const [recordedCurrentEndingRunId, setRecordedCurrentEndingRunId] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const loginCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const production = window.AfterZeroEngine?.Production;
 
   // Sync Story NPCs from engine state into Zone Populations
@@ -908,12 +908,9 @@ export default function App() {
     const scene = window.AfterZeroEngine?.Scene;
     if (!scene || typeof scene.draw !== 'function' || !gameState) return;
     if (screenStage === 'playing' && canvasRef.current) {
-      scene.draw(canvasRef.current, gameState, gameState.day || 1, { hideCharacter: true });
+      scene.draw(canvasRef.current, gameState, gameState.day || 1, { hideCharacter: true, livingCount: currentZoneTrustStats.livingCount });
     }
-    if (screenStage === 'login' && loginCanvasRef.current) {
-      scene.draw(loginCanvasRef.current, gameState, 1);
-    }
-  }, [screenStage, gameState, mobileTab]);
+  }, [screenStage, gameState, mobileTab, currentZoneTrustStats.livingCount]);
 
   // Global reputation and the average trust of this zone are separate quantities.
   const effectiveGameState = useMemo(() => {
@@ -1282,8 +1279,8 @@ export default function App() {
   }, [gameState, currentBio]);
 
   // Step 1 -> Step 2: Login Submit
-  const handleLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLoginSubmit = (e?: React.FormEvent, intent: 'hub' | 'continue' | 'new' = 'hub') => {
+    e?.preventDefault();
     const clean = loginInput.trim() || 'ผู้บันทึกเขตศูนย์ (Subject-00)';
     setPlayerName(clean);
     try {
@@ -1292,7 +1289,12 @@ export default function App() {
       // ignore
     }
     if (soundEnabled) soundFx.success();
-    setScreenStage('hub');
+    if (intent === 'continue' && hasStartedRun) {
+      setScreenStage('playing');
+    } else {
+      setScreenStage('hub');
+      if (intent === 'new') handleRollCharacterPreview();
+    }
   };
 
   // Roll a new character candidate and open the Character Bio Dossier Popup!
@@ -2232,9 +2234,70 @@ export default function App() {
   />;
   const renderStoryAction = (action: any, primary = false) => {
     const isLocked = !action.preview?.enabled;
-    const disabledReason = showNumericSpoilers
-      ? (action.preview?.reason || '')
-      : sanitizeNonSpoilerReason(action.preview?.reason || 'ยังไม่พร้อมทำกิจกรรมนี้');
+    const rawReasonsList: string[] = [];
+    if (action.preview?.reason) {
+      rawReasonsList.push(action.preview.reason);
+    } else if (Array.isArray(action.preview?.reasons) && action.preview.reasons.length > 0) {
+      rawReasonsList.push(...action.preview.reasons);
+    } else if (Array.isArray(action.reasons) && action.reasons.length > 0) {
+      rawReasonsList.push(...action.reasons);
+    }
+    const rawDisabledReason = rawReasonsList.filter(Boolean).join(' · ') || 'ยังไม่พร้อมทำกิจกรรมนี้';
+    let disabledReason = showNumericSpoilers
+      ? rawDisabledReason
+      : sanitizeNonSpoilerReason(rawDisabledReason);
+
+    if (!showNumericSpoilers) {
+      disabledReason = disabledReason
+        .replace(/ความไว้ใจ\s*\d+\/\d+/g, 'ความไว้ใจจากผู้คนยังไม่พอ')
+        .replace(/ตัวอย่าง\s*\d+\/\d+/g, 'ขาดหลอดตัวอย่างเชื้อ')
+        .replace(/ชุดเย็บแผล\s*\d+\/\d+/g, 'ขาดชุดเย็บแผล')
+        .replace(/อาหารกระป๋อง\s*\d+\/\d+/g, 'ขาดเสบียงอาหาร');
+    }
+
+    const costs: string[] = [];
+    const dayCost =
+      typeof action.preview?.dayCost === 'number'
+        ? action.preview.dayCost
+        : typeof action.dayCost === 'number'
+        ? action.dayCost
+        : null;
+
+    if (dayCost !== null) {
+      costs.push(dayCost === 0 ? 'ไม่ใช้วัน' : `ใช้ ${dayCost} วัน`);
+    }
+
+    if (Array.isArray(action.preview?.costSummary)) {
+      for (const costItem of action.preview.costSummary) {
+        if (costItem && typeof costItem === 'string' && !costs.includes(costItem)) {
+          costs.push(costItem);
+        }
+      }
+    } else if (action.preview?.costs) {
+      const { items = {}, blood = 0 } = action.preview.costs;
+      if (blood > 0) {
+        costs.push(`ใช้เลือด ${blood} ถุง`);
+      }
+      for (const [key, qty] of Object.entries(items)) {
+        if (typeof qty === 'number' && qty > 0) {
+          const label = (production?.catalog as any)?.LABELS?.[key] || key;
+          costs.push(`ใช้ ${label} ${qty}`);
+        }
+      }
+    }
+
+    let cleanDescription = (action.description || '').trim();
+    cleanDescription = cleanDescription
+      .replace(/^(?:ใช้\s*)?1\s*วัน\s*[·•\-]\s*/, '')
+      .replace(/\s*[·•\-]\s*(?:ใช้\s*)?1\s*วัน$/, '');
+
+    if (isLocked) {
+      cleanDescription = cleanDescription
+        .replace(/\s*[·•\-]\s*ยังไม่ผ่านเงื่อนไขกิจกรรม$/, '')
+        .replace(/\s*[·•\-]\s*เลือกคำตอบของเหตุการณ์ก่อน$/, '');
+    }
+
+    const isPinned = action.id === pinnedActionId;
 
     return (
       <button
@@ -2250,29 +2313,38 @@ export default function App() {
             handlePerformAction(action.id);
           }
         }}
-        className={`story-action ${primary ? 'story-action-primary' : ''} ${action.id === pinnedActionId ? 'is-pinned' : ''} ${isLocked ? 'story-action-locked opacity-75' : ''}`}
+        className={`story-action ${primary ? 'story-action-primary' : ''} ${isPinned ? 'is-pinned' : ''} ${isLocked ? 'story-action-locked opacity-75' : ''}`}
         title={isLocked ? disabledReason : undefined}
       >
         <span className="story-action-title">
-          {action.name}
+          <span className="story-action-title-text">{action.name}</span>
+          {isPinned && <span className="story-action-pin-badge">📌 ปักหมุด</span>}
           <ArrowRight size={16} aria-hidden="true" />
         </span>
-        {action.id === pinnedActionId && <span className="route-pin-label">เป้าหมายที่ปักหมุด</span>}
-        <span className="story-action-description">{action.description}</span>
+        {isPinned && <span className="route-pin-label">เป้าหมายที่ปักหมุด</span>}
+        {cleanDescription && (
+          <span className="story-action-description">{cleanDescription}</span>
+        )}
+        {costs.length > 0 && (
+          <span className="story-action-costs" aria-label={`ต้นทุน: ${costs.join(', ')}`}>
+            {costs.map((cost, idx) => (
+              <span key={idx} className="story-action-cost-tag">{cost}</span>
+            ))}
+          </span>
+        )}
         {isLocked && (
-          <span className="story-action-description text-amber-300 font-medium">
+          <span className="story-action-disabled-reason text-amber-300 font-medium">
             🔒 {disabledReason}
           </span>
         )}
       </button>
     );
   };
-
   return (
-    <div data-ending={Boolean(screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={screenStage === 'playing'} className={`game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950 ${isScreenShaking ? 'screen-shake' : ''}`}>
+    <div data-screen={screenStage} data-ending={Boolean(screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={screenStage === 'playing'} className={`game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950 ${isScreenShaking ? 'screen-shake' : ''}`}>
       {isScreenShaking && <div className="damage-vignette" />}
       {/* STICKY COMPACT TOP HUD */}
-      <header className="game-hud sticky top-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-b border-emerald-950/80 px-3 sm:px-6 py-2.5">
+      {screenStage !== 'login' && <header className="game-hud sticky top-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-b border-emerald-950/80 px-3 sm:px-6 py-2.5">
         <div className="max-w-[1380px] mx-auto flex flex-col gap-2">
           {/* Top Row: Brand, Timeline Date, Kill Count Badge & Controls */}
           <div className="flex items-center justify-between gap-2">
@@ -2327,7 +2399,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {screenStage !== 'login' && (
+              <>
                 <button
                   type="button"
                   onClick={() => setScreenStage('hub')}
@@ -2337,7 +2409,7 @@ export default function App() {
                   <Shuffle className="w-3.5 h-3.5 text-lime-300" />
                   <span className="hidden sm:inline">หน้าเซฟ/สุ่มตัวละคร</span>
                 </button>
-              )}
+              </>
 
               <button
                 type="button"
@@ -2486,73 +2558,48 @@ export default function App() {
             </div>
           )}
         </div>
-      </header>
+      </header>}
 
       {/* =====================================================================
           STAGE 1: LOGIN SCREEN
          ===================================================================== */}
       {screenStage === 'login' && (
-        <main className="flex-1 flex items-center justify-center px-4 py-8">
-          <div className="max-w-md w-full rounded-2xl overflow-hidden bg-slate-900/95 border border-slate-800 shadow-2xl">
-            <div className="relative">
-              <canvas
-                ref={loginCanvasRef}
-                width={320}
-                height={144}
-                className="w-full h-44 object-cover block bg-[#14251f]"
-                style={{ imageRendering: 'pixelated' }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-950/40 to-transparent" />
-              <div className="absolute bottom-3 left-5 right-5">
-                <div className="text-[11px] font-mono uppercase tracking-widest text-lime-300">
-                  ZOMBIE LIFE & CONSCIOUSNESS SIMULATION · 1.0
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  AFTER ZERO
-                </h1>
-              </div>
+        <main className="title-screen" aria-label="หน้าไตเติล AFTER ZERO">
+          <img className="title-backdrop" src={titleBackground} alt="" fetchPriority="high" />
+          <div className="title-shade" aria-hidden="true" />
+          {hasStartedRun && (
+            <div className="title-character" aria-hidden="true">
+              <ZombiePortrait bio={currentBio} mutation={Math.floor(gameState?.stats?.mutation || 0)} />
             </div>
-
-            <form onSubmit={handleLoginSubmit} className="p-6 space-y-5">
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                เมื่อหัวใจหยุดเต้นแต่ความทรงจำยังไม่ดับลง — ตื่นขึ้นใน{' '}
-                <strong className="text-amber-300">
-                  เขตกักกันพิเศษกรุงเทพมหานคร วันที่ 15 ตุลาคม
-                </strong>{' '}
-                ก่อนที่กองทัพจะทิ้งระเบิดเพลิงปูพรมเผากรุงเทพฯ ในวันที่ 120 เลือกช่วยเหลือผู้คน พาคู่หูหนีพ้นเมือง หรือเปลี่ยนชะตาของตัวเองก่อนเวลาหมดลง
-              </p>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-lime-300" />
-                  <span>ลงชื่อเข้าใช้ (Player ID):</span>
-                </label>
-                <input
-                  type="text"
-                  value={loginInput}
-                  onChange={e => setLoginInput(e.target.value)}
-                  placeholder="กรอกชื่อผู้เล่น..."
-                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-400"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-extrabold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                เข้าสู่เกม AFTER ZERO
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowDownloadGameModal(true)}
-                className="w-full py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-lime-400/40 text-lime-300 font-bold text-xs transition-colors flex items-center justify-center gap-2"
-              >
-                <Download className="w-3.5 h-3.5" />
-                ดาวน์โหลดเกมลงเครื่อง (ไฟล์เล่นออฟไลน์ / ZIP โปรเจกต์)
-              </button>
+          )}
+          <div className="title-content">
+            <h1 className="title-wordmark"><span>AFTER</span><span>ZERO <small>1.0</small></span></h1>
+            <p className="title-subtitle">กรุงเทพฯ หลังวันศูนย์</p>
+            <form className="title-menu" onSubmit={e => handleLoginSubmit(e, hasStartedRun ? 'continue' : 'new')}>
+              {hasStartedRun ? (
+                <>
+                  <button type="submit" className="title-button title-button-primary"><Play size={18} aria-hidden="true" />เล่นต่อ</button>
+                  <p className="title-save-note">{formatTimelineDate(gameState.day)} · {production?.catalog.PLACES[gameState.place]?.short || currentBio.occupation}</p>
+                  <button type="button" className="title-button title-button-secondary" onClick={() => handleLoginSubmit(undefined, 'new')}>เริ่มชีวิตใหม่</button>
+                </>
+              ) : (
+                <button type="submit" className="title-button title-button-primary"><Play size={18} aria-hidden="true" />เริ่มชีวิตใหม่</button>
+              )}
+              <button type="button" className="title-text-button" onClick={() => handleLoginSubmit(undefined, 'hub')}>จัดการเซฟ / นำเข้าเซฟ</button>
+              <details className="title-settings">
+                <summary>ตั้งค่าและชื่อผู้เล่น <ChevronDown size={14} aria-hidden="true" /></summary>
+                <div className="title-settings-content">
+                  <label htmlFor="title-player-name"><UserCheck size={15} aria-hidden="true" />ชื่อผู้เล่น</label>
+                  <input id="title-player-name" type="text" value={loginInput} onChange={e => setLoginInput(e.target.value)} placeholder="กรอกชื่อผู้เล่น..." />
+                  <button type="button" className="title-text-button" aria-pressed={soundEnabled} onClick={() => setSoundEnabled(enabled => !enabled)}>เสียงเกม {soundEnabled ? 'เปิด' : 'ปิด'}</button>
+                </div>
+              </details>
+              <button type="button" className="title-text-button title-download" onClick={() => setShowDownloadGameModal(true)}><Download size={14} aria-hidden="true" />ดาวน์โหลดเกมลงเครื่อง</button>
             </form>
+            <details className="title-about">
+              <summary>เรื่องราวก่อนเริ่มชีวิต</summary>
+              <p>เมื่อหัวใจหยุดเต้นแต่ความทรงจำยังไม่ดับลง — ตื่นขึ้นในเขตกักกันพิเศษกรุงเทพมหานคร วันที่ 15 ตุลาคม ก่อนที่กองทัพจะทิ้งระเบิดเพลิงปูพรมเผากรุงเทพฯ ในวันที่ 120 เลือกช่วยเหลือผู้คน พาคู่หูหนีพ้นเมือง หรือเปลี่ยนชะตาของตัวเองก่อนเวลาหมดลง</p>
+            </details>
           </div>
         </main>
       )}
@@ -2846,7 +2893,7 @@ export default function App() {
                 data-mutation-stage={currentMutationStage.stageNumber}
                 className="character-scene rounded-2xl overflow-hidden border border-slate-800/90 bg-slate-900/90 shadow-xl transition-all duration-300"
               >
-                <div className="relative">
+                <div className="scene-art relative">
                   <canvas
                     ref={canvasRef}
                     width={320}
@@ -2854,7 +2901,6 @@ export default function App() {
                     className="w-full h-44 sm:h-56 object-cover block bg-[#14251f]"
                     style={{ imageRendering: 'pixelated' }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-transparent pointer-events-none" />
 
                   <div className="character-portrait">
                     <ZombiePortrait
@@ -2894,22 +2940,41 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Bottom Location Title & Timeline Date */}
-                  <div className="scene-caption absolute bottom-3 left-4 right-4 flex items-end justify-between gap-4">
-                    <div>
-                      <div className="text-[11px] font-mono uppercase tracking-wider text-lime-300">
-                        {formatTimelineDate(rawViewModel.day)} · {currentMutationStage.title}
-                      </div>
-                      <h1 className="text-lg sm:text-xl font-bold text-white leading-tight">
-                        {rawViewModel.place?.name}
-                      </h1>
-                      <p className="text-xs text-slate-300 mt-0.5 line-clamp-2">
+                </div>
+                {/* Bottom Location Title & Timeline Date */}
+                <div className="scene-caption">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-lime-300">
+                      {formatTimelineDate(rawViewModel.day)} · {currentMutationStage.title}
+                    </div>
+                    <h1 className="text-base sm:text-xl font-bold text-white leading-tight break-words">
+                      {rawViewModel.place?.name}
+                    </h1>
+                    {rawViewModel.place?.description && (
+                      <p className="text-xs text-slate-300 mt-1 break-words">
                         {rawViewModel.place?.description}
                       </p>
-                    </div>
+                    )}
                   </div>
                 </div>
 
+                <div className="scene-vitals" aria-label="สถานะร่างปัจจุบัน">
+                  {[
+                    {key: 'hp', label: 'สภาพร่าง'},
+                    {key: 'hunger', label: 'ความหิว'},
+                    {key: 'sanity', label: 'สติ'},
+                  ].map(({key, label}) => {
+                    const value = Math.floor(gameState.stats?.[key] ?? 0);
+                    return (
+                      <div key={key} data-vital={key}>
+                        <span>{label} <strong>{value}</strong></span>
+                        <div role="meter" aria-label={label} aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
+                          <i style={{width: `${Math.max(0, Math.min(100, value))}%`}} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 {/* Daily Hunger Pressure & Carried Items Strip */}
                 <div className="scene-inventory px-4 py-2.5 bg-slate-950/90 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2 text-amber-200/90">
@@ -2929,87 +2994,117 @@ export default function App() {
                 </div>
               </div>
 
-              {/* CURRENT SITUATION & MUTATION STAGE AWAKENING (Compact on Mobile) */}
-              <details className="current-situation p-2.5 sm:p-4 rounded-xl bg-slate-900/80 border border-slate-800/90 space-y-2">
-                <summary className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-slate-400 cursor-pointer">
-                  <span className="font-semibold text-slate-300">
-                    สภาพร่างและบรรยากาศ ▾
-                    {(gameState.stats?.hunger || 0) >= 75 && <span className="ml-2 text-rose-300">หิวจัด</span>}
-                    {(gameState.stats?.sanity ?? 100) <= 35 && <span className="ml-2 text-amber-300">สติพร่าเลือน</span>}
-                  </span>
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono">
-                    <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-sky-500/30 text-sky-200">
-                      {currentWeatherAndHazard.weatherBadge}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded bg-slate-950 border ${
-                        currentWeatherAndHazard.localThreat >= 60
-                          ? 'border-rose-500/50 text-rose-300'
-                          : currentWeatherAndHazard.localThreat >= 35
-                          ? 'border-amber-500/40 text-amber-200'
-                          : 'border-emerald-500/30 text-emerald-300'
-                      }`}
-                    >
-                      {showNumericSpoilers
-                        ? `ภัย ${currentWeatherAndHazard.localThreat}/100 (${currentWeatherAndHazard.threatTierTitle})`
-                        : currentWeatherAndHazard.threatTierTitle}
-                    </span>
-                  </div>
-                </summary>
-                <p className="text-xs sm:text-sm text-slate-200 leading-snug sm:leading-relaxed line-clamp-2 sm:line-clamp-none">
-                  {rawViewModel.situation?.Hook || currentBio.preDeathDetail}
-                </p>
+              {/* CURRENT SITUATION */}
+              {(() => {
+                const placeDesc = (rawViewModel.place?.description || '').trim();
+                const situationCandidates = [
+                  rawViewModel.situation?.consequences?.[rawViewModel.situation.consequences.length - 1],
+                  rawViewModel.situation?.clue,
+                  rawViewModel.situation?.weather,
+                  rawViewModel.situation?.profile?.text,
+                  currentBio?.preDeathDetail,
+                ];
+                const situationText = situationCandidates.find(
+                  t => typeof t === 'string' && t.trim().length > 0 && t.trim() !== placeDesc && !placeDesc.includes(t.trim())
+                ) || rawViewModel.situation?.clue || currentBio?.preDeathDetail || '';
 
-                {(gameState.stats?.hunger || 0) >= 75 && (
-                  <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/50 text-[11px] sm:text-xs text-rose-200 leading-snug">
-                    <strong>ความหิวบีบคั้นหนัก:</strong> กลิ่นเลือดคนเป็นทำให้ขากรรไกรสั่นเกร็ง สายตาเผลอจ้องเส้นเลือดที่ลำคอของผู้รอดชีวิตโดยไม่รู้ตัว
-                  </div>
-                )}
-                {(gameState.stats?.sanity ?? 100) <= 35 && (
-                  <div className="p-2 rounded-lg bg-amber-950/60 border border-amber-500/50 text-[11px] sm:text-xs text-amber-200 leading-snug">
-                    <strong>สติพร่าเลือน:</strong> ถ้อยคำในหัวแตกสลายเป็นเสียงครางต่ำในลำคอ
-                    {(gameState.stats?.sanity ?? 100) < 30
-                      ? ' · มือสั่นเกร็งจนไม่อาจใช้อุปกรณ์ซับซ้อนหรือเจรจาต่อรองได้'
-                      : ''}
-                  </div>
-                )}
+                const isHungerCritical = (gameState.stats?.hunger || 0) >= 75;
+                const isSanityCritical = (gameState.stats?.sanity ?? 100) <= 35;
+                const isThreatHigh = currentWeatherAndHazard.localThreat >= 60;
 
-                <details className="mutation-details rounded-lg bg-slate-950/80 border border-slate-800/80 px-2.5 py-1.5 text-xs text-slate-300">
-                  <summary className="cursor-pointer text-[11px] sm:text-xs text-slate-300 flex items-center justify-between gap-2 select-none">
-                    <span>
-                      สภาพอากาศ ({currentWeatherAndHazard.weatherBadge}) · {currentMutationStage.title}
-                    </span>
-                    <span className="text-[10px] font-mono text-lime-300/90 shrink-0">
-                      ดูรายละเอียด
-                    </span>
-                  </summary>
-                  <div className="pt-2 mt-1.5 border-t border-slate-800/80 space-y-1.5 text-[11px] leading-relaxed">
-                    <div>
-                      <strong className="text-sky-200">สภาพอากาศวันนี้:</strong>{' '}
-                      {showNumericSpoilers
-                        ? currentWeatherAndHazard.weatherEffectSummary
-                        : currentWeatherAndHazard.weatherEffectSummary.replace(/\s*\([^)]*[+-]\d+[^)]*\)/g, '')}
+                return (
+                  <div className="current-situation space-y-2.5">
+                    <div className="current-situation-header">
+                      <span className="current-situation-title">
+                        สถานการณ์
+                      </span>
+                      <div className="current-situation-badges">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-950/80 border border-sky-500/30 text-sky-200">
+                          {currentWeatherAndHazard.weatherBadge}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded bg-slate-950/80 border ${
+                            isThreatHigh
+                              ? 'border-rose-500/50 text-rose-300'
+                              : currentWeatherAndHazard.localThreat >= 35
+                              ? 'border-amber-500/40 text-amber-200'
+                              : 'border-emerald-500/30 text-emerald-300'
+                          }`}
+                        >
+                          {showNumericSpoilers
+                            ? `ภัย ${currentWeatherAndHazard.localThreat}/100 (${currentWeatherAndHazard.threatTierTitle})`
+                            : currentWeatherAndHazard.threatTierTitle}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <strong className="text-amber-200">บรรยากาศพื้นที่ ({currentWeatherAndHazard.threatTierTitle}):</strong>{' '}
-                      {showNumericSpoilers
-                        ? currentWeatherAndHazard.threatEffectSummary
-                        : currentWeatherAndHazard.localThreat >= 85
-                        ? 'ผู้คนและหน่วยลาดตระเวนตื่นตระหนกสุดขีด พร้อมยิงหรือโจมตีผู้ติดเชื้อทันทีที่พบเห็น และยากมากที่จะทำให้ใครเชื่อใจ'
-                        : currentWeatherAndHazard.localThreat >= 60
-                        ? 'ผู้คนในย่านนี้หวาดระแวงหนักและพกอาวุธคุ้มกันตัว มีความเสี่ยงสูงที่จะถูกทำร้าย และสร้างความไว้ใจได้ยากขึ้นมาก'
-                        : currentWeatherAndHazard.localThreat >= 35
-                        ? 'ผู้คนเริ่มตั้งการ์ดระวังตัวจากข่าวการปะทะ อาจถูกขว้างปาสิ่งของไล่และต้องใช้เวลาพิสูจน์ใจนานขึ้น'
-                        : 'พื้นที่ค่อนข้างสงบ ผู้คนยังไม่ตื่นตระหนกจนเกินไป'}
-                    </div>
-                    <div className="pt-1 border-t border-slate-900">
-                      <strong className="text-purple-300">{currentMutationStage.title}:</strong>{' '}
-                      <span>{currentMutationStage.abilityText}</span>{' '}
-                      <span className="text-amber-200/80">({currentMutationStage.sideEffectText})</span>
-                    </div>
+
+                    {situationText && (
+                      <p className="current-situation-text">
+                        {situationText}
+                      </p>
+                    )}
+
+                    {/* อาการสำคัญที่ต้องเห็นได้ก่อนกดกิจกรรม */}
+                    {(isHungerCritical || isSanityCritical || isThreatHigh) && (
+                      <div className="current-situation-alerts" aria-label="อาการสำคัญและภัยฉุกเฉิน">
+                        {isHungerCritical && (
+                          <div className="current-situation-alert is-hunger">
+                            <strong className="current-situation-alert-badge">หิวจัด:</strong>
+                            <span>กลิ่นเลือดคนเป็นทำให้ขากรรไกรสั่นเกร็ง สายตาเผลอจ้องเส้นเลือดที่ลำคอของผู้รอดชีวิต</span>
+                          </div>
+                        )}
+                        {isSanityCritical && (
+                          <div className="current-situation-alert is-sanity">
+                            <strong className="current-situation-alert-badge">สติพร่าเลือน:</strong>
+                            <span>ถ้อยคำในหัวแตกสลายเป็นเสียงครางต่ำ{(gameState.stats?.sanity ?? 100) < 30 ? ' · มือสั่นเกร็งจนไม่อาจเจรจาได้' : ''}</span>
+                          </div>
+                        )}
+                        {isThreatHigh && (
+                          <div className="current-situation-alert is-threat">
+                            <strong className="current-situation-alert-badge">ภัยพื้นที่สูง ({currentWeatherAndHazard.localThreat}/100):</strong>
+                            <span>{currentWeatherAndHazard.localThreat >= 85 ? 'ผู้คนและหน่วยลาดตระเวนตื่นตระหนกสุดขีด พร้อมยิงทันที' : 'ผู้คนในย่านนี้หวาดระแวงหนักและพกอาวุธคุ้มกันตัว เสี่ยงถูกทำร้าย'}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ส่วนเปิดอ่านเพิ่ม: รายละเอียดสภาพอากาศและสภาพร่าง */}
+                    <details className="current-situation-details">
+                      <summary>
+                        <span>สภาพอากาศและสภาพร่างเพิ่มเติม</span>
+                        <span className="font-mono text-[10px] text-lime-300/90">
+                          เปิดอ่านเพิ่ม ▾
+                        </span>
+                      </summary>
+                      <div className="current-situation-details-body">
+                        <div>
+                          <strong className="text-sky-200">สภาพอากาศวันนี้:</strong>{' '}
+                          {showNumericSpoilers
+                            ? currentWeatherAndHazard.weatherEffectSummary
+                            : currentWeatherAndHazard.weatherEffectSummary.replace(/\s*\([^)]*[+-]\d+[^)]*\)/g, '')}
+                        </div>
+                        <div>
+                          <strong className="text-amber-200">บรรยากาศพื้นที่ ({currentWeatherAndHazard.threatTierTitle}):</strong>{' '}
+                          {showNumericSpoilers
+                            ? currentWeatherAndHazard.threatEffectSummary
+                            : currentWeatherAndHazard.localThreat >= 85
+                            ? 'ผู้คนและหน่วยลาดตระเวนตื่นตระหนกสุดขีด พร้อมยิงหรือโจมตีผู้ติดเชื้อทันทีที่พบเห็น และยากมากที่จะทำให้ใครเชื่อใจ'
+                            : currentWeatherAndHazard.localThreat >= 60
+                            ? 'ผู้คนในย่านนี้หวาดระแวงหนักและพกอาวุธคุ้มกันตัว มีความเสี่ยงสูงที่จะถูกทำร้าย และสร้างความไว้ใจได้ยากขึ้นมาก'
+                            : currentWeatherAndHazard.localThreat >= 35
+                            ? 'ผู้คนเริ่มตั้งการ์ดระวังตัวจากข่าวการปะทะ อาจถูกขว้างปาสิ่งของไล่และต้องใช้เวลาพิสูจน์ใจนานขึ้น'
+                            : 'พื้นที่ค่อนข้างสงบ ผู้คนยังไม่ตื่นตระหนกจนเกินไป'}
+                        </div>
+                        <div className="pt-1 border-t border-emerald-950/60">
+                          <strong className="text-purple-300">{currentMutationStage.title}:</strong>{' '}
+                          <span>{currentMutationStage.abilityText}</span>{' '}
+                          <span className="text-amber-200/80">({currentMutationStage.sideEffectText})</span>
+                        </div>
+                      </div>
+                    </details>
                   </div>
-                </details>
-              </details>
+                );
+              })()}
 
               {/* =============================================================
                   DAILY ACTIVITY GROUPS (Compact Above-the-Fold Mobile Grid)
@@ -3053,16 +3148,24 @@ export default function App() {
                       } else {
                         handleOpenFreeformNpcModal();
                       }
-                    }} className={`story-action ${!currentZonePop?.npcs.some(npc => npc.alive) ? 'opacity-70' : ''}`}>
-                      <span className="story-action-title"><Users size={18} aria-hidden="true" /> พบผู้รอดชีวิต <ArrowRight size={16} aria-hidden="true" /></span>
-                      <span className="story-action-description">พูดคุย ช่วยเหลือ แบ่งของ หรือล่า · ผู้คน {currentZoneTrustStats.livingCount} คน</span>
+                    }} className={`story-action ${!currentZonePop?.npcs.some(npc => npc.alive) ? 'story-action-locked opacity-70' : ''}`}>
+                      <span className="story-action-title">
+                        <Users size={18} aria-hidden="true" />
+                        <span className="story-action-title-text">พบผู้รอดชีวิต</span>
+                        <ArrowRight size={16} aria-hidden="true" />
+                      </span>
+                      <span className="story-action-description">พูดคุย ช่วยเหลือ หรือล่า · {currentZoneTrustStats.livingCount} คน</span>
                       {!currentZonePop?.npcs.some(npc => npc.alive) && (
-                        <span className="story-action-description text-amber-300 font-medium">🔒 ไม่มีผู้รอดชีวิตเหลืออยู่ในเขตนี้</span>
+                        <span className="story-action-disabled-reason text-amber-300 font-medium">🔒 ไม่มีผู้รอดชีวิตเหลืออยู่ในเขตนี้</span>
                       )}
                     </button>
                     <button type="button" onClick={handleOpenFreeformRoamModal} className="story-action">
-                      <span className="story-action-title"><Search size={18} aria-hidden="true" /> สำรวจบริเวณนี้ <ArrowRight size={16} aria-hidden="true" /></span>
-                      <span className="story-action-description">ค้นหาของประทังชีวิตและร่องรอยในย่านนี้</span>
+                      <span className="story-action-title">
+                        <Search size={18} aria-hidden="true" />
+                        <span className="story-action-title-text">สำรวจบริเวณนี้</span>
+                        <ArrowRight size={16} aria-hidden="true" />
+                      </span>
+                      <span className="story-action-description">ค้นหาเสบียงและร่องรอย</span>
                     </button>
                   </div>
                   {otherStoryActions.length > 0 && <details className="other-story-actions" key={gameState.place}>
@@ -3083,33 +3186,7 @@ export default function App() {
                   </button>
                   <div id="self-care-actions" hidden={!isCareExpanded}>
                     <div className="self-care-options">
-                      {careActionsList.map(action => {
-                        const isLocked = !action.preview?.enabled;
-                        const reason = showNumericSpoilers
-                          ? (action.preview?.reason || '')
-                          : sanitizeNonSpoilerReason(action.preview?.reason || 'ยังไม่พร้อมทำกิจกรรมนี้');
-                        return (
-                          <button
-                            key={action.id}
-                            type="button"
-                            onClick={() => {
-                              if (isLocked) {
-                                if (soundEnabled) soundFx.warning();
-                                setActionToast(`ยังทำไม่ได้: ${reason}`);
-                              } else {
-                                handlePerformAction(action.id);
-                              }
-                            }}
-                            className={`story-action ${isLocked ? 'opacity-70' : ''}`}
-                          >
-                            <span className="story-action-title">{action.name}</span>
-                            <span className="story-action-description">{action.description}</span>
-                            {isLocked && (
-                              <span className="story-action-description text-amber-300 font-medium">🔒 {reason}</span>
-                            )}
-                          </button>
-                        );
-                      })}
+                      {careActionsList.map(action => renderStoryAction(action))}
                       <button
                         type="button"
                         onClick={() => {
@@ -3125,10 +3202,33 @@ export default function App() {
                           }
                           handleDrinkCarriedBloodBag();
                         }}
-                        className={`story-action ${(gameState.carriedBloodBags || 0) <= 0 ? 'opacity-70' : ''}`}
+                        className={`story-action ${(gameState.carriedBloodBags || 0) <= 0 || gameState.pending ? 'story-action-locked opacity-70' : ''}`}
                       >
-                        <span className="story-action-title"><Droplets size={16} aria-hidden="true" /> ดื่มถุงเลือด</span>
-                        <span className="story-action-description">{gameState.carriedBloodBags > 0 ? `ดื่มจากถุงเลือดที่พกไว้ (${gameState.carriedBloodBags} ถุง) · ไม่ใช้วัน` : 'ต้องมีถุงเลือดพกพาก่อน'}</span>
+                        <span className="story-action-title">
+                          <span className="story-action-title-text flex items-center gap-1.5">
+                            <Droplets size={16} aria-hidden="true" /> ดื่มถุงเลือด
+                          </span>
+                          <ArrowRight size={16} aria-hidden="true" />
+                        </span>
+                        <span className="story-action-description">
+                          {gameState.carriedBloodBags > 0
+                            ? `ดื่มจากถุงเลือดที่พกไว้ (${gameState.carriedBloodBags} ถุง)`
+                            : 'ฟื้นฟูสภาพร่างและความหิวโดยไม่เสียวัน'}
+                        </span>
+                        <span className="story-action-costs" aria-label="ต้นทุน: ไม่ใช้วัน, ใช้ถุงเลือด 1 ถุง">
+                          <span className="story-action-cost-tag">ไม่ใช้วัน</span>
+                          <span className="story-action-cost-tag">ใช้ถุงเลือด 1 ถุง</span>
+                        </span>
+                        {(gameState.carriedBloodBags || 0) <= 0 && (
+                          <span className="story-action-disabled-reason text-amber-300 font-medium">
+                            🔒 ไม่มีถุงเลือดพกพาในกระเป๋า
+                          </span>
+                        )}
+                        {gameState.carriedBloodBags > 0 && gameState.pending && (
+                          <span className="story-action-disabled-reason text-amber-300 font-medium">
+                            🔒 ต้องตัดสินใจเหตุการณ์ตรงหน้าให้เสร็จก่อน
+                          </span>
+                        )}
                       </button>
                     </div>
                   </div>
