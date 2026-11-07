@@ -5784,21 +5784,276 @@ return {relationshipState,changeTrust,previewTrust,npcPosture,npcHuntEffects,rel
           const ctx = canvas.getContext("2d");
           if (!ctx) return;
           ctx.imageSmoothingEnabled = false;
-          const color = { sky: "#14251f", back: "#1c3329", mid: "#284433", floor: "#2c4130", lime: "#c0e38b", window: "#92ad6b" };
+          const color = { sky: "#b78358", back: "#576351", mid: "#344b3b", floor: "#60684d", lime: "#c0e38b", window: "#92ad6b" };
           const rect = (x2, y2, w, h, c) => {
             ctx.fillStyle = c;
             ctx.fillRect(x2, y2, w, h);
           };
           rect(0, 0, 320, 144, color.sky);
-          rect(235, 13, 16, 16, "#b7c58a");
-          rect(231, 17, 24, 8, "#b7c58a");
-          rect(235, 13, 8, 16, "#8d9d72");
+          rect(210, 12, 32, 4, "#d6ad71");
+          rect(218, 8, 16, 4, "#d6ad71");
           for (let i = 0; i < 17; i++) {
             const x2 = (i * 43 + 17) % 320, h = 18 + i * 19 % 48;
             rect(x2, 86 - h, 18 + i % 3 * 9, h, color.back);
             if (i % 2 === 0) rect(x2 + 4, 87 - h, 3, 3, "#496645");
           }
-          if (state.place.startsWith("bkk_")) {
+          for (let i = 0; i < 8; i++) {
+            rect(i * 40, 26 + Math.min(i, 7 - i) * 2, 40, 2, "#24362c");
+          }
+          rect(294, 14, 4, 109, "#24362c");
+          const isHelped = (districtId) => {
+            const flag = districtId + ".helped";
+            return Boolean(
+              state?.story?.flags?.[flag] ||
+              state?.flags?.[flag] ||
+              state?.world?.locations?.[districtId]?.helped
+            );
+          };
+          if (state.place === "bkk_market") {
+            const marketHelped = isHelped("bkk_market");
+            // Flat color clusters on a coarse grid match the player's pixel sprite.
+            rect(0, 30, 104, 92, "#66715a");
+            rect(4, 34, 96, 4, "#344b3b");
+            for (let i = 0; i < 3; i++) {
+              rect(12 + i * 28, 44, 20, 20, "#344b3b");
+              rect(20 + i * 28, 44, 4, 20, "#66715a");
+            }
+            rect(112, 42, 84, 80, "#7b785a");
+            rect(120, 46, 68, 4, "#344b3b");
+            rect(208, 52, 112, 70, "#344b3b");
+            rect(216, 60, 96, 4, "#66715a");
+            rect(12, 74, 176, 48, "#24362c");
+            rect(8, 68, 172, 8, "#344b3b");
+            rect(0, 76, 192, 4, "#344b3b");
+            for (let i = 0; i < 12; i++) {
+              rect(4 + i * 16, 68, 8, 8, "#a4ac7e");
+              rect(8 + i * 16, 72, 8, 8, "#a4ac7e");
+            }
+            rect(8, 80, 4, 42, "#8e7250");
+            rect(180, 80, 4, 42, "#8e7250");
+            rect(16, 82, 28, 24, "#dbc59b");
+            rect(20, 86, 20, 4, "#66715a");
+            rect(20, 94, 16, 4, "#66715a");
+            rect(158, 78, 12, 16, "#d2a363");
+            rect(162, 82, 4, 8, "#efcf8b");
+            if ((options.livingCount ?? 1) > 0) {
+              rect(56, 80, 20, 8, "#dbc59b");
+              rect(52, 84, 28, 8, "#dbc59b");
+              rect(56, 90, 20, 18, "#d2a363");
+              rect(56, 90, 20, 4, "#493f2b");
+              rect(60, 98, 4, 4, "#24362c");
+              rect(72, 98, 4, 4, "#24362c");
+              rect(56, 108, 24, 14, "#a4ac7e");
+              rect(52, 112, 4, 10, "#d2a363");
+              rect(80, 112, 4, 10, "#d2a363");
+            }
+            rect(104, 108, 32, 12, "#a4ac7e");
+            rect(100, 106, 40, 4, "#dbc59b");
+            rect(108, 102, 24, 4, "#dbc59b");
+            rect(116, 98, 4, 4, "#d2a363");
+            rect(120, 90, 4, 4, "#dbc59b");
+            rect(116, 82, 4, 4, "#dbc59b");
+            rect(12, 120, 164, 4, "#8e7250");
+            rect(20, 124, 4, 18, "#493f2b");
+            rect(160, 124, 4, 18, "#493f2b");
+            rect(190, 112, 24, 12, "#8e7250");
+            rect(194, 116, 6, 4, "#493f2b");
+            rect(204, 116, 6, 4, "#493f2b");
+            if (marketHelped) {
+              // Canned goods and organized supply stacks ("กระป๋องหรือเสบียงจัดเป็นกอง")
+              // Chalkboard menu/ration division board on stall pole (from game lore: รายการอาหารบนกระดาน)
+              rect(26, 80, 22, 18, "#4a3c2e");
+              rect(28, 82, 18, 14, "#1f2e24");
+              rect(31, 85, 12, 2, "#d8e3d6");
+              rect(31, 89, 9, 2, "#d8e3d6");
+              rect(31, 93, 11, 2, "#d8e3d6");
+
+              // Pyramid of neatly arranged canned rations on the shelf (x=108..130)
+              const drawCan = (cx, cy, labelColor) => {
+                rect(cx, cy, 6, 2, "#d5ded1"); // Top silver rim
+                rect(cx, cy + 2, 6, 3, labelColor); // Label band
+                rect(cx, cy + 5, 6, 2, "#8f9d8a"); // Bottom rim
+                rect(cx + 1, cy + 1, 1, 1, "#f2f7ef"); // Pixel highlight
+              };
+              drawCan(110, 95, "#bf7772");
+              drawCan(117, 95, "#d79557");
+              drawCan(124, 95, "#bf7772");
+              drawCan(113, 88, "#d79557");
+              drawCan(120, 88, "#bf7772");
+              drawCan(117, 81, "#d0b85d");
+
+              // Second small stack of cans on the counter (x=138..152, y=106..120)
+              drawCan(138, 113, "#9cb473");
+              drawCan(145, 113, "#d79557");
+              drawCan(141, 106, "#bf7772");
+
+              // Restored community kitchen pot on counter (x=156..172)
+              rect(156, 112, 16, 8, "#34483e");
+              rect(154, 114, 2, 4, "#5f7569");
+              rect(172, 114, 2, 4, "#5f7569");
+              rect(155, 110, 18, 2, "#8ea696");
+              rect(162, 108, 4, 2, "#d5ded1");
+
+              // Stacked supply crates & sacks on the right (x=174..238)
+              // Rice/grain sacks tied neatly (เสบียงจัดเป็นกอง)
+              rect(174, 112, 14, 10, "#c9bc93");
+              rect(177, 108, 8, 4, "#ab9e76");
+              rect(179, 106, 4, 2, "#66573c");
+              rect(182, 110, 10, 12, "#b8aa7f");
+              // Second wooden crate stacked on top of crate at x=190
+              rect(192, 98, 20, 14, "#a88659");
+              rect(194, 104, 16, 2, "#493f2b");
+              rect(195, 92, 6, 6, "#bf7772");
+              rect(203, 92, 6, 6, "#d79557");
+              // Tall wooden crate beside it
+              rect(216, 102, 22, 20, "#9a784d");
+              rect(218, 107, 18, 2, "#6b5232");
+              rect(218, 114, 18, 2, "#6b5232");
+              rect(222, 96, 10, 6, "#dbc59b");
+              rect(224, 94, 6, 2, "#493f2b");
+            }
+          } else if (state.place === "bkk_power") {
+            const powerHelped = isHelped("bkk_power");
+            const accent = "#dfc56f";
+            // Huai Khwang electrical building facade
+            rect(112, 34, 184, 88, "#253b30");
+            rect(108, 32, 192, 5, "#3d5445");
+            rect(112, 37, 184, 4, accent);
+            rect(116, 74, 176, 3, "#1a2c23");
+            // Stairwell/generator tower on the right
+            rect(212, 22, 76, 100, "#1f3329");
+            rect(210, 20, 80, 4, accent);
+
+            // Electrical conduits running along wall
+            rect(120, 76, 168, 2, "#4a5d51");
+            rect(140, 76, 2, 10, "#4a5d51");
+            rect(184, 76, 2, 10, "#4a5d51");
+            rect(256, 76, 2, 10, "#4a5d51");
+
+            // Windows: 4 windows across the building (Left, Center, Tower, Right)
+            const windows = [
+              { x: 128, y: 46, w: 26, h: 22 },
+              { x: 168, y: 46, w: 26, h: 22 },
+              { x: 224, y: 30, w: 22, h: 36 },
+              { x: 256, y: 46, w: 24, h: 22 }
+            ];
+
+            for (const w of windows) {
+              if (powerHelped) {
+                // Windows LIT UP with warm electrical light (หน้าต่างติดไฟ)
+                rect(w.x - 1, w.y - 1, w.w + 2, w.h + 2, "#423c21");
+                rect(w.x, w.y, w.w, w.h, "#ffd55e");
+                rect(w.x + 2, w.y + 2, w.w - 4, w.h - 4, "#fff2a8");
+                // Window mullions / crossbars in silhouette
+                rect(w.x + Math.floor(w.w / 2) - 1, w.y, 2, w.h, "#4d4422");
+                rect(w.x, w.y + Math.floor(w.h / 2) - 1, w.w, 2, "#4d4422");
+                // Warm light sill reflection below window
+                rect(w.x - 2, w.y + w.h, w.w + 4, 3, "#8a7e3d");
+              } else {
+                // Windows DARK (unlit / blackout before repairs)
+                rect(w.x - 1, w.y - 1, w.w + 2, w.h + 2, "#13231a");
+                rect(w.x, w.y, w.w, w.h, "#0e1a13");
+                rect(w.x + Math.floor(w.w / 2) - 1, w.y, 2, w.h, "#13231a");
+                rect(w.x, w.y + Math.floor(w.h / 2) - 1, w.w, 2, "#13231a");
+                rect(w.x + 3, w.y + 3, 4, 4, "#1d2e24");
+              }
+            }
+
+            // Wall-mounted emergency light fixtures & bulbs (หลอดไฟ)
+            const lamps = [
+              { x: 156, y: 70 },
+              { x: 216, y: 66 },
+              { x: 280, y: 70 }
+            ];
+
+            for (const lamp of lamps) {
+              // Fixture bracket
+              rect(lamp.x, lamp.y, 6, 3, "#213127");
+              rect(lamp.x + 1, lamp.y + 3, 4, 3, "#3d5043");
+              if (powerHelped) {
+                // Emergency light bulbs LIT and glowing (หลอดไฟติด)
+                // Downward light beam cone casting on wall and ground
+                rect(lamp.x - 8, lamp.y + 12, 22, 10, "#696332");
+                rect(lamp.x - 4, lamp.y + 22, 14, 18, "#524f2a");
+                rect(lamp.x - 10, 122, 26, 2, "#857c3d");
+                // Shining bulb with bright filament
+                rect(lamp.x - 1, lamp.y + 5, 8, 7, "#ffe26a");
+                rect(lamp.x, lamp.y + 6, 6, 5, "#fff482");
+                rect(lamp.x + 1, lamp.y + 7, 4, 3, "#ffffff");
+              } else {
+                // Bulb OFF (dull unlit glass before repairs)
+                rect(lamp.x, lamp.y + 6, 6, 5, "#303e33");
+                rect(lamp.x + 2, lamp.y + 7, 2, 2, "#18221a");
+              }
+            }
+
+            // Power breaker / control cabinets (3 cabinets along ground floor)
+            const cabinets = [
+              { x: 124, y: 86, w: 32, h: 36 },
+              { x: 168, y: 86, w: 34, h: 36 },
+              { x: 244, y: 86, w: 36, h: 36 }
+            ];
+
+            for (let i = 0; i < cabinets.length; i++) {
+              const c = cabinets[i];
+              rect(c.x, c.y, c.w, c.h, "#354539");
+              rect(c.x + 2, c.y + 2, c.w - 4, c.h - 4, "#1d2b21");
+              rect(c.x + c.w - 6, c.y + 16, 2, 6, "#697a6e");
+
+              if (powerHelped) {
+                // Repaired / online cabinets with active green indicators
+                rect(c.x + 6, c.y + 6, 3, 3, "#52e666");
+                rect(c.x + 12, c.y + 6, 3, 3, "#52e666");
+                rect(c.x + 18, c.y + 6, 3, 3, "#ffd55e");
+                // Illuminated digital voltage display
+                rect(c.x + 6, c.y + 13, 14, 5, "#153d20");
+                rect(c.x + 8, c.y + 14, 10, 3, "#82f598");
+              } else {
+                // Broken / burnt cabinets with fault red lights and damp puddle
+                if (i === 0) {
+                  rect(130, 92, 16, 12, "#241814");
+                  rect(134, 95, 8, 6, "#381f18");
+                }
+                rect(c.x + 6, c.y + 6, 3, 3, "#8a2a22");
+                rect(c.x + 12, c.y + 6, 3, 3, "#212b23");
+                rect(c.x + 18, c.y + 6, 3, 3, "#212b23");
+                rect(c.x + 4, c.y + c.h - 6, c.w - 8, 3, "#594222");
+              }
+            }
+
+            if (powerHelped) {
+              // Glowing green emergency exit sign above door
+              rect(206, 70, 12, 6, "#52e666");
+              rect(208, 72, 8, 2, "#ffffff");
+              // Battery backup pack units restored beside cabinet 3
+              rect(284, 108, 14, 14, "#445749");
+              rect(286, 106, 3, 2, "#ffd55e");
+              rect(292, 106, 3, 2, "#df554a");
+            } else {
+              // Damp wet floor patches in front of damaged electrical boxes
+              rect(132, 122, 28, 2, "#182a20");
+              rect(176, 122, 22, 2, "#182a20");
+            }
+
+            // Bystander technician respecting livingCount
+            if ((options.livingCount ?? 1) > 0) {
+              if (powerHelped) {
+                // Electrician standing upright in front of illuminated board
+                rect(210, 86, 8, 7, "#c9a679");
+                rect(209, 84, 10, 3, "#dfc56f");
+                rect(208, 93, 12, 14, "#3c5064");
+                rect(208, 103, 12, 3, "#6b5438");
+                rect(209, 107, 10, 15, "#243328");
+              } else {
+                // Electrician inspecting the burnt cabinet with a small flashlight beam
+                rect(208, 96, 8, 7, "#c9a679");
+                rect(207, 94, 10, 3, "#dfc56f");
+                rect(206, 103, 12, 11, "#3c5064");
+                rect(198, 106, 7, 2, "#fff0a3");
+                rect(207, 114, 10, 8, "#243328");
+              }
+            }
+          } else if (state.place.startsWith("bkk_")) {
             const colors = {bkk_winstop:'#d79557',bkk_market:'#bf7772',bkk_ward:'#89b5be',bkk_power:'#d0b85d',bkk_depot:'#a3b968',bkk_cafe:'#aa8b73',bkk_office:'#9b89b3',bkk_pier:'#829da5',bkk_stockroom:'#ba8aa2',bkk_busyard:'#7d9fba'};
             const accent = colors[state.place];
             rect(121,36,177,88,'#2b443a'); rect(126,41,167,7,accent);

@@ -1,17 +1,17 @@
 # Graph Report - after-zero-zombie-main  (2026-11-07)
 
 ## Corpus Check
-- 65 files · ~1,099,613 words
+- 67 files · ~1,104,071 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .cmd 2, .css 1)
 
 ## Summary
-- 821 nodes · 1464 edges · 67 communities (42 shown, 25 thin omitted)
+- 822 nodes · 1465 edges · 66 communities (41 shown, 25 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 80 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `13522f89`
+- Built from commit: `5bbedf89`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -71,13 +71,12 @@
 - "../../tmp/after-zero-zombie/next/systems/director.js"
 - "../../tmp/after-zero-zombie/systems/origins.js"
 - "../../tmp/after-zero-zombie/ui/scene.js"
-- ZombiePortrait.tsx
+- dependencies
 - pastLifeEchoes.ts
-- eventEngine.ts
-- build-export-bundles.mjs
-- CharacterBioDossier
+- test-route-guidance-browser.mjs
+- vite.config.ts
+- scripts
 - manifest.json
-- verify-mobile-portraits.mjs
 - sync-bangkok-content.mjs
 
 ## God Nodes (most connected - your core abstractions)
@@ -95,35 +94,35 @@
 ## Surprising Connections (you probably didn't know these)
 - `งาน 3 — เกณฑ์ 75% และการเลือกงานถัดไป` --references--> `eligible()`  [INFERRED]
   docs/superpowers/plans/2026-11-05-optional-route-guidance.md → public/after-zero-bundle.js
-- `characters` --calls--> `generateCharacter()`  [EXTRACTED]
-  scripts/export-narrative-pack.ts → src/data/characterPool.ts
-- `cardsHtml` --calls--> `generateCharacter()`  [EXTRACTED]
-  scripts/verify-mobile-portraits.mjs → src/data/characterPool.ts
 - `cardsHtml` --calls--> `computePortraitPixels()`  [EXTRACTED]
   scripts/verify-mobile-portraits.mjs → src/components/ZombiePortrait.tsx
 - `characters` --calls--> `createCharacterState()`  [EXTRACTED]
   scripts/export-narrative-pack.ts → src/data/characterPool.ts
+- `characters` --calls--> `generateCharacter()`  [EXTRACTED]
+  scripts/export-narrative-pack.ts → src/data/characterPool.ts
+- `cardsHtml` --calls--> `generateCharacter()`  [EXTRACTED]
+  scripts/verify-mobile-portraits.mjs → src/data/characterPool.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (67 total, 25 thin omitted)
+## Communities (66 total, 25 thin omitted)
 
 ### Community 0 - "App.tsx"
 Cohesion: 0.10
-Nodes (28): App(), classifyActionLayer(), computeStateDeltas(), CONDITIONAL_CARE_ACTION_IDS, DesktopSideTab, GameScreenStage, LEGACY_02_STORY_ACTION_IDS, MobileDrawerTab (+20 more)
+Nodes (27): App(), classifyActionLayer(), computeStateDeltas(), CONDITIONAL_CARE_ACTION_IDS, DesktopSideTab, GameScreenStage, LEGACY_02_STORY_ACTION_IDS, MobileDrawerTab (+19 more)
 
 ### Community 1 - "test-batch2-continuation-events.ts"
-Cohesion: 0.07
-Nodes (28): batch2Ids, ctx1_no, ctx1_ok, ctx2_no, ctx2_ok, ctxAwningLeft, ctxAwningSignaled, ctxAwningWaited (+20 more)
+Cohesion: 0.05
+Nodes (48): batch2Ids, ctx1_no, ctx1_ok, ctx2_no, ctx2_ok, ctxAwningLeft, ctxAwningSignaled, ctxAwningWaited (+40 more)
 
 ### Community 2 - "characterPool.ts"
-Cohesion: 0.07
-Nodes (35): click(), count(), engine, enter(), keys, resolveMorningEvents(), state, tab() (+27 more)
+Cohesion: 0.05
+Nodes (43): distDir, publicDir, rootDir, characters, context, engineText, out, replacer() (+35 more)
 
 ### Community 3 - "export-ending-review.ts"
-Cohesion: 0.08
-Nodes (29): bundle, context, endings, forced, out, sources, stringify(), write() (+21 more)
+Cohesion: 0.11
+Nodes (19): bundle, context, endings, forced, out, sources, stringify(), write() (+11 more)
 
 ### Community 4 - "after-zero-bundle.js"
 Cohesion: 0.07
@@ -134,16 +133,16 @@ Cohesion: 0.07
 Nodes (30): runs-on, steps, concurrency, cancel-in-progress, group, environment, needs, runs-on (+22 more)
 
 ### Community 6 - "test-tailored-pilot-endings.ts"
-Cohesion: 0.06
-Nodes (45): react, react-dom, sampleBio, bio, context, reviewDir, zones, context (+37 more)
+Cohesion: 0.08
+Nodes (39): react, react-dom, sampleBio, bio, context, reviewDir, zones, context (+31 more)
 
 ### Community 7 - "build"
 Cohesion: 0.19
 Nodes (28): build(), act(), actions(), adjusted(), afterDecision(), choicePressure(), choiceReasons(), choose() (+20 more)
 
 ### Community 8 - "package.json"
-Cohesion: 0.05
-Nodes (50): dependencies, dotenv@^17.2.3, express@^4.21.2, @google/genai@^2.4.0, lucide-react@^0.546.0, motion@^12.23.24, react@^19.0.1, react-dom@^19.0.1 (+42 more)
+Cohesion: 0.12
+Nodes (23): devDependencies, autoprefixer@^10.4.21, puppeteer-core@^25.16.0, tailwindcss@^4.3.3, tsx@^4.21.0, @types/express@^4.17.21, @types/node@^22.14.0, @types/react@^19.3.0 (+15 more)
 
 ### Community 9 - "AFTER ZERO — รีวิวฉากจบเดิมทั้งหมด (23 ID)"
 Cohesion: 0.04
@@ -166,8 +165,8 @@ Cohesion: 0.15
 Nodes (12): Compatibility and activation, Follow-up installation: Graphify, UI/UX Pro Max, Impeccable, Graphify — installed, Impeccable — NOT INSTALLED, Installation, Installed skills, Notes, Safety and token policy (+4 more)
 
 ### Community 15 - "test-zombie-portrait.ts"
-Cohesion: 0.06
-Nodes (34): adultLayout, allHairStyles, childLayout, elderlyLayout, elderlyMales, hairTypesSeen, hasClawsS1, hasClawsS2 (+26 more)
+Cohesion: 0.05
+Nodes (43): adultLayout, allHairStyles, childLayout, elderlyLayout, elderlyMales, hairTypesSeen, hasClawsS1, hasClawsS2 (+35 more)
 
 ### Community 16 - "บทสนทนาและปฏิกิริยาตามวัย — ข้อเสนอสำหรับตรวจแบบ"
 Cohesion: 0.18
@@ -182,8 +181,8 @@ Cohesion: 0.25
 Nodes (7): Approach, Detailed hints, Intent, Late-route navigation help, Optional route guidance, Persistence and integration, Verification
 
 ### Community 19 - "npcInteractions.ts"
-Cohesion: 0.19
-Nodes (23): applyNpcRelationships(), kindOf(), migrateSavedRelationships(), npcEncounterWitnesses(), prepareNpcModal(), RelationshipChoice, validateZoneRelationships(), changeTrust() (+15 more)
+Cohesion: 0.18
+Nodes (24): applyNpcRelationships(), kindOf(), migrateSavedRelationships(), npcChoiceReason(), npcEncounterWitnesses(), prepareNpcModal(), RelationshipChoice, validateZoneRelationships() (+16 more)
 
 ### Community 20 - "measure-progression.ts"
 Cohesion: 0.14
@@ -242,36 +241,32 @@ Cohesion: 1.00
 Nodes (3): "../../tmp/after-zero-zombie/systems/evolution.js"(), behaviorDays(), evaluate()
 
 ### Community 50 - "mapLocations.ts"
-Cohesion: 0.21
-Nodes (14): arterialSpurs, edgePath(), PixelCityMap(), ROAD_PATHS, buildMapLocations(), canonicalRouteKey(), findMapRoute(), MAP_LABELS (+6 more)
+Cohesion: 0.12
+Nodes (21): allPlaceIds, hidden, mapState, sandbox, shown, state, zones, arterialSpurs (+13 more)
 
-### Community 58 - "ZombiePortrait.tsx"
-Cohesion: 0.27
-Nodes (9): AgeLayout, Bio, computePortraitPixels(), getAgeLayout(), getSeedHash(), Pixel, uniforms, ZombiePortrait() (+1 more)
+### Community 58 - "dependencies"
+Cohesion: 0.15
+Nodes (13): dependencies, dotenv@^17.2.3, express@^4.21.2, @google/genai@^2.4.0, lucide-react@^0.546.0, motion@^12.23.24, react@^19.0.1, react-dom@^19.0.1 (+5 more)
 
 ### Community 59 - "pastLifeEchoes.ts"
 Cohesion: 0.10
 Nodes (25): BANGKOK_2026_BIOS, NewBio, residents, applyEngineSurvivalEndDayToState(), applyFinalEndingToState(), applyLifeSimModalEffectsToState(), CauseOfDeathInfo, collectEngineSurvivalModifiers() (+17 more)
 
-### Community 60 - "eventEngine.ts"
-Cohesion: 0.18
-Nodes (16): COMMUNITY_DYNAMIC_EVENTS, COMMUNITY_ROAM_EVENTS, buildLifeSimModalFromDynamicTemplate(), DynamicEventCategory, DynamicEventChoiceTemplate, DynamicNarrativeEventTemplate, evaluateEventCondition(), EventConditionEvaluationResult (+8 more)
+### Community 60 - "test-route-guidance-browser.mjs"
+Cohesion: 0.23
+Nodes (9): click(), count(), engine, enter(), keys, resolveMorningEvents(), state, tab() (+1 more)
 
-### Community 61 - "build-export-bundles.mjs"
+### Community 61 - "vite.config.ts"
 Cohesion: 0.25
-Nodes (3): distDir, publicDir, rootDir
+Nodes (6): @tailwindcss/vite@^4.3.3, vite@^8.3.0, @vitejs/plugin-react@^6.1.1, @tailwindcss/vite, vite, @vitejs/plugin-react
 
-### Community 62 - "CharacterBioDossier"
-Cohesion: 0.29
-Nodes (5): baseBio, DYNAMIC_NARRATIVE_EVENTS, EventEvaluationContext, CharacterBioDossier, PastLifeRecord
+### Community 62 - "scripts"
+Cohesion: 0.25
+Nodes (8): scripts, build, clean, dev, lint, prebuild, predev, preview
 
 ### Community 63 - "manifest.json"
 Cohesion: 0.40
 Nodes (4): endingCount, endingIds, exportedAt, sources
-
-### Community 64 - "verify-mobile-portraits.mjs"
-Cohesion: 0.50
-Nodes (4): cardsHtml, htmlPath, renderSvgString(), testCases
 
 ### Community 65 - "sync-bangkok-content.mjs"
 Cohesion: 0.18
@@ -283,17 +278,17 @@ Nodes (9): community, currentIndex, dialogues, engineVersion, nextIndex, relatio
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `test-tailored-pilot-endings.ts` to `package.json`, `App.tsx`, `mapLocations.ts`, `StoryFeed.tsx`?**
+- **Why does `react` connect `test-tailored-pilot-endings.ts` to `App.tsx`, `package.json`, `StoryFeed.tsx`, `mapLocations.ts`, `dependencies`?**
   _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Are the 12 inferred relationships involving `build()` (e.g. with `act()` and `actions()`) actually correct?**
   _`build()` has 12 INFERRED edges - model-reasoned connections that need verification._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.1010752688172043 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0989247311827957 - nodes in this community are weakly interconnected._
 - **Why does `SoundManager` connect `SoundManager` to `test-tailored-pilot-endings.ts`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
 - **Should `test-batch2-continuation-events.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected._
-- **Why does `generateCharacter()` connect `characterPool.ts` to `verify-mobile-portraits.mjs`, `App.tsx`, `export-ending-review.ts`, `test-tailored-pilot-endings.ts`, `test-zombie-portrait.ts`, `measure-progression.ts`?**
+  _Cohesion score 0.05241090146750524 - nodes in this community are weakly interconnected._
+- **Why does `generateCharacter()` connect `characterPool.ts` to `App.tsx`, `test-tailored-pilot-endings.ts`, `test-zombie-portrait.ts`, `mapLocations.ts`, `measure-progression.ts`, `test-route-guidance-browser.mjs`?**
   _High betweenness centrality (0.018) - this node is a cross-community bridge._
 - **Should `characterPool.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06736353077816493 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05241090146750524 - nodes in this community are weakly interconnected._

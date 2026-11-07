@@ -57,13 +57,12 @@
   "55": "\"../../tmp/after-zero-zombie/ui/scene.js\"",
   "56": ".getItem",
   "57": ".setItem",
-  "58": "ZombiePortrait.tsx",
+  "58": "dependencies",
   "59": "pastLifeEchoes.ts",
-  "60": "eventEngine.ts",
-  "61": "build-export-bundles.mjs",
-  "62": "CharacterBioDossier",
+  "60": "test-route-guidance-browser.mjs",
+  "61": "vite.config.ts",
+  "62": "scripts",
   "63": "manifest.json",
-  "64": "verify-mobile-portraits.mjs",
   "65": "sync-bangkok-content.mjs",
   "66": "PROMPT-รีวิวฉากจบ.md"
 }
