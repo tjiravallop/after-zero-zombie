@@ -6079,6 +6079,1231 @@ return {relationshipState,changeTrust,previewTrust,npcPosture,npcHuntEffects,rel
                 rect(207, 114, 10, 8, "#243328");
               }
             }
+          } else if (state.place === "bkk_ward") {
+            const wardHelped = isHelped("bkk_ward");
+            const accent = "#97cbd9";
+
+            // Hospital recovery ward background & corridor wall
+            rect(100, 24, 212, 100, "#2c4038");
+            rect(96, 20, 220, 5, "#1b2923");
+            rect(100, 38, 212, 5, accent); // Ward accent stripe
+            rect(100, 43, 212, 2, "#1d2b24");
+            rect(100, 84, 212, 3, "#19241f"); // Dado rail / kickplate
+
+            // Ward floor (linoleum tile)
+            rect(100, 87, 212, 37, "#35453c");
+            for (let i = 0; i < 7; i++) {
+              rect(102 + i * 30, 87, 1, 37, "#28342d");
+            }
+            rect(100, 105, 212, 1, "#28342d");
+
+            // Ward doorframe & Department signboard (x: 106..142)
+            rect(108, 46, 32, 40, "#1c2621");
+            rect(110, 48, 28, 38, wardHelped ? "#2d443a" : "#141c18");
+            rect(110, 40, 28, 7, accent);
+            rect(112, 41, 24, 5, "#1c2621");
+            rect(122, 42, 4, 3, "#ffffff"); // Red/white hospital cross
+            rect(120, 43, 8, 1, "#ffffff");
+
+            // Corridor ceiling lamp & lighting
+            rect(154, 25, 46, 4, "#1d2821");
+            if (wardHelped) {
+              // Clean diffuse illumination (ทางเดินสว่าง สะอาดตา)
+              rect(156, 29, 42, 2, "#f2fafc");
+              rect(148, 31, 58, 22, "#3b554b"); // Light cone
+              rect(152, 53, 50, 31, "#31473e");
+            } else {
+              // Dark / flickering dim corridor (ทางเดินหน้าวอร์ดมืด)
+              rect(156, 29, 42, 2, "#4a5951");
+              rect(160, 31, 34, 10, "#24332c");
+            }
+
+            // Bed 2 in background (x: 216..256, y: 64..94)
+            if (wardHelped) {
+              // Neat background bed with tucked clean linen
+              rect(216, 66, 4, 26, "#788f84");
+              rect(252, 72, 4, 20, "#788f84");
+              rect(218, 70, 36, 16, "#e4f0f2");
+              rect(220, 72, 32, 12, "#d0e4e8");
+              rect(220, 68, 10, 6, "#ffffff"); // pillow
+              // Background IV stand
+              rect(256, 56, 2, 36, "#8fa49b");
+              rect(254, 54, 6, 2, "#8fa49b");
+              rect(254, 56, 3, 6, "#ffffff");
+            } else {
+              // Disarranged dark bed in gloomy background
+              rect(216, 70, 4, 22, "#4d5c54");
+              rect(252, 74, 4, 18, "#4d5c54");
+              rect(218, 74, 36, 14, "#3d4a43");
+              rect(222, 76, 28, 10, "#48574e");
+            }
+
+            // Bed 1 in foreground (x: 116..166, y: 72..114)
+            if (wardHelped) {
+              // Bed neatly arranged, clean white & pastel blue sheets (เตียงผู้ป่วยจัดเป็นแนวระเบียบ มีผ้าปูสะอาด)
+              rect(116, 72, 4, 32, "#9bb0a5"); // Chrome headboard
+              rect(116, 70, 6, 3, "#c6dbd1");
+              rect(162, 80, 4, 24, "#9bb0a5"); // Footboard
+              rect(118, 100, 4, 12, "#586961"); // Legs
+              rect(158, 100, 4, 12, "#586961");
+              rect(118, 76, 44, 20, "#eef7fa"); // Crisp white mattress
+              rect(122, 78, 38, 16, "#d8ecf2"); // Tucked clean sheet
+              rect(120, 74, 14, 8, "#ffffff"); // Clean white pillow
+              rect(122, 76, 10, 4, "#e0f2f7");
+              // Patient blanket folded with clinical neatness
+              rect(134, 82, 26, 14, accent); // Light cyan blanket (#97cbd9)
+              rect(136, 84, 24, 2, "#b9e3ee"); // Folded blanket rim
+
+              // Upright IV drip pole (เสาน้ำเกลือตั้งตรง)
+              rect(169, 60, 2, 46, "#a9beb5"); // Polished vertical pole
+              rect(166, 58, 8, 2, "#80948b"); // Hanger bracket
+              rect(165, 60, 4, 9, "#ffffff"); // Saline IV bag
+              rect(166, 62, 2, 6, accent); // Clear fluid level
+              rect(169, 69, 1, 16, "#d8ecf2"); // IV infusion tube
+              rect(165, 104, 10, 3, "#52635b"); // Wheeled castor base
+
+              // Organized bedside supply cart (กล่องเวชภัณฑ์และม้วนผ้าพันแผลจัดเป็นหมวดหมู่)
+              rect(182, 84, 18, 26, "#d6e5df"); // Metal trolley
+              rect(180, 82, 22, 3, "#a4b8af"); // Tray top rim
+              rect(182, 95, 18, 1, "#869991"); // Middle shelf divider
+              rect(183, 108, 3, 4, "#475750"); // Castor wheels
+              rect(196, 108, 3, 4, "#475750");
+              // Categorized medical boxes & bandages
+              rect(183, 85, 7, 5, "#ffffff"); // White first aid box
+              rect(186, 86, 1, 3, "#db3b30"); // Red cross on box
+              rect(185, 87, 3, 1, "#db3b30");
+              rect(192, 85, 6, 4, accent); // Antiseptic medicine bottle
+              rect(184, 97, 5, 5, "#ffffff"); // Bandage roll 1 (ม้วนผ้าพันแผล)
+              rect(185, 98, 3, 3, "#dbebe5");
+              rect(191, 97, 5, 5, "#ffffff"); // Bandage roll 2
+              rect(192, 98, 3, 3, "#dbebe5");
+              rect(183, 104, 15, 3, "#7da092"); // Stainless steel kidney basin
+
+              // Safety demarcation line on floor (เส้นกั้นสีแดง/เหลืองบนพื้นหน้าทางเดิน)
+              // "เส้นแบ่งระยะที่ซอมบี้ผู้เล่นต้องหยุดเฝ้า ไม่ล้ำเข้าหาคนป่วย"
+              for (let y = 87; y < 123; y += 8) {
+                rect(203, y, 4, 4, "#dc2626"); // Red safety stripe
+                rect(203, y + 4, 4, 4, "#facc15"); // Yellow safety stripe
+              }
+              rect(202, 87, 1, 37, "#fca5a5"); // Light border guide
+              rect(207, 87, 1, 37, "#fef08a");
+              rect(209, 101, 14, 3, "#dc2626"); // Floor boundary marker
+            } else {
+              // Disheveled bed, askew, crooked angle (เตียงผู้ป่วยระเกะระกะ)
+              rect(116, 78, 46, 16, "#4a5950");
+              rect(114, 76, 4, 26, "#78877d"); // Crooked headboard
+              rect(160, 84, 4, 18, "#78877d"); // Askew footboard
+              rect(118, 92, 4, 16, "#4a574f");
+              rect(156, 96, 4, 12, "#4a574f");
+              // Dirty disheveled sheets falling on floor
+              rect(122, 82, 32, 10, "#637368");
+              rect(136, 88, 18, 14, "#505f55");
+              rect(142, 98, 14, 8, "#3e4c43");
+              rect(118, 76, 10, 6, "#7f9186"); // Crooked pillow
+
+              // Tipped-over / leaning IV drip pole (เสาน้ำเกลือระเกะระกะ)
+              rect(166, 88, 18, 2, "#7a8a81"); // Fallen pole
+              rect(168, 84, 3, 12, "#7a8a81");
+              rect(180, 86, 6, 6, "#54635a");
+              rect(174, 90, 4, 3, "#84adb8"); // Broken glass drip bottle
+              rect(172, 94, 8, 2, "#2b3b33"); // Spill puddle
+
+              // Scattered first-aid supplies on floor (ข้าวของปฐมพยาบาลกระจัดกระจาย)
+              rect(130, 112, 10, 4, "#697a71"); // Overturned basin
+              rect(132, 110, 6, 2, "#4f5e56");
+              rect(144, 114, 6, 4, "#cfdad0"); // Unrolled bandage
+              rect(150, 116, 14, 2, "#aab7ab"); // Tangled loose gauze strip
+              rect(170, 112, 4, 5, "#bd5e51"); // Spilled medicine bottle
+              rect(174, 115, 3, 2, "#ffffff");
+              rect(188, 116, 8, 3, "#28342d"); // Damp dirty stain
+            }
+
+            // NPC Nurse in white scrubs inspecting patient (options.livingCount > 0)
+            if (wardHelped && (options.livingCount ?? 1) > 0) {
+              // Nurse standing attentively by Bed 1
+              rect(144, 62, 8, 7, "#c9a679"); // Face
+              rect(143, 60, 10, 4, "#362519"); // Dark hair
+              rect(145, 58, 6, 3, "#ffffff"); // Nurse cap
+              rect(147, 59, 2, 1, "#dc2626"); // Red cross badge
+              rect(143, 69, 10, 16, "#ffffff"); // Clean white uniform
+              rect(142, 72, 2, 8, "#edf5f3"); // Left arm examining bed
+              rect(151, 72, 3, 7, "#edf5f3"); // Right arm holding clipboard
+              rect(152, 75, 4, 5, "#c49a62"); // Medical chart / clipboard
+              rect(153, 76, 2, 3, "#ffffff"); // Paper note
+              rect(146, 70, 4, 5, "#466055"); // Stethoscope hanging on neck
+              rect(144, 85, 8, 14, "#e6f2ee"); // White trousers
+              rect(144, 99, 3, 3, "#ffffff"); // White nurse shoes
+              rect(148, 99, 3, 3, "#ffffff");
+            }
+          } else if (state.place === "bkk_depot") {
+            const depotHelped = isHelped("bkk_depot");
+            const accent = "#b6cf83";
+
+            // Phra Nakhon historic street cleaning depot & shophouse facade
+            rect(100, 24, 212, 100, "#424d3c");
+            rect(96, 20, 220, 5, "#2c3627");
+            rect(100, 36, 212, 5, accent); // Bangkok municipal green accent
+            rect(100, 41, 212, 2, "#263022");
+
+            // Shutter garage door / tool locker
+            rect(114, 46, 76, 42, "#2d3a2c");
+            rect(116, 48, 72, 38, "#1e291e");
+            for (let y = 52; y < 86; y += 6) {
+              rect(116, y, 72, 1, "#2b382b");
+            }
+
+            // Bangkok municipal district emblem & depot sign
+            rect(124, 42, 36, 7, accent);
+            rect(126, 43, 32, 5, "#1f2b1d");
+            rect(130, 45, 24, 1, "#b6cf83");
+
+            // Wall-mounted tool racks inside/beside depot
+            rect(194, 48, 2, 36, "#594833"); // Wooden rack beam
+            rect(194, 54, 8, 2, "#826a4b"); // Tool pegs
+            rect(194, 66, 8, 2, "#826a4b");
+            rect(194, 78, 8, 2, "#826a4b");
+
+            // Sidewalk walkway (ทางเท้า) & roadway curb
+            rect(100, 88, 212, 6, "#5c6b57"); // Concrete curb stone
+            rect(100, 94, 212, 30, "#465443"); // Paved sidewalk surface
+            for (let i = 0; i < 7; i++) {
+              rect(102 + i * 30, 94, 1, 30, "#354032"); // Sidewalk slabs
+            }
+            rect(100, 109, 212, 1, "#354032");
+
+            if (depotHelped) {
+              // 1. Cleared open pathway (ทางเท้าแคบๆ ถูกกวาดเปิดทางโล่ง ปลอดภัยสำหรับรถเข็นคนเจ็บ)
+              // Clean swept corridor through sidewalk (x: 130..190)
+              rect(130, 95, 60, 28, "#52634f");
+              for (let i = 0; i < 2; i++) {
+                rect(132 + i * 30, 95, 1, 28, "#3e4c3c");
+              }
+              // Bevelled wooden access ramp over curb for carts / wheelchairs
+              rect(134, 87, 24, 4, "#8c754d");
+              rect(136, 86, 20, 2, "#a88e60");
+
+              // 2. Scrap and trash tidied into corner, neatly covered with tarpaulin (เศษเหล็กและขยะถูกเก็บกวาดเข้ามุมข้างทาง คลุมผ้าใบเรียบร้อย)
+              rect(112, 90, 26, 22, "#2b5246"); // Green-blue tarp body
+              rect(114, 88, 22, 4, "#3d7061"); // Top tarp crest
+              rect(116, 86, 14, 3, "#548c7c"); // Highlight fold
+              rect(110, 110, 30, 4, "#1d3d33"); // Bottom weighted hem
+              rect(118, 91, 2, 19, "#c2a76f"); // Tie-down rope 1
+              rect(128, 91, 2, 19, "#c2a76f"); // Tie-down rope 2
+              rect(111, 111, 4, 3, "#6b7a69"); // Stone weight 1
+              rect(134, 111, 4, 3, "#6b7a69"); // Stone weight 2
+
+              // 3. Upright cleaning cart with fresh gloves hanging (รถเข็นทำความสะอาดตั้งเรียบร้อย มีถุงมือคู่ใหม่แขวนไว้ที่ด้ามจับ)
+              rect(144, 82, 24, 18, "#3d6b47"); // BMA green municipal cart bin
+              rect(142, 80, 28, 3, "#5aa369"); // Clean top rim
+              rect(146, 87, 20, 4, accent); // Bright yellow-green accent band
+              // Twin sturdy wheels
+              rect(144, 98, 8, 8, "#1a241b");
+              rect(146, 100, 4, 4, "#5c6b5d"); // Hubcap
+              rect(158, 98, 8, 8, "#1a241b");
+              rect(160, 100, 4, 4, "#5c6b5d");
+              // Handlebar upright
+              rect(138, 76, 4, 24, "#738575");
+              rect(136, 75, 6, 3, "#445446");
+              // Attached clean dustpan & secondary broom on cart
+              rect(168, 78, 3, 18, "#785834");
+              rect(166, 74, 7, 5, "#415446");
+
+              // Fresh pair of work gloves hanging on cart handle (ถุงมือคู่ใหม่แขวนไว้ที่ด้ามจับ)
+              rect(136, 79, 6, 2, "#ffffff"); // White glove cuff
+              rect(136, 81, 5, 5, "#ffb833"); // Bright yellow work glove 1
+              rect(139, 82, 4, 5, "#f5a21b"); // Glove 2
+              rect(137, 86, 2, 3, "#e08d0b"); // Fingers
+              rect(140, 87, 2, 3, "#e08d0b");
+
+              // Extra spare tool standing beside depot wall
+              rect(198, 60, 2, 38, "#785834"); // Spade/rake handle
+              rect(196, 56, 6, 4, "#566657"); // Iron head
+            } else {
+              // Obstructed walkway with glass, rusted scrap, broken concrete (ทางเท้าเต็มไปด้วยเศษกระจก เศษเหล็กแหลม และปูนแตก)
+              // Broken concrete chunks on walkway
+              rect(136, 96, 12, 8, "#637361");
+              rect(140, 93, 6, 4, "#7e917c");
+              rect(172, 103, 16, 9, "#566654");
+              rect(174, 101, 8, 3, "#70826e");
+              rect(146, 113, 10, 5, "#4c594a");
+              // Sharp glistening glass shards (เศษกระจก)
+              rect(132, 107, 2, 2, "#c5e6dc");
+              rect(154, 101, 2, 2, "#e2faf3");
+              rect(160, 111, 2, 2, "#c5e6dc");
+              rect(182, 109, 3, 2, "#dcf7f0");
+              rect(192, 104, 2, 2, "#c5e6dc");
+              // Jagged rusted rebar/scrap metal (เศษเหล็กแหลม)
+              rect(156, 105, 10, 2, "#7a482e");
+              rect(160, 102, 2, 7, "#995a3a");
+              rect(186, 113, 8, 3, "#6b3b24");
+
+              // Abandoned, broken trash cart (รถเข็นขยะจอดทิ้งร้าง)
+              rect(120, 84, 22, 16, "#544636"); // Rusted, dented bin
+              rect(122, 82, 18, 3, "#3d3226");
+              rect(118, 86, 3, 18, "#635240"); // Crooked handle
+              rect(140, 96, 8, 8, "#2e2924"); // Wobbly detached wheel
+              rect(124, 100, 6, 2, "#3d3226"); // Collapsed axle on pavement
+              // Spilled trash heaps around cart
+              rect(114, 102, 8, 6, "#29241f");
+              rect(118, 108, 10, 4, "#3a342c");
+              rect(128, 107, 6, 3, "#212b23");
+            }
+
+            // NPC Street Sweeper in high-vis vest with broom (options.livingCount > 0)
+            if (depotHelped && (options.livingCount ?? 1) > 0) {
+              // Street sweeper standing by path with broom
+              rect(182, 72, 8, 7, "#c49868"); // Face
+              rect(179, 68, 14, 4, "#b09563"); // Woven straw hat brim
+              rect(182, 65, 8, 4, "#c7aa73"); // Hat top
+              rect(181, 79, 10, 16, "#2e3b2e"); // Work shirt
+              rect(180, 79, 12, 14, "#c8f038"); // Fluorescent high-vis safety vest
+              rect(180, 85, 12, 3, "#ffffff"); // Reflective silver stripe
+              rect(180, 86, 12, 1, "#e6f5ea");
+              rect(178, 82, 3, 10, "#c49868"); // Left arm
+              rect(190, 83, 3, 9, "#c49868"); // Right arm
+              // Long broom with coconut palm bristles (ไม้กวาดทางมะพร้าว)
+              rect(175, 74, 2, 36, "#785834"); // Wooden broom handle
+              rect(171, 106, 9, 8, "#bda16a"); // Bristles
+              rect(170, 112, 11, 2, "#9c824e"); // Bristle tips touching swept ground
+              rect(182, 94, 8, 16, "#202d24"); // Work trousers
+              rect(181, 110, 4, 4, "#18201a"); // Work boots
+              rect(186, 110, 4, 4, "#18201a");
+            }
+
+          } else if (state.place === "bkk_winstop") {
+            const winstopHelped = isHelped("bkk_winstop");
+            const accent = "#edaa65";
+            // Din Daeng alleyway buildings & back passage
+            rect(100, 30, 96, 92, "#404a3e");
+            rect(96, 26, 104, 5, "#2a352b");
+            rect(116, 42, 22, 18, "#1a251e");
+            rect(126, 42, 2, 18, "#2e3b31");
+            // Narrow back alleyway leading through the block
+            rect(196, 42, 48, 80, "#19241c");
+            rect(192, 38, 56, 4, "#2a352b");
+            rect(194, 34, 52, 4, accent);
+            rect(244, 28, 76, 94, "#333d32");
+            rect(240, 26, 80, 4, "#222a21");
+
+            // Overhead telephone / electric cables crossing alley
+            rect(100, 20, 220, 1, "#182018");
+            rect(100, 24, 220, 1, "#182018");
+            rect(180, 30, 24, 1, "#182018");
+            rect(204, 32, 28, 1, "#182018");
+
+            // Mototaxi stand post & sign (เสาคิววิน)
+            rect(122, 48, 6, 74, "#2f3d32");
+            rect(114, 74, 24, 3, "#4d5c50");
+            rect(108, 44, 34, 4, "#1d2920");
+            // Signboard "วินดินแดง"
+            rect(108, 48, 34, 14, "#1d2920");
+            rect(110, 50, 30, 10, winstopHelped ? accent : "#665038");
+            rect(114, 53, 22, 4, winstopHelped ? "#ffffff" : "#3b2c1c");
+
+            // Mototaxi safety helmets on stand
+            if (winstopHelped) {
+              // 3 bright orange safety helmets hung neatly side-by-side
+              rect(114, 77, 7, 7, accent);
+              rect(115, 80, 5, 2, "#ffffff");
+              rect(122, 77, 7, 7, accent);
+              rect(123, 80, 5, 2, "#ffffff");
+              rect(130, 77, 7, 7, accent);
+              rect(131, 80, 5, 2, "#ffffff");
+            } else {
+              // Single dusty/cracked helmet hung haphazardly, second helmet dropped
+              rect(114, 77, 8, 7, "#6b543c");
+              rect(115, 81, 6, 2, "#403121");
+              rect(162, 117, 7, 5, "#574431");
+            }
+
+            // Navigation arrows on alley wall (ลูกศรชอล์ก/สีสเปรย์สว่าง)
+            if (winstopHelped) {
+              // Arrow 1: Bright yellow chalk/spray navigation arrow
+              rect(160, 72, 16, 4, "#fff275");
+              rect(174, 69, 4, 10, "#fff275");
+              rect(178, 71, 3, 6, "#fff275");
+              rect(160, 80, 22, 2, "#fff275");
+              // Arrow 2: Bright green spraypainted safe corridor arrow
+              rect(194, 70, 14, 4, "#6de882");
+              rect(206, 67, 4, 10, "#6de882");
+              rect(210, 69, 3, 6, "#6de882");
+              rect(194, 78, 16, 2, "#6de882");
+            } else {
+              // Unmarked, dirty soot-stained alley wall
+              rect(164, 72, 18, 12, "#263328");
+              rect(198, 70, 14, 14, "#1c261e");
+            }
+
+            // Motorcycle (รถขวางซอย vs ย้ายจัดระเบียบเปิดทางเดิน)
+            if (winstopHelped) {
+              // Motorcycle parked neatly against right wall, clearing walkway
+              rect(254, 104, 8, 18, "#18221b");
+              rect(256, 107, 4, 12, "#748578");
+              rect(278, 104, 8, 18, "#18221b");
+              rect(280, 107, 4, 12, "#748578");
+              rect(260, 102, 20, 10, "#c94738");
+              rect(268, 98, 12, 5, "#18221b");
+              rect(254, 96, 6, 8, "#8f9f92");
+              rect(252, 98, 2, 4, "#fff0a3");
+              rect(267, 112, 3, 10, "#4a594d");
+              // Clear swept walkway
+              rect(160, 121, 80, 2, "#505f52");
+            } else {
+              // Fallen/crashed motorcycle blocking alleyway and debris
+              rect(172, 112, 14, 8, "#151e18");
+              rect(175, 114, 8, 4, "#4b594f");
+              rect(202, 110, 12, 10, "#151e18");
+              rect(182, 108, 22, 11, "#943b34");
+              rect(174, 104, 10, 3, "#6b7a6e");
+              rect(180, 121, 26, 2, "#131a15");
+              rect(164, 118, 5, 4, "#3a463c");
+              rect(216, 117, 6, 4, "#48574c");
+            }
+
+            // NPC Mototaxi Driver respecting livingCount
+            if ((options.livingCount ?? 1) > 0) {
+              if (winstopHelped) {
+                // Driver standing upright in vivid orange vest, pointing toward safe route
+                rect(144, 84, 8, 7, "#c9a679");
+                rect(143, 82, 10, 3, "#241c16");
+                rect(142, 91, 12, 15, "#ff751a");
+                rect(146, 95, 4, 4, "#ffffff");
+                rect(143, 106, 10, 16, "#1d2921");
+                rect(154, 93, 10, 3, "#ff751a");
+                rect(164, 93, 3, 3, "#c9a679");
+              } else {
+                // Driver crouched anxiously by the post inspecting the blockage
+                rect(142, 98, 8, 7, "#c9a679");
+                rect(140, 105, 12, 10, "#9c6031");
+                rect(140, 115, 12, 7, "#212d24");
+              }
+            }
+          } else if (state.place === "bkk_busyard") {
+            const busyardHelped = isHelped("bkk_busyard");
+            const accent = "#91b2d3";
+            // Victory Monument terminal roof structure in background
+            rect(110, 28, 188, 8, "#283742");
+            rect(110, 34, 188, 3, accent);
+            rect(116, 36, 4, 86, "#364957");
+            rect(292, 36, 4, 86, "#364957");
+            // Distant bus silhouette in terminal bay
+            rect(210, 38, 86, 14, "#1d262d");
+
+            // Bangkok Cream-Red Bus (ขสมก. ครีม-แดง)
+            rect(146, 48, 150, 26, "#f2e8cb"); // Cream upper body
+            rect(146, 74, 150, 28, "#ab312b"); // Red lower body
+            rect(142, 54, 6, 44, "#ab312b"); // Front nose
+
+            // Bus roof destination box
+            rect(152, 40, 48, 10, "#1e2933");
+            if (busyardHelped) {
+              // Bright white route banner with red/navy text
+              rect(154, 42, 44, 6, "#ffffff");
+              rect(158, 44, 16, 2, "#ab312b");
+              rect(178, 44, 14, 2, "#1e2933");
+            } else {
+              rect(154, 42, 44, 6, "#151e26");
+            }
+
+            // Windows (Front windshield + 4 passenger windows)
+            rect(146, 54, 20, 20, "#1e2b36");
+            rect(148, 56, 4, 4, "#50697d");
+            rect(172, 54, 22, 18, "#1a2530");
+            rect(198, 54, 22, 18, "#1a2530");
+            rect(224, 54, 22, 18, "#1a2530");
+            rect(250, 54, 22, 18, "#1a2530");
+            rect(170, 52, 104, 2, "#738896");
+
+            // Bumper & Headlights
+            rect(142, 80, 4, 6, busyardHelped ? "#fff294" : "#696350");
+            rect(140, 88, 6, 12, "#202830");
+
+            // Wheels & Underbody
+            rect(170, 96, 20, 24, "#13191f");
+            rect(174, 100, 12, 16, "#5c6e7a");
+            rect(178, 105, 4, 6, "#222c33");
+            rect(252, 96, 24, 24, "#13191f");
+            rect(256, 100, 16, 16, "#5c6e7a");
+            rect(262, 105, 4, 6, "#222c33");
+            rect(146, 102, 150, 6, "#10161a");
+
+            // Debris vs Cleared walkway, Rest bench, and Assembly sign
+            if (busyardHelped) {
+              // Cleared walkway marked with clean curb stones
+              rect(100, 121, 48, 2, "#738b9e");
+
+              // Bright white Assembly Point sign ("จุดรวมพล")
+              rect(124, 88, 4, 32, "#38291c"); // Wooden stand post
+              rect(114, 64, 24, 26, "#1e2b36"); // Frame
+              rect(116, 66, 20, 22, "#ffffff"); // White sign face
+              rect(123, 70, 6, 10, "#28a745"); // Green assembly cross
+              rect(121, 72, 10, 6, "#28a745");
+              rect(119, 82, 14, 2, "#1e2b36"); // Route guide lines
+              rect(119, 85, 10, 2, "#1e2b36");
+
+              // Wooden rest bench for elderly and children
+              rect(102, 104, 22, 3, "#825f3b"); // Backrest
+              rect(102, 110, 22, 4, "#9e774d"); // Seat
+              rect(104, 114, 3, 8, "#3d2a1a"); // Legs
+              rect(120, 114, 3, 8, "#3d2a1a");
+              rect(110, 108, 8, 3, accent); // Blue blanket on bench
+
+              // First-aid medical supply crate beside bench
+              rect(128, 111, 14, 11, "#d9e2db");
+              rect(133, 113, 4, 7, "#c92a2a"); // Red cross
+              rect(131, 115, 8, 3, "#c92a2a");
+              rect(133, 105, 5, 6, "#4a789c"); // Water canteen
+              rect(134, 103, 3, 2, "#ffffff");
+            } else {
+              // Engine flap open, blown shredded tire and rust scrap blocking gap
+              rect(138, 72, 6, 10, "#73201b");
+              rect(114, 114, 14, 7, "#141c22");
+              rect(110, 116, 4, 3, "#232e36");
+              rect(128, 117, 6, 2, "#232e36");
+              rect(130, 121, 24, 2, "#12181d");
+              rect(122, 108, 10, 10, "#543026");
+              rect(124, 105, 6, 3, "#6b4135");
+            }
+
+            // NPC Bus Driver in deep navy uniform respecting livingCount
+            if ((options.livingCount ?? 1) > 0) {
+              if (busyardHelped) {
+                // Driver standing upright waving & pointing passengers toward assembly area
+                rect(146, 84, 8, 7, "#c9a679");
+                rect(145, 82, 10, 3, "#15222e");
+                rect(149, 83, 2, 2, "#dfc56f"); // Gold cap badge
+                rect(144, 91, 12, 15, "#15222e"); // Navy uniform jacket
+                rect(149, 91, 2, 5, accent); // Light blue tie
+                rect(145, 106, 10, 16, "#0f1822");
+                rect(136, 92, 8, 3, "#15222e"); // Waving arm
+                rect(133, 90, 4, 5, "#c9a679"); // Hand pointing
+              } else {
+                // Driver crouched anxiously by the blown tire
+                rect(134, 98, 8, 7, "#c9a679");
+                rect(132, 105, 12, 10, "#1a2838");
+                rect(132, 115, 12, 7, "#111b26");
+              }
+            }
+          } else if (state.place === "bkk_cafe") {
+            const cafeHelped = isHelped("bkk_cafe");
+            const accent = "#c6a58b";
+            // Ari Cafe Building & Interior Base
+            // Wall background (warm cafe tone with wood wainscoting)
+            rect(96, 24, 204, 99, "#2c241e");
+            rect(92, 22, 212, 5, "#42352b");
+            rect(96, 27, 204, 3, accent);
+            // Lower wooden wall wainscoting
+            rect(96, 68, 204, 55, "#3b2e25");
+            rect(96, 67, 204, 2, "#574436");
+            for (let i = 0; i < 9; i++) {
+              rect(106 + i * 22, 69, 2, 54, "#291f18");
+            }
+            // Ceiling wooden crossbeams
+            rect(104, 25, 6, 44, "#3a2d23");
+            rect(184, 25, 6, 44, "#3a2d23");
+            rect(264, 25, 6, 44, "#3a2d23");
+
+            // Arched window on the left looking out to Ari district
+            rect(14, 34, 76, 56, "#1a251f");
+            rect(18, 38, 68, 48, cafeHelped ? "#2e4537" : "#141e18");
+            // Window mullions
+            rect(50, 34, 4, 56, "#3a2d23");
+            rect(18, 62, 68, 3, "#3a2d23");
+            // Warm light glow on window sill if helped
+            if (cafeHelped) {
+              rect(16, 90, 72, 3, "#7a634a");
+            }
+
+            // Pendant lamps hanging from ceiling (x = 50, 152, 236)
+            const pendantLamps = [
+              { x: 50, y: 48 },
+              { x: 152, y: 46 },
+              { x: 236, y: 46 }
+            ];
+            for (const lamp of pendantLamps) {
+              // Cord
+              rect(lamp.x + 3, 24, 1, lamp.y - 24, "#1d1712");
+              // Brass shade
+              rect(lamp.x, lamp.y, 7, 3, accent);
+              rect(lamp.x - 2, lamp.y + 3, 11, 3, "#544131");
+              if (cafeHelped) {
+                // Lit bulb & warm ambient glow
+                rect(lamp.x + 1, lamp.y + 5, 5, 4, "#ffecb3");
+                rect(lamp.x - 5, lamp.y + 9, 17, 10, "#5a452a");
+              } else {
+                // Dead unlit bulb
+                rect(lamp.x + 2, lamp.y + 5, 3, 3, "#2d241c");
+              }
+            }
+
+            // --- MENU BOARD / MISSING RELATIVES BOARD (x = 104..166, y = 34..66) ---
+            // Large chalkboard frame on wall
+            rect(104, 34, 62, 31, "#4a3a2d");
+            rect(106, 36, 58, 27, "#1a221c");
+            if (cafeHelped) {
+              // Board flipped into "บอร์ดตามหาญาติ" (community notice board)
+              // Header tag strip in soft chalk
+              rect(109, 38, 52, 3, "#738a7c");
+              rect(112, 39, 46, 1, "#e6f0e9");
+
+              // Neat grid of white and yellow sticky notes / message papers
+              const notes = [
+                // Row 1
+                { x: 109, y: 43, w: 9, h: 8, c: "#f5f0ea", pin: "#dc2626" },
+                { x: 120, y: 43, w: 8, h: 8, c: "#fef08a", pin: "#2563eb" },
+                { x: 130, y: 43, w: 9, h: 8, c: "#f5f0ea", pin: "#16a34a" },
+                { x: 141, y: 43, w: 8, h: 8, c: "#fef08a", pin: "#dc2626" },
+                { x: 151, y: 43, w: 8, h: 8, c: "#f5f0ea", pin: "#ea580c" },
+                // Row 2
+                { x: 109, y: 53, w: 8, h: 7, c: "#fef08a", pin: "#2563eb" },
+                { x: 119, y: 53, w: 9, h: 7, c: "#f5f0ea", pin: "#dc2626" },
+                { x: 130, y: 53, w: 8, h: 7, c: "#fef08a", pin: "#16a34a" },
+                { x: 140, y: 53, w: 9, h: 7, c: "#f5f0ea", pin: "#2563eb" },
+                { x: 151, y: 53, w: 8, h: 7, c: "#fef08a", pin: "#dc2626" }
+              ];
+              for (const n of notes) {
+                rect(n.x, n.y, n.w, n.h, n.c);
+                // Tiny pin at top center
+                rect(n.x + Math.floor(n.w / 2), n.y, 1, 1, n.pin);
+                // Handwritten text lines
+                rect(n.x + 1, n.y + 3, n.w - 2, 1, "#44403c");
+                if (n.h > 7) {
+                  rect(n.x + 1, n.y + 5, n.w - 3, 1, "#44403c");
+                }
+              }
+            } else {
+              // Dark, empty chalkboard with faint erased chalk streaks
+              rect(112, 44, 24, 1, "#263229");
+              rect(118, 50, 32, 1, "#263229");
+              rect(110, 56, 18, 1, "#263229");
+            }
+
+            // Shelf behind counter (x = 172..214, y = 46..66)
+            rect(172, 48, 42, 2, "#4a3a2d");
+            rect(172, 60, 42, 2, "#4a3a2d");
+            // Coffee jars / bottles on shelf
+            rect(176, 42, 6, 6, "#2e3b32");
+            rect(184, 40, 8, 8, "#5c4738");
+            rect(194, 43, 6, 5, "#3d2e24");
+            rect(202, 41, 7, 7, "#2e3b32");
+            rect(178, 54, 10, 6, "#4a392d");
+            rect(192, 53, 8, 7, "#29382e");
+
+            // --- BARISTA WORK COUNTER (x = 120..216, y = 84..123) ---
+            // Wooden counter body
+            rect(120, 84, 96, 39, "#423226");
+            // Top wooden counter slab
+            rect(116, 81, 102, 4, "#7a5c43");
+            rect(116, 81, 102, 1, accent);
+            // Counter decorative front panels
+            rect(124, 88, 26, 31, "#31241a");
+            rect(154, 88, 28, 31, "#31241a");
+            rect(186, 88, 26, 31, "#31241a");
+            rect(120, 119, 96, 4, "#1d1610");
+
+            // Espresso machine on right side of counter (x = 188..210, y = 67..81)
+            rect(188, 68, 22, 13, "#3d4841");
+            rect(188, 67, 22, 2, "#687a70");
+            rect(192, 72, 5, 5, "#1e2621");
+            rect(201, 72, 5, 5, "#1e2621");
+            rect(193, 77, 3, 4, "#8a9a90");
+            rect(202, 77, 3, 4, "#8a9a90");
+
+            if (cafeHelped) {
+              // --- CLEAN WATER DISPENSER / PITCHER ON COUNTER (x = 128..144, y = 66..81) ---
+              // Clear glass water container with lid and tap
+              rect(128, 66, 16, 15, "#7099a8"); // Glass container body outline
+              rect(129, 67, 14, 13, "#275066"); // Interior deep water
+              rect(130, 69, 12, 10, "#48a3cc"); // Clean shimmering blue water
+              rect(131, 70, 4, 8, "#a3e5ff");  // Water reflection highlight
+              rect(130, 64, 12, 2, "#b4c5cf"); // Silver lid top
+              rect(134, 63, 4, 1, "#dce7ed");  // Lid handle knob
+              // Chrome dispensing tap & drip tray
+              rect(125, 76, 3, 3, "#c2d1d9");
+              rect(126, 79, 1, 2, "#c2d1d9");
+              rect(126, 80, 1, 1, "#80d4ff");  // Water droplet
+
+              // Stack of clean ceramic cups beside water dispenser (x = 148..156, y = 72..81)
+              rect(148, 77, 7, 4, "#f2ede4");
+              rect(149, 74, 6, 3, "#e5ded3");
+              rect(150, 72, 5, 2, "#dcd4c7");
+            } else {
+              // Unhelped: Empty, dusty counter surface, no water
+              rect(128, 79, 12, 2, "#2b2119");
+              rect(144, 78, 6, 3, "#362a20"); // Overturned dusty cup
+              rect(145, 77, 4, 1, "#261e17");
+            }
+
+            // --- NPC BARISTA (Behind Counter, x = 160..178, y = 64..94) ---
+            if ((options.livingCount ?? 1) > 0) {
+              if (cafeHelped) {
+                // Welcoming barista standing upright behind counter
+                rect(164, 64, 10, 8, "#d9a877"); // Head/face
+                rect(163, 62, 12, 3, "#3d2b1f"); // Hair / barista cap
+                rect(162, 63, 2, 5, "#3d2b1f");
+                rect(167, 67, 2, 2, "#1c140e"); // Eye
+                rect(168, 70, 3, 1, "#b3684d"); // Friendly smile
+                // Apron & shirt
+                rect(162, 72, 14, 11, "#2f4033"); // Forest green barista apron
+                rect(165, 72, 8, 10, "#e8dfd5");  // White shirt under apron
+                rect(166, 75, 6, 7, "#2f4033");  // Apron bib
+                // Arms resting on counter / holding clean towel
+                rect(158, 76, 4, 6, "#d9a877");
+                rect(174, 76, 4, 6, "#d9a877");
+                rect(156, 80, 6, 2, "#f0ece1");  // Clean white cloth
+              } else {
+                // Unhelped: Slumped, tired survivor barista behind dark counter
+                rect(166, 71, 8, 7, "#b88c63");
+                rect(165, 69, 10, 3, "#2b1e16");
+                rect(165, 78, 10, 5, "#2b231d");
+              }
+            }
+
+            // --- PLAYER'S RESERVED TABLE (Foreground Left, x = 18..76, y = 94..123) ---
+            // Round wooden cafe table
+            rect(24, 98, 52, 6, "#614732"); // Table top edge
+            rect(22, 96, 56, 3, "#826146"); // Table surface
+            rect(24, 96, 52, 1, accent);   // Table rim highlight
+            // Table leg & pedestal base
+            rect(48, 104, 5, 17, "#3b2a1c");
+            rect(38, 120, 25, 3, "#261a10");
+            // Wooden cafe chair on the left
+            rect(8, 92, 14, 30, "#4a3625");
+            rect(10, 94, 10, 12, "#2e2116");
+            rect(8, 106, 14, 3, "#6b4f37");
+            rect(9, 109, 3, 13, "#332418");
+            rect(18, 109, 3, 13, "#332418");
+
+            if (cafeHelped) {
+              // --- 1 EMPTY COFFEE MUG RESERVED ON PLAYER'S USUAL TABLE (x = 40..54, y = 88..96) ---
+              // Ceramic saucer plate
+              rect(40, 94, 14, 2, "#dcd4c7");
+              rect(42, 95, 10, 1, "#b5ab9a");
+              // Empty coffee cup body
+              rect(43, 88, 8, 6, "#f5eee4");
+              rect(44, 88, 6, 2, "#4a382a"); // Dark empty cup interior (ready for coffee)
+              rect(44, 90, 6, 4, "#f5eee4"); // Cup front
+              rect(45, 91, 2, 2, accent);    // Subtle warm emblem on mug
+              // Mug side handle
+              rect(51, 89, 2, 4, "#dcd4c7");
+              rect(52, 90, 1, 2, "#423226"); // Handle hole
+            } else {
+              // Dusty, stained bare table before help
+              rect(36, 97, 8, 1, "#3d2b1f");
+              rect(52, 97, 6, 1, "#3d2b1f");
+            }
+          } else if (state.place === "bkk_office") {
+            const officeHelped = isHelped("bkk_office");
+            const accent = "#b6a2d3";
+            // Rama 9 Tech Office Interior Base
+            // Wall background (deep corporate slate/indigo with acoustic sound panels)
+            rect(96, 22, 204, 101, "#181d26");
+            rect(92, 20, 212, 5, "#2a3240");
+            rect(96, 25, 204, 3, accent);
+            // Acoustic fabric wall panels along top
+            for (let i = 0; i < 6; i++) {
+              rect(102 + i * 32, 29, 26, 18, "#252e3b");
+              rect(104 + i * 32, 31, 22, 14, "#1c2430");
+            }
+            // Modular office partition divider in background
+            rect(198, 48, 4, 75, "#3b4859");
+            rect(202, 56, 102, 2, "#2b3442");
+
+            // Ceiling fluorescent light fixture housing (dead / offline)
+            rect(120, 21, 60, 3, "#374151");
+            rect(220, 21, 60, 3, "#374151");
+
+            // --- WHITEBOARD: SAFE ZONE EXTRACTION MAP & OFFLINE TIMELINE (x = 100..164, y = 30..62) ---
+            // Aluminum whiteboard frame
+            rect(100, 30, 64, 32, "#64748b");
+            rect(102, 32, 60, 28, "#f1f5f9"); // Clean whiteboard surface
+            rect(100, 61, 64, 2, "#475569"); // Pen marker tray
+            rect(108, 60, 6, 1, "#dc2626");  // Red dry-erase marker
+            rect(116, 60, 6, 1, "#2563eb");  // Blue marker
+            rect(124, 60, 6, 1, "#16a34a");  // Green marker
+
+            if (officeHelped) {
+              // Safe zone extraction map sketched on left side of board
+              rect(105, 35, 26, 22, "#e2e8f0");
+              // Bangkok road network lines in blue marker
+              rect(106, 42, 24, 1, "#3b82f6");
+              rect(116, 36, 1, 20, "#3b82f6");
+              rect(110, 48, 18, 1, "#3b82f6");
+              // Red circular safe-haven extraction checkpoints
+              rect(108, 40, 3, 3, "#dc2626");
+              rect(122, 45, 3, 3, "#dc2626");
+              rect(115, 51, 3, 3, "#16a34a"); // Rama 9 green verified hub!
+
+              // Offline timeline schedule on right side of board
+              rect(134, 35, 25, 2, "#1e293b"); // "OFFLINE TIMELINE" header
+              rect(134, 39, 14, 1, "#2563eb");
+              rect(150, 39, 7, 1, "#16a34a"); // "06:00 OK"
+              rect(134, 43, 14, 1, "#2563eb");
+              rect(150, 43, 7, 1, "#16a34a"); // "12:00 OK"
+              rect(134, 47, 14, 1, "#2563eb");
+              rect(150, 47, 7, 1, "#16a34a"); // "18:00 OK"
+              rect(134, 52, 22, 1, "#dc2626"); // "RAD CHECK 21:00"
+            } else {
+              // Unhelped: Smudged, wiped, abandoned board with old erased ink
+              rect(106, 38, 20, 2, "#cbd5e1");
+              rect(112, 46, 30, 2, "#cbd5e1");
+              rect(108, 52, 16, 2, "#cbd5e1");
+            }
+
+            // --- SURVIVOR REGISTRY DOSSIERS & FILE RACKS (x = 168..196, y = 38..52) ---
+            rect(168, 50, 28, 2, "#475569"); // Wall shelf
+            if (officeHelped) {
+              // Neatly organized, categorized survivor registry files & binders
+              // Color-coded binders upright on shelf
+              rect(170, 38, 4, 12, accent);    // Rama 9 Lavender binder
+              rect(171, 40, 2, 8, "#ffffff");  // Spine label
+              rect(175, 38, 4, 12, "#38bdf8"); // Blue network roster
+              rect(176, 40, 2, 8, "#ffffff");
+              rect(180, 38, 4, 12, "#4ade80"); // Green medical log
+              rect(181, 40, 2, 8, "#ffffff");
+              rect(185, 38, 4, 12, "#f59e0b"); // Orange supplies index
+              rect(186, 40, 2, 8, "#ffffff");
+              rect(190, 40, 5, 10, "#94a3b8"); // Grey general archive
+            } else {
+              // Unhelped: Fallen, dusty binders knocked over
+              rect(172, 46, 8, 4, "#334155");
+              rect(182, 47, 10, 3, "#475569");
+            }
+
+            // --- WORKSTATION DESKS (x = 36..196, y = 84..123) ---
+            // Left Workstation desk (x = 36..112)
+            rect(36, 84, 76, 39, "#252d38");
+            rect(34, 82, 80, 3, "#3d4857");
+            rect(34, 82, 80, 1, "#5a687a");
+            rect(36, 119, 76, 4, "#171c24");
+
+            // Center/Right Workstation desk (x = 118..196)
+            rect(118, 84, 78, 39, "#252d38");
+            rect(116, 82, 82, 3, "#3d4857");
+            rect(116, 82, 82, 1, "#5a687a");
+            rect(118, 119, 78, 4, "#171c24");
+
+            // --- COMPUTER SCREENS & POWER STATUS ---
+            // Monitor 1 (Left Desk, x = 54..82, y = 62..82)
+            rect(65, 78, 6, 4, "#334155"); // Monitor stand
+            rect(62, 81, 12, 1, "#475569");
+            rect(54, 62, 28, 17, "#1e293b"); // Monitor frame
+            // Monitor 2 (Right Desk, x = 138..166, y = 62..82)
+            rect(149, 78, 6, 4, "#334155");
+            rect(146, 81, 12, 1, "#475569");
+            rect(138, 62, 28, 17, "#1e293b");
+
+            if (officeHelped) {
+              // Monitor 1: GLOWING SOFT PHOSPHOR GREEN (Command Line & Server Terminal)
+              rect(56, 64, 24, 13, "#064e3b"); // Dark emerald screen bg
+              rect(58, 66, 14, 1, "#34d399");  // System prompt line
+              rect(58, 69, 18, 1, "#6ee7b7");  // Data stream
+              rect(58, 72, 12, 1, "#34d399");  // Status OK
+              rect(58, 74, 3, 1, "#a7f3d0");   // Blinking cursor
+              // Green glow cast on keyboard & desk below
+              rect(50, 83, 36, 4, "#133827");
+              rect(46, 87, 44, 7, "#102e20");
+              // Keyboard & optical mouse with LED glow
+              rect(54, 85, 20, 4, "#334155");
+              rect(77, 86, 4, 3, "#10b981");
+
+              // Monitor 2: GLOWING SOFT CYAN (Network & Radio Checkpoint Matrix)
+              rect(140, 64, 24, 13, "#082f49"); // Dark cyan screen bg
+              rect(143, 67, 18, 1, "#38bdf8");  // Network diagram header
+              rect(145, 70, 3, 3, "#7dd3fc");   // Node 1
+              rect(154, 70, 3, 3, "#38bdf8");   // Node 2
+              rect(150, 73, 1, 2, "#0284c7");   // Connector
+              rect(148, 74, 5, 2, "#bae6fd");   // Hub
+              // Cyan glow cast on desk
+              rect(134, 83, 36, 4, "#0f2e42");
+              rect(130, 87, 44, 7, "#0d2536");
+              rect(140, 85, 20, 4, "#334155");
+              rect(163, 86, 4, 3, "#38bdf8");
+
+              // Backup UPS Battery Unit under left desk (x = 40..52, y = 100..119)
+              rect(40, 100, 12, 19, "#0f172a");
+              rect(42, 103, 8, 2, "#22c55e"); // Active green battery indicator LED
+              rect(42, 107, 2, 8, "#4ade80"); // Battery level power bar
+              rect(42, 117, 3, 1, "#38bdf8"); // AC output online
+              // Neat bundled cables wrapped in conduit
+              rect(52, 108, 14, 2, "#1e293b");
+              rect(65, 87, 2, 23, "#1e293b");
+
+              // Organized dossier tray on right desk (x = 172..192, y = 84..93)
+              rect(172, 87, 18, 6, "#334155"); // Tray
+              rect(174, 84, 14, 3, accent);    // Categorized dossier top
+              rect(175, 82, 12, 2, "#f8fafc");  // Paper label "SURVIVOR INDEX"
+            } else {
+              // Unhelped: Screens completely dark, cables tangled, loose papers scattered
+              rect(56, 64, 24, 13, "#0f141c"); // Dead screen 1
+              rect(140, 64, 24, 13, "#0f141c"); // Dead screen 2
+              // Tangled cables snaking down
+              rect(65, 85, 4, 20, "#111822");
+              rect(55, 102, 15, 2, "#111822");
+              rect(150, 85, 3, 24, "#111822");
+              rect(142, 106, 18, 2, "#111822");
+              // Loose scattered papers on desk and floor
+              rect(42, 85, 10, 5, "#64748b");
+              rect(48, 87, 8, 4, "#475569");
+              rect(168, 86, 12, 5, "#64748b");
+              rect(174, 88, 10, 4, "#475569");
+              rect(122, 120, 10, 3, "#475569"); // Paper on floor
+            }
+
+            // --- NPC DEVELOPER / IT TECH (Working at workstation, x = 86..106, y = 74..116) ---
+            if ((options.livingCount ?? 1) > 0) {
+              if (officeHelped) {
+                // Developer seated in office chair, working attentively at glowing terminal
+                // Ergonomic mesh office chair
+                rect(98, 76, 10, 20, "#1e293b"); // Chair back
+                rect(100, 72, 6, 4, "#334155");  // Headrest
+                rect(94, 96, 14, 4, "#1e293b");  // Seat cushion
+                rect(99, 100, 4, 14, "#0f172a"); // Hydraulic chair base
+                rect(93, 114, 16, 2, "#0f172a"); // 5-star wheeled base
+                // Character body
+                rect(88, 76, 9, 8, "#f0b884");   // Head/face facing left towards screen
+                rect(86, 74, 11, 4, "#292524");  // Dark hair
+                rect(86, 78, 2, 3, "#6ee7b7");   // Glasses rim reflecting green screen!
+                rect(87, 84, 12, 14, "#4338ca"); // Indigo / dark tech hoodie
+                // Arm reaching forward to keyboard
+                rect(78, 87, 10, 4, "#4338ca");
+                rect(74, 88, 4, 3, "#f0b884");   // Hands on keyboard
+                // Pants
+                rect(88, 98, 10, 14, "#1e293b");
+              } else {
+                // Unhelped: Slumped, tired IT technician with head down on desk
+                rect(94, 82, 12, 8, "#292524");  // Slumped head on arms
+                rect(92, 86, 16, 10, "#312e81"); // Hunched back
+                rect(94, 96, 10, 14, "#1e293b");
+              }
+            }
+          } else if (state.place === "bkk_pier") {
+            const pierHelped = isHelped("bkk_pier");
+            const accent = "#d7a772";
+
+            // Khlong Saen Saep Pier Environment Base
+            // Concrete embankment wall & walkway on left
+            rect(0, 48, 220, 75, "#2a3d34");
+            rect(0, 46, 224, 4, "#3e5246");
+            rect(0, 50, 150, 3, accent);
+
+            // Distant canal embankment & skyline across water (x = 180..320)
+            rect(180, 54, 140, 56, "#22312b");
+            rect(184, 58, 132, 2, "#34483f");
+            rect(220, 68, 24, 18, "#18241f");
+            rect(260, 64, 28, 22, "#18241f");
+
+            // Canal water (ผิวน้ำคลองแสนแสบ)
+            rect(80, 106, 240, 26, "#1d3834");
+            rect(94, 112, 226, 20, "#162f2b");
+            for (let i = 0; i < 7; i++) {
+              rect(106 + i * 28, 112 + (i % 2) * 5, 18, 2, "#284d47");
+              rect(116 + i * 26, 120, 14, 1, "#36615a");
+            }
+
+            // Floating pontoon platform (โป๊ะเทียบเรือคลองแสนแสบ)
+            rect(96, 98, 134, 16, "#4a3b2a");
+            rect(98, 100, 130, 2, "#68533b");
+            for (let i = 0; i < 8; i++) {
+              rect(104 + i * 16, 102, 2, 12, "#382c1e");
+            }
+            rect(102, 114, 122, 6, "#202d27");
+
+            // Mooring pilings / bollards (เสาเทียบเรือ)
+            rect(94, 74, 8, 40, "#3d2e20");
+            rect(93, 72, 10, 3, "#5a4533");
+            rect(142, 66, 8, 48, "#34281c");
+            rect(141, 64, 10, 3, "#54402e");
+            rect(202, 76, 8, 38, "#3d2e20");
+            rect(201, 74, 10, 3, "#5a4533");
+
+            if (pierHelped) {
+              // --- STAIRS & GANGWAY REINFORCED WITH TIMBER HANDRAIL & SECURE MOORING ROPES ---
+              // Repaired wooden steps down to pontoon
+              rect(76, 88, 10, 4, "#7a5c3e");
+              rect(77, 88, 8, 1, "#a88157");
+              rect(82, 92, 10, 4, "#7a5c3e");
+              rect(83, 92, 8, 1, "#a88157");
+              rect(88, 96, 10, 4, "#7a5c3e");
+              rect(89, 96, 8, 1, "#a88157");
+              rect(94, 100, 10, 4, "#7a5c3e");
+              rect(95, 100, 8, 1, "#a88157");
+
+              // Reinforced solid timber handrails
+              rect(72, 78, 30, 3, "#9c7247");
+              rect(73, 78, 28, 1, "#c49866");
+              rect(74, 84, 28, 2, "#7c5934");
+              rect(72, 78, 3, 16, "#5b3f22");
+              rect(86, 82, 3, 18, "#5b3f22");
+              rect(100, 86, 3, 18, "#5b3f22");
+
+              // Heavy hemp mooring ropes tightly tied in secure figure-8 coils
+              rect(140, 84, 12, 8, "#bda06f");
+              rect(139, 86, 14, 4, "#d8bc88");
+              rect(146, 92, 4, 10, "#9e8457");
+              rect(148, 102, 6, 3, "#7a643f");
+
+              // --- WAITING SHELTER WITH REST BENCH & SUN CANVAS AWNING (จุดพักรอเรือริมคลอง) ---
+              // Sun canvas awning support poles
+              rect(22, 56, 3, 46, "#4b5d50");
+              rect(76, 56, 3, 46, "#4b5d50");
+              // Sun canvas roof in accent tone
+              rect(18, 54, 64, 8, accent);
+              rect(18, 60, 64, 3, "#a87848");
+              rect(22, 60, 8, 3, "#f0cf9e");
+              rect(38, 60, 8, 3, "#f0cf9e");
+              rect(54, 60, 8, 3, "#f0cf9e");
+              rect(70, 60, 8, 3, "#f0cf9e");
+              rect(17, 54, 2, 8, "#635038");
+              rect(81, 54, 2, 8, "#635038");
+
+              // Sturdy rest bench for injured & passengers
+              rect(30, 86, 34, 4, "#8a6642");
+              rect(31, 87, 32, 1, "#b58e65");
+              rect(28, 92, 38, 4, "#9e774f");
+              rect(29, 92, 36, 1, "#c99e71");
+              rect(30, 96, 4, 8, "#4a3520");
+              rect(60, 96, 4, 8, "#4a3520");
+
+              // Relief & care supplies on/beside bench
+              rect(34, 89, 10, 3, "#608573"); // Folded blanket
+              rect(50, 87, 7, 5, "#d8e2dc"); // Drinking water jug
+              rect(52, 85, 3, 2, "#407088");
+
+              // --- ORANGE LIFEBUOY HUNG ON MOORING POST (ห่วงชูชีพสีส้ม) ---
+              rect(145, 69, 2, 3, "#2b2014"); // Hanging peg
+              rect(144, 71, 4, 2, "#f4eee1"); // Hanging loop
+              rect(140, 72, 12, 12, "#ea580c"); // Vibrant rescue orange ring
+              rect(143, 75, 6, 6, "#34281c"); // Inner hollow
+              rect(144, 72, 4, 2, "#ffffff"); // 4 reflective safety bands
+              rect(144, 82, 4, 2, "#ffffff");
+              rect(140, 76, 2, 4, "#ffffff");
+              rect(150, 76, 2, 4, "#ffffff");
+              rect(139, 74, 1, 8, "#ded7c8"); // Perimeter lifeline grab rope
+              rect(152, 74, 1, 8, "#ded7c8");
+            } else {
+              // --- UNHELPED: BROKEN SLIPPERY STAIRS, SEVERED ROPE IN WATER, NO REST AREA ---
+              // Broken stairs with jagged gap and slippery algae
+              rect(76, 88, 9, 4, "#4a3727");
+              rect(77, 89, 7, 2, "#263820"); // Slippery green slime
+              rect(82, 93, 4, 3, "#4a3727");
+              rect(83, 94, 3, 2, "#1e2e1a"); // Slick algae
+              rect(92, 98, 4, 3, "#3d2b1e"); // Splintered wood
+              rect(94, 100, 10, 4, "#4a3727");
+              rect(95, 101, 8, 2, "#263820");
+
+              // Broken handrail snapped and tilted downward
+              rect(72, 80, 14, 2, "#4a3928");
+              rect(86, 82, 2, 8, "#3d2e20");
+              rect(86, 90, 8, 2, "#3d2e20");
+
+              // Severed mooring rope trailing into canal water
+              rect(140, 86, 8, 4, "#69563c");
+              rect(146, 87, 4, 3, "#8a7556"); // Frayed fiber ends
+              rect(150, 92, 6, 2, "#735e41");
+              rect(154, 96, 8, 2, "#604e35");
+              rect(160, 102, 12, 2, "#4d3e2b");
+              rect(168, 108, 14, 2, "#3b3022");
+              rect(180, 112, 10, 2, "#2b2319"); // Drifting loose on water
+
+              // Bare cold embankment with damaged iron barrier
+              rect(24, 88, 48, 2, "#33443a");
+              rect(24, 84, 3, 6, "#44554b");
+              rect(70, 84, 3, 6, "#44554b");
+            }
+
+            // NPC Boat Crewman with whistle standing guard on pier
+            if ((options.livingCount ?? 1) > 0) {
+              if (pierHelped) {
+                // Alert crewman standing guard on the restored pier
+                rect(173, 80, 11, 4, "#2b465a"); // Sailor cap
+                rect(172, 83, 13, 2, "#182a38"); // Visor
+                rect(174, 84, 9, 7, "#d49f6a"); // Face
+                rect(175, 86, 2, 2, "#201812"); // Eye
+                rect(177, 91, 3, 5, "#2b465a"); // Whistle lanyard
+                rect(178, 95, 4, 3, "#e2e8f0"); // Silver boatswain whistle
+                rect(177, 96, 2, 1, "#ffffff");
+                rect(172, 91, 13, 13, "#d97736"); // Crew high-vis orange vest
+                rect(174, 95, 9, 2, "#fde047"); // Reflective safety strap
+                rect(170, 93, 3, 8, "#d49f6a"); // Arms
+                rect(184, 93, 3, 8, "#d49f6a");
+                rect(173, 104, 11, 8, "#253a47"); // Trousers
+                rect(172, 112, 5, 4, "#1d1916"); // Heavy dock boots
+                rect(179, 112, 5, 4, "#1d1916");
+              } else {
+                // Anxious crewman crouched examining the broken gangway
+                rect(168, 92, 8, 7, "#c99a69");
+                rect(167, 90, 10, 3, "#2b465a");
+                rect(166, 98, 12, 10, "#944e26");
+                rect(166, 108, 11, 7, "#1d2933");
+              }
+            }
+          } else if (state.place === "bkk_stockroom") {
+            const stockroomHelped = isHelped("bkk_stockroom");
+            const accent = "#d4a0b6";
+
+            // Pratunam Wholesale Garment & Parcel Stockroom Environment Base
+            // Wall background
+            rect(20, 34, 280, 90, "#283832");
+            // Steel rolling shutter lintel
+            rect(20, 34, 280, 6, "#3a4c44");
+            // Accent shop banner header
+            rect(24, 40, 272, 4, accent);
+
+            // Steel shelving warehouse racks along left wall (x = 24..90)
+            rect(26, 46, 3, 74, "#4a5d52");
+            rect(56, 46, 3, 74, "#4a5d52");
+            rect(88, 46, 3, 74, "#4a5d52");
+            rect(24, 64, 68, 3, "#3d4f45");
+            rect(24, 86, 68, 3, "#3d4f45");
+            rect(24, 108, 68, 3, "#3d4f45");
+
+            // Right wall background garment silhouettes
+            rect(204, 56, 76, 2, "#36463d");
+            rect(208, 58, 68, 20, "#222f28");
+
+            // Live-streaming phone tripod (ขาตั้งมือถือไลฟ์สด)
+            rect(120, 72, 2, 30, "#65776d"); // Telescoping pole
+            rect(112, 102, 9, 12, "#4a5d53"); // Left leg
+            rect(111, 112, 3, 2, "#2b3b33");
+            rect(120, 102, 2, 12, "#4a5d53"); // Center leg
+            rect(119, 112, 4, 2, "#2b3b33");
+            rect(122, 102, 9, 12, "#4a5d53"); // Right leg
+            rect(129, 112, 3, 2, "#2b3b33");
+            rect(118, 68, 6, 4, "#304037"); // Mount bracket
+            rect(117, 54, 8, 14, "#18221c"); // Smartphone body
+
+            if (stockroomHelped) {
+              // --- PHONE SCREEN ONLINE / REPURPOSED AS DISPATCH CLOCK & TASK LIGHT ---
+              rect(118, 55, 6, 11, "#163824");
+              rect(119, 57, 4, 3, "#4ade80");
+              rect(120, 62, 2, 2, "#86efac");
+
+              // --- COMPACT PARCELS & TIERS ON SHELVES (กล่องพัสดุจัดเรียงเป็นชั้นๆ) ---
+              // Tier 1 (Level 1 Shelf, y = 50..64)
+              rect(30, 50, 14, 14, "#a88556");
+              rect(36, 50, 2, 14, "#7a5c34");
+              rect(46, 50, 14, 14, "#b59263");
+              rect(52, 50, 2, 14, "#7a5c34");
+              rect(62, 52, 12, 12, "#a88556");
+              rect(67, 52, 2, 12, "#7a5c34");
+
+              // Tier 2 (Level 2 Shelf, y = 70..86)
+              rect(28, 70, 18, 16, "#9e794b");
+              rect(36, 70, 2, 16, "#6b4f2c");
+              rect(48, 72, 16, 14, "#b59263");
+              rect(55, 72, 2, 14, "#7a5c34");
+              rect(66, 70, 18, 16, "#9e794b");
+              rect(74, 70, 2, 16, "#6b4f2c");
+
+              // Tier 3 on wooden dispatch pallet (y = 96..120)
+              rect(24, 116, 72, 4, "#695034"); // Wooden pallet
+              rect(26, 96, 20, 20, "#9c7646");
+              rect(35, 96, 2, 20, "#664b28");
+              rect(48, 96, 20, 20, "#aa8452");
+              rect(57, 96, 2, 20, "#664b28");
+              rect(70, 96, 22, 20, "#9c7646");
+              rect(80, 96, 2, 20, "#664b28");
+
+              // --- CLEAR WRITTEN DESTINATION LABELS ON BOXES (ป้ายเขียนชื่อจุดรับคน) ---
+              // Shelter destination tag (Blue)
+              rect(32, 54, 10, 6, "#fdfcf7");
+              rect(34, 56, 6, 2, "#3b82f6");
+              // Pier destination tag (Green)
+              rect(48, 54, 10, 6, "#fdfcf7");
+              rect(50, 56, 6, 2, "#10b981");
+              // Clinic destination tag (Red)
+              rect(30, 76, 12, 6, "#fdfcf7");
+              rect(32, 78, 8, 1, "#e11d48");
+              rect(32, 80, 6, 1, "#1e293b");
+              // Large pallet delivery tags
+              rect(28, 102, 14, 8, "#fdfcf7");
+              rect(30, 104, 10, 2, "#d97706");
+              rect(30, 107, 8, 1, "#1e293b");
+              rect(50, 102, 14, 8, "#fdfcf7");
+              rect(52, 104, 10, 2, "#10b981");
+              rect(52, 107, 8, 1, "#1e293b");
+              rect(72, 102, 14, 8, "#fdfcf7");
+              rect(74, 104, 10, 2, "#3b82f6");
+              rect(74, 107, 8, 1, "#1e293b");
+
+              // --- ESSENTIAL SUPPLY BUNDLES TIED NEATLY (กองของจำเป็นแบ่งเป็นมัดเรียบร้อยหยิบง่าย) ---
+              // Folded clothes bundle 1 (Accent pink cloth with binding twine)
+              rect(94, 102, 16, 8, accent);
+              rect(101, 102, 2, 8, "#fef08a");
+              rect(94, 105, 16, 2, "#fef08a");
+              // Folded blanket bundle 2 (Sage green blanket with binding twine)
+              rect(96, 94, 13, 8, "#7da896");
+              rect(102, 94, 2, 8, "#fef08a");
+              rect(96, 97, 13, 2, "#fef08a");
+              // One-handed carry handle loop
+              rect(100, 91, 5, 3, "#fef08a");
+
+              // Packing station table with tape dispenser & marker
+              rect(132, 94, 38, 6, "#544330");
+              rect(134, 100, 4, 18, "#32271a");
+              rect(164, 100, 4, 18, "#32271a");
+              rect(134, 89, 7, 5, "#dc2626"); // Red tape dispenser gun
+              rect(136, 87, 4, 4, "#fef08a");
+              rect(143, 92, 5, 2, "#1e293b"); // Marker pen
+            } else {
+              // --- UNHELPED: PHONE NO SIGNAL, TUMBLED BOXES, SCATTERED CLOTHING ---
+              // Phone dead red screen with no-signal alert
+              rect(118, 55, 6, 11, "#2e1c1c");
+              rect(119, 58, 4, 2, "#ef4444"); // Red flashing cross
+              rect(120, 61, 2, 3, "#ef4444");
+              rect(122, 56, 2, 2, "#b91c1c");
+
+              // Shelves in disorder
+              rect(60, 56, 16, 8, "#8f7048");
+              rect(74, 60, 5, 8, "#6d5231");
+              rect(30, 78, 18, 8, "#8f7048");
+              rect(32, 76, 14, 2, "#5e4428");
+              rect(44, 80, 14, 8, accent); // Pink dress spilling over edge
+              rect(52, 84, 8, 6, "#58788a");
+
+              // Floor chaos: tumbled overturned boxes & scattered clothes
+              rect(42, 102, 22, 14, "#8a6a42");
+              rect(40, 98, 10, 4, "#5b4326");
+              rect(60, 100, 6, 4, "#5b4326");
+              rect(66, 106, 26, 12, accent); // Garment pile
+              rect(72, 103, 14, 6, "#e8b8cb");
+              rect(80, 108, 18, 10, "#4a6c78");
+              rect(32, 110, 16, 8, "#b39b56");
+              rect(54, 116, 14, 2, "#cfbc88"); // Peeling tape
+              rect(64, 114, 2, 4, "#cfbc88");
+            }
+
+            // NPC Live-seller Vendor respecting livingCount
+            if ((options.livingCount ?? 1) > 0) {
+              if (stockroomHelped) {
+                // Live-seller vendor actively packing boxes and organizing bundles
+                rect(151, 74, 10, 5, "#261a16"); // Hair
+                rect(154, 70, 5, 5, "#261a16"); // Top bun
+                rect(153, 72, 3, 2, accent);   // Hair clip
+                rect(152, 79, 8, 7, "#e0ab7d"); // Face
+                rect(153, 81, 2, 2, "#261a16");
+                rect(155, 84, 3, 1, "#b55a6d");
+                rect(150, 86, 12, 14, "#8a4f6e"); // Market vendor apron
+                rect(152, 92, 8, 6, "#693751");  // Apron pocket
+                rect(157, 90, 2, 3, "#38bdf8");  // Marker in pocket
+                rect(146, 87, 5, 4, "#e0ab7d"); // Left arm packing
+                rect(144, 91, 4, 4, "#e0ab7d");
+                rect(161, 87, 4, 4, "#e0ab7d"); // Right arm holding tape
+                rect(159, 91, 4, 3, "#e0ab7d");
+                rect(144, 93, 14, 10, "#bfa073"); // Parcel being packed
+                rect(144, 97, 14, 2, "#cfb884");  // Sealing tape
+                rect(151, 100, 10, 14, "#2b3842"); // Trousers
+                rect(150, 114, 5, 4, "#1d2328"); // Shoes
+                rect(156, 114, 5, 4, "#1d2328");
+              } else {
+                // Anxious vendor sitting exhausted amid the fallen boxes
+                rect(150, 88, 8, 7, "#d49f6a");
+                rect(149, 86, 10, 4, "#261a16");
+                rect(148, 95, 12, 11, "#663b53");
+                rect(148, 106, 11, 8, "#2b3842");
+              }
+            }
           } else if (state.place.startsWith("bkk_")) {
             const colors = {bkk_winstop:'#d79557',bkk_market:'#bf7772',bkk_ward:'#89b5be',bkk_power:'#d0b85d',bkk_depot:'#a3b968',bkk_cafe:'#aa8b73',bkk_office:'#9b89b3',bkk_pier:'#829da5',bkk_stockroom:'#ba8aa2',bkk_busyard:'#7d9fba'};
             const accent = colors[state.place];

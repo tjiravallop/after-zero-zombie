@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "public/after-zero-bundle.js": {
-    "mtime": 1794063826.7432516,
-    "seen": 1794063898.1126025,
-    "ast_hash": "9cc4aec806a1c0605b54a577b84259ab",
+    "mtime": 1794069340.5720649,
+    "seen": 1794069523.095933,
+    "ast_hash": "8ed51a394368b27933ed6ab70a28fbc3",
     "semantic_hash": ""
   },
   "scripts/build-export-bundles.mjs": {
@@ -324,15 +324,15 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1794063889.9297564,
-    "seen": 1794063898.1478562,
-    "ast_hash": "b36def3ee85810f5cfb03560cc8b8602",
+    "mtime": 1794069446.32192,
+    "seen": 1794069523.1274168,
+    "ast_hash": "4a0ed514055fd84010a49531d4777335",
     "semantic_hash": ""
   },
   "public/after-zero-bangkok-standalone.html": {
-    "mtime": 1794064816.6776845,
-    "seen": 1794065390.93143,
-    "ast_hash": "7c9f53b9ef05aace8a4dada7a618cd44",
+    "mtime": 1794069463.7380629,
+    "seen": 1794069523.1274168,
+    "ast_hash": "dc042322b706759fafdf34bc0cb73daa",
     "semantic_hash": ""
   },
   "src/data/zoneResidents.ts": {
