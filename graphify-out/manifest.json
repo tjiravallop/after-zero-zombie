@@ -24,8 +24,8 @@
     "semantic_hash": ""
   },
   "public/after-zero-bundle.js": {
-    "mtime": 1794069340.5720649,
-    "seen": 1794069523.095933,
+    "mtime": 1794152644.9151635,
+    "seen": 1794153132.4178224,
     "ast_hash": "8ed51a394368b27933ed6ab70a28fbc3",
     "semantic_hash": ""
   },
@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1794063927.6581545,
-    "seen": 1794063954.977416,
-    "ast_hash": "52ede1bcad9cbf4ba88330895f948bd8",
+    "mtime": 1794159590.1598725,
+    "seen": 1794159675.2350593,
+    "ast_hash": "70ad48470477d5b0894654580dca802c",
     "semantic_hash": ""
   },
   "src/components/EndingExperience.tsx": {
@@ -126,9 +126,9 @@
     "semantic_hash": ""
   },
   "src/components/PixelCityMap.tsx": {
-    "mtime": 1793981439.0617166,
-    "seen": 1793988434.9770455,
-    "ast_hash": "26d8addb90a2106ddb341f27ced35436",
+    "mtime": 1794152662.2164435,
+    "seen": 1794153132.4255059,
+    "ast_hash": "484feee409b066214fbd1003f14808d6",
     "semantic_hash": ""
   },
   "src/components/StoryFeed.tsx": {
@@ -324,15 +324,15 @@
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1794069446.32192,
-    "seen": 1794069523.1274168,
+    "mtime": 1794069708.304366,
+    "seen": 1794153132.4407856,
     "ast_hash": "4a0ed514055fd84010a49531d4777335",
     "semantic_hash": ""
   },
   "public/after-zero-bangkok-standalone.html": {
-    "mtime": 1794069463.7380629,
-    "seen": 1794069523.1274168,
-    "ast_hash": "dc042322b706759fafdf34bc0cb73daa",
+    "mtime": 1794159497.7464685,
+    "seen": 1794159675.2486296,
+    "ast_hash": "e16a6daa62a0c76991dfb9aee30d72f2",
     "semantic_hash": ""
   },
   "src/data/zoneResidents.ts": {
@@ -462,9 +462,51 @@
     "semantic_hash": ""
   },
   "src/assets/title-bangkok.png": {
-    "mtime": 1794060675.237217,
-    "seen": 1794060924.5709255,
+    "mtime": 1794069708.4224415,
+    "seen": 1794153132.4407856,
     "ast_hash": "55b89a50b875324a26009833f4acfb41",
+    "semantic_hash": ""
+  },
+  "scripts/capture-map-dialog-after.mjs": {
+    "mtime": 1794152765.4196022,
+    "seen": 1794153132.4178224,
+    "ast_hash": "4d5e264b07ec662f884bd826d4af8e18",
+    "semantic_hash": ""
+  },
+  "scripts/capture-map-dialog-baseline.mjs": {
+    "mtime": 1794151794.2153945,
+    "seen": 1794153132.4178224,
+    "ast_hash": "6d74bec3ce1d47a2f77e50528db2bf4b",
+    "semantic_hash": ""
+  },
+  "scripts/generate-people-roster-mockups.mjs": {
+    "mtime": 1794152125.3618283,
+    "seen": 1794153132.4178224,
+    "ast_hash": "df301f40d3128555fd2d0121ef32253b",
+    "semantic_hash": ""
+  },
+  "scripts/update-pixel-map-dialog.mjs": {
+    "mtime": 1794152651.8767555,
+    "seen": 1794153132.424698,
+    "ast_hash": "766804b4a228c22042698911256496ff",
+    "semantic_hash": ""
+  },
+  "scripts/verify-people-tab-redesign.mjs": {
+    "mtime": 1794155081.9179432,
+    "seen": 1794155142.8347337,
+    "ast_hash": "00c96440945905e56f757e0d3db32ddc",
+    "semantic_hash": ""
+  },
+  "scripts/generate-comparison-overview.mjs": {
+    "mtime": 1794153135.8523164,
+    "seen": 1794155029.7840714,
+    "ast_hash": "f9b3f7a8b7f9a04f09b82af4e6a4274e",
+    "semantic_hash": ""
+  },
+  "scripts/verify-journal-redesign.mjs": {
+    "mtime": 1794153419.1433108,
+    "seen": 1794155029.7897484,
+    "ast_hash": "c2ac304684b0d07712dc03cc53be5a78",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

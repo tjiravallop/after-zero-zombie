@@ -629,6 +629,9 @@ export default function App() {
 
   const [importJsonText, setImportJsonText] = useState<string>('');
   const [showImportBox, setShowImportBox] = useState<boolean>(false);
+  const [journalSubTab, setJournalSubTab] = useState<'story' | 'clues' | 'save'>('story');
+  const [saveStatusFeedback, setSaveStatusFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [selectedStoryDay, setSelectedStoryDay] = useState<number | 'all'>('all');
 
   // Initialize or restore game state
   const restoredRunRef = useRef(false);
@@ -1207,6 +1210,7 @@ export default function App() {
       name: string;
       count: number;
       unit: string;
+      tag?: string;
       desc: string;
       accent: string;
       iconPath: string;
@@ -1219,6 +1223,7 @@ export default function App() {
         name: currentBio.signatureItemName,
         count: 1,
         unit: 'ของติดตัวก่อนตาย',
+        tag: 'ของติดตัวก่อนตาย',
         desc: currentBio.signatureItemDesc,
         accent: 'text-lime-300 border-lime-400/50 bg-lime-950/20',
       },
@@ -1236,6 +1241,7 @@ export default function App() {
         name: 'เสบียงมนุษย์ (อาหารกระป๋อง)',
         count: supplies,
         unit: 'ชิ้น',
+        tag: 'เสบียงแบ่งคนเป็น',
         desc: 'ซอมบี้กินอาหารคนเป็นแล้วไม่อิ่ม ใช้สำหรับแบ่งให้ผู้รอดชีวิตเพื่อเพิ่มความไว้ใจรายบุคคล',
         accent: 'text-amber-300 border-amber-500/40',
       });
@@ -1247,6 +1253,7 @@ export default function App() {
         name: 'ชุดเย็บแผลและเวชภัณฑ์',
         count: medicine,
         unit: 'ชุด',
+        tag: 'เวชภัณฑ์เนื้อเยื่อ',
         desc: 'ใช้ปะติดปะต่อเนื้อเยื่อของร่าง (+40 สภาพร่าง) หรือมอบให้คนเจ็บในพื้นที่',
         accent: 'text-emerald-300 border-emerald-500/40',
       });
@@ -1258,6 +1265,7 @@ export default function App() {
         name: 'หลอดตัวอย่างเชื้อเรืองแสง',
         count: samples,
         unit: 'หลอด',
+        tag: 'สารกระตุ้นวิจัย',
         desc: 'ตัวอย่างเชื้อความเข้มข้นสูง ใช้สำหรับวิจัยเซรุ่มหรือกระตุ้นการวิวัฒน์สายพันธุ์',
         accent: 'text-teal-300 border-teal-500/40',
       });
@@ -1269,6 +1277,7 @@ export default function App() {
         name: 'ถุงเลือดพกพา',
         count: carriedBlood,
         unit: 'ถุง',
+        tag: 'ดื่มได้ทันที',
         desc: 'ถุงเลือดสำรองที่พกติดตัวไว้ในกระเป๋า สามารถฉีกดื่มประทังความหิวได้ทันที (-28 ความหิว)',
         accent: 'text-rose-300 border-rose-500/50',
         canUseDirectly: true,
@@ -1277,6 +1286,25 @@ export default function App() {
     }
     return items;
   }, [gameState, currentBio]);
+
+  // Selected item state in Bag inspection panel
+  const [selectedBagItemId, setSelectedBagItemId] = useState<string | null>(null);
+
+  const activeSelectedBagItem = useMemo(() => {
+    if (!carriedInventoryItems.length) return null;
+    return carriedInventoryItems.find(it => it.id === selectedBagItemId) || carriedInventoryItems[0];
+  }, [carriedInventoryItems, selectedBagItemId]);
+
+  // Unlocked Mutation Stages up to current reached stage
+  const unlockedMutationStages = useMemo(() => {
+    const currentStageNum = currentMutationStage.stageNumber;
+    const stageThresholds = [0, 30, 60, 85];
+    const stages = [];
+    for (let i = 0; i < currentStageNum; i++) {
+      stages.push(getMutationStageInfo(stageThresholds[i]));
+    }
+    return stages;
+  }, [currentMutationStage.stageNumber]);
 
   // Step 1 -> Step 2: Login Submit
   const handleLoginSubmit = (e?: React.FormEvent, intent: 'hub' | 'continue' | 'new' = 'hub') => {
@@ -2089,7 +2117,9 @@ export default function App() {
     a.download = `after-zero-1.0-save-day${gameState?.day || 1}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setActionToast('ส่งออกไฟล์เซฟ (.json) เรียบร้อยแล้ว');
+    const exportMsg = 'ส่งออกไฟล์เซฟ (.json) เรียบร้อยแล้ว';
+    setActionToast(exportMsg);
+    setSaveStatusFeedback({ type: 'success', message: exportMsg });
   };
 
   const handleDownloadGameAsset = async (
@@ -2126,10 +2156,20 @@ export default function App() {
   };
 
   const handleImportSaveJson = () => {
-    if (!importJsonText.trim() || !production) return;
+    if (!importJsonText.trim()) {
+      if (soundEnabled) soundFx.warning();
+      const emptyMsg = 'กรุณาวางโค้ด JSON จากไฟล์เซฟก่อนกดยืนยัน';
+      setActionToast(emptyMsg);
+      setSaveStatusFeedback({ type: 'error', message: emptyMsg });
+      return;
+    }
+    if (!production) return;
     try {
       const parsed = JSON.parse(importJsonText.trim());
       const rawState = parsed.gameState || parsed;
+      if (!rawState || typeof rawState !== 'object') {
+        throw new Error('โครงสร้างไฟล์เซฟไม่ถูกต้อง (ไม่พบข้อมูลสถานะเกม)');
+      }
       if (rawState && typeof rawState === 'object') {
         rawState.memory = normalizeCanonicalMemory(rawState.memory);
         if (rawState.story?.flags && production.catalog?.FLAGS) {
@@ -2162,10 +2202,14 @@ export default function App() {
       setScreenStage('playing');
       setLatestStory(null);
       setTravelGoalId(null);
-      setActionToast('นำเข้าเซฟสำเร็จ! เล่นต่อจากจุดเดิมได้ทันที');
+      const successMsg = 'นำเข้าเซฟสำเร็จ! เล่นต่อจากจุดเดิมได้ทันที';
+      setActionToast(successMsg);
+      setSaveStatusFeedback({ type: 'success', message: successMsg });
     } catch (err: any) {
       if (soundEnabled) soundFx.warning();
-      setActionToast(`ไฟล์เซฟไม่ถูกต้อง: ${err?.message || 'ไม่สามารถอ่าน JSON ได้'}`);
+      const errMsg = `ไฟล์เซฟไม่ถูกต้อง: ${err?.message || 'ไม่สามารถอ่าน JSON ได้'}`;
+      setActionToast(errMsg);
+      setSaveStatusFeedback({ type: 'error', message: errMsg });
     }
   };
 
@@ -2215,10 +2259,29 @@ export default function App() {
   const currentActiveLifeSimModal=rawActiveLifeSimModal&&gameState?prepareNpcModal(rawActiveLifeSimModal,gameState,(canonicalRawModalPlaceId?syncedZonePopulations[canonicalRawModalPlaceId]:undefined)||syncedZonePopulations[rawActiveLifeSimModal.placeId]):null;
 
   const openStoryHistory = () => {
+    setJournalSubTab('story');
+    setSelectedStoryDay('all');
     setMobileTab('journal');
     setDesktopSideTab('journal');
     requestAnimationFrame(() => document.getElementById('life-story-history')?.scrollIntoView({ block: 'start' }));
   };
+
+  const availableStoryDays = useMemo(() => {
+    const days = new Set<number>();
+    (gameState?.log || []).forEach((entry: any) => {
+      const d = typeof entry === 'string' ? 1 : entry?.day || 1;
+      days.add(d);
+    });
+    return Array.from(days).sort((a, b) => b - a);
+  }, [gameState?.log]);
+
+  const displayedJournalLog = useMemo(() => {
+    if (selectedStoryDay === 'all' || !availableStoryDays.includes(selectedStoryDay)) return gameState?.log || [];
+    return (gameState?.log || []).filter((entry: any) => {
+      const d = typeof entry === 'string' ? 1 : entry?.day || 1;
+      return d === selectedStoryDay;
+    });
+  }, [gameState?.log, selectedStoryDay, availableStoryDays]);
   const formatStoryEffect = (effect: string) => {
     if (showNumericSpoilers) return effect;
     const trust = effect.match(/^ความไว้ใจของ(.+?) ([+-])\d+$/);
@@ -3333,153 +3396,227 @@ export default function App() {
 
               {/* PANEL 2: BAG (CARRIED ITEMS ONLY + SIGNATURE ITEM) & BODY / MUTATION STAGE STATS */}
               {(mobileTab === 'bag' || (mobileTab === 'play' && desktopSideTab === 'bag')) && (
-                <div className="p-3 sm:p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-6">
+                <div className="bag-body-panel">
                   {/* SECTION A: CARRIED INVENTORY ONLY */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <div className="bag-section">
+                    <div className="bag-section-header">
+                      <h3 className="bag-section-title">
                         <Package className="w-4 h-4 text-lime-300" />
-                        <span>กระเป๋า</span>
+                        <span>กระเป๋าสะพายหลัง</span>
                       </h3>
-                      <span className="text-xs font-mono text-slate-400">
+                      <span className="bag-badge-counter">
                         {carriedInventoryItems.length} รายการ
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2" aria-label="ไอเทมในกระเป๋า">
-                      {carriedInventoryItems.map(item => (
-                        <div
-                          key={item.id}
-                          className={`min-w-0 p-2.5 rounded-xl bg-slate-950 border ${item.accent} flex flex-col gap-1.5 last:odd:col-span-2`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <svg viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true" className="size-8 shrink-0">
-                              <path d={item.iconPath} fill="currentColor" fillRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-mono font-bold" aria-label={`${item.count} ${item.unit}`}>×{item.count}</span>
-                          </div>
-                          <span className="break-words text-xs font-bold text-slate-100">{item.name}</span>
-                          <p className="text-xs text-slate-400 leading-relaxed">
-                            {item.desc}
-                          </p>
-                          {item.canUseDirectly && !gameState.ending && (
-                            <button
-                              type="button"
-                              onClick={handleDrinkCarriedBloodBag}
-                              className="mt-auto min-h-11 px-1.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/50 text-xs font-bold text-rose-200 flex items-center justify-center gap-1.5 transition-colors"
-                            >
-                              <Droplets className="w-3.5 h-3.5 text-rose-400 shrink-0" aria-hidden="true" />
-                              {item.useLabel}
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                    <div className="bag-grid" aria-label="ไอเทมในกระเป๋า">
+                      {carriedInventoryItems.map(item => {
+                        const isSelected = activeSelectedBagItem?.id === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelectedBagItemId(item.id)}
+                            className={`bag-slot ${isSelected ? 'is-selected' : ''}`}
+                            aria-pressed={isSelected}
+                          >
+                            <span className="bag-slot-count" aria-label={`${item.count} ${item.unit}`}>×{item.count}</span>
+                            <div className="bag-slot-icon-box" style={{ color: item.id === 'carriedBloodBags' ? '#f43f5e' : item.id === 'medicine' ? '#34d399' : item.id === 'supplies' ? '#fbbf24' : item.id === 'samples' ? '#2dd4bf' : '#bfd773' }}>
+                              <svg viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
+                                <path d={item.iconPath} fill="currentColor" fillRule="evenodd" />
+                              </svg>
+                            </div>
+                            <span className="bag-slot-name">{item.name}</span>
+                            <span className="bag-slot-tag">{item.tag || item.unit}</span>
+                          </button>
+                        );
+                      })}
                     </div>
+
+                    {/* Inspection Drawer below Grid */}
+                    {activeSelectedBagItem && (
+                      <div className="bag-inspection-drawer" aria-live="polite">
+                        <div className="bag-inspection-header">
+                          <div className="bag-inspection-title">
+                            <span>▶ {activeSelectedBagItem.name}</span>
+                          </div>
+                          <span className="bag-inspection-unit">
+                            {activeSelectedBagItem.count} {activeSelectedBagItem.unit}
+                          </span>
+                        </div>
+                        <p className="bag-inspection-desc">
+                          {activeSelectedBagItem.desc}
+                        </p>
+                        {activeSelectedBagItem.canUseDirectly && !gameState.ending && (
+                          <button
+                            type="button"
+                            onClick={handleDrinkCarriedBloodBag}
+                            className="bag-use-btn"
+                          >
+                            <Droplets className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+                            <span>{activeSelectedBagItem.useLabel}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* SECTION B: ZOMBIE PHYSIOLOGY, MUTATION STAGE & KILL COUNT */}
-                  <div className="space-y-3 pt-4 border-t border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  <div className="body-section-divider pt-2">
+                    <div className="bag-section-header">
+                      <h3 className="bag-section-title">
                         <Dna className="w-4 h-4 text-purple-300" />
-                        <span>สภาพร่าง ระยะการกลายพันธุ์ & ประวัติการล่า</span>
+                        <span>สภาพร่างกาย & การวิวัฒน์</span>
                       </h3>
-                      <span className="text-xs font-mono font-bold text-rose-300">
+                      <span className="bag-badge-counter text-rose-300 border-rose-900/60 bg-rose-950/40">
                         ฆ่าคน: {currentKillCount} ศพ
                       </span>
                     </div>
 
-                    {/* System 1: Active Mutation Stage Card + Visual Anatomy Portrait */}
-                    <div className={`p-3.5 rounded-xl border space-y-3 ${currentMutationStage.accentColor}`}>
-                      <div className="flex items-start gap-3.5">
-                        <div className="w-24 shrink-0 rounded-xl border border-slate-800 bg-slate-950/90 p-1.5 sm:w-28">
-                          <ZombiePortrait
-                            bio={currentBio}
-                            mutation={Math.floor(gameState.stats?.mutation || 0)}
-                          />
+                    {/* Hero Pixel Portrait & Identity Card */}
+                    <div className="body-hero-card">
+                      <div className="body-portrait-frame">
+                        <ZombiePortrait
+                          bio={currentBio}
+                          mutation={Math.floor(gameState.stats?.mutation || 0)}
+                        />
+                      </div>
+
+                      <div className="body-bio-info">
+                        <div className="body-name">{currentBio.fullNameHint || playerName || 'ผู้บันทึกเขตศูนย์'}</div>
+                        <div className="body-meta">
+                          อายุ {currentBio.age} ปี · เพศ{currentBio.gender} · {currentBio.occupation}
                         </div>
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <h4 className="text-xs font-bold">{currentMutationStage.title}</h4>
-                          <p className="text-xs text-slate-200 leading-relaxed">
-                            <strong>ความสามารถของร่าง:</strong> {currentMutationStage.abilityText}
-                          </p>
-                          <p className="text-xs text-amber-200/90 leading-relaxed">
-                            <strong>อาการข้างเคียง:</strong> {currentMutationStage.sideEffectText}
-                          </p>
+                        <div className="body-tags-row">
+                          <span className="body-tag">
+                            กลายพันธุ์มาแล้ว ~{currentBio.daysInfectedEstimate + (rawViewModel.day - 1)} วัน
+                          </span>
+                          {currentKillCount === 0 ? (
+                            <span className="body-tag text-emerald-300 border-emerald-800">
+                              ไม่เคยฆ่าคนเป็น
+                            </span>
+                          ) : (
+                            <span className="body-tag body-tag-danger">
+                              พรากชีวิตคนเป็น {currentKillCount} คน
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="body-symptom-box">
+                          <strong>อาการปัจจุบัน: </strong>
+                          <span>{currentMutationStage.sideEffectText}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    {/* Vitals Meters */}
+                    <div className="body-vitals-grid mt-3">
                       {[
                         {
-                          label: 'การกลายพันธุ์ (Mutation)',
+                          label: 'การกลายพันธุ์',
                           value: Math.floor(gameState.stats?.mutation || 0),
                           max: 100,
-                          color: 'bg-purple-400',
-                          desc: 'ระดับการเปลี่ยนแปลงของเซลล์และเนื้อเยื่อซอมบี้',
+                          color: '#c084fc',
+                          textClass: 'text-purple-300',
+                          desc: 'การเปลี่ยนแปลงของเซลล์และเนื้อเยื่อ',
                         },
                         {
-                          label: 'ความเป็นมนุษย์ / ความเห็นใจ',
+                          label: 'ความเป็นมนุษย์',
                           value: currentHumanity,
                           max: 100,
-                          color: 'bg-emerald-400',
-                          desc: `ลดลงทุกครั้งที่ฆ่าคน (ปัจจุบันฆ่าไปแล้ว ${currentKillCount} ศพ)`,
+                          color: '#34d399',
+                          textClass: 'text-emerald-300',
+                          desc: `สติและความเห็นใจ (ฆ่าไปแล้ว ${currentKillCount} ศพ)`,
                         },
                         {
-                          label: 'ความเข้าใจเชื้อ / งานวิจัย',
-                          value: Math.floor(gameState.stats?.research || 0),
-                          max: 100,
-                          color: 'bg-teal-400',
-                          desc: 'ความเข้าใจต่อโครงสร้างไวรัสและสูตรเซรุ่ม',
-                        },
-                        {
-                          label: 'อำนาจสั่งการฝูง (Horde)',
+                          label: 'คุมฝูง (Horde)',
                           value: Math.floor(gameState.stats?.horde || 0),
                           max: 100,
-                          color: 'bg-amber-400',
-                          desc: 'คลื่นความถี่และอิทธิพลเหนือผู้ติดเชื้อรอบข้าง',
+                          color: '#fbbf24',
+                          textClass: 'text-amber-300',
+                          desc: 'คลื่นความถี่สั่งการผู้ติดเชื้อรอบข้าง',
+                        },
+                        {
+                          label: 'วิจัยเซรุ่ม',
+                          value: Math.floor(gameState.stats?.research || 0),
+                          max: 100,
+                          color: '#2dd4bf',
+                          textClass: 'text-teal-300',
+                          desc: 'ความเข้าใจโครงสร้างไวรัสและเซรุ่ม',
                         },
                       ].map(st => (
-                        <div
-                          key={st.label}
-                          className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-200">{st.label}</span>
-                            <span className="font-mono font-bold text-lime-300">
+                        <div key={st.label} className="body-vital-card">
+                          <div className="body-vital-header">
+                            <span className={st.textClass}>{st.label}</span>
+                            <span className="font-mono text-lime-300 font-bold">
                               {st.value}/{st.max}
                             </span>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                          <div className="body-vital-bar">
                             <div
-                              className={`h-full ${st.color}`}
-                              style={{ width: `${Math.min(100, Math.max(0, st.value))}%` }}
+                              className="body-vital-fill"
+                              style={{
+                                width: `${Math.min(100, Math.max(0, st.value))}%`,
+                                backgroundColor: st.color,
+                              }}
                             />
                           </div>
-                          <div className="text-[11px] text-slate-500">{st.desc}</div>
+                          <div className="body-vital-desc">{st.desc}</div>
                         </div>
                       ))}
                     </div>
 
-                    {/* Pre-Death Character Dossier Details */}
-                    <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-mono text-lime-300">
-                        <span>ภูมิหลังของร่างนี้</span>
-                        <span>
-                          กลายพันธุ์มาแล้ว ~{currentBio.daysInfectedEstimate + (rawViewModel.day - 1)} วัน
+                    {/* Mutation Stages (Unlocked Progression Only) */}
+                    <div className="body-mutation-container mt-3">
+                      <div className="text-xs font-bold text-slate-200 flex items-center justify-between">
+                        <span>ลำดับการกลายพันธุ์ที่ปลดล็อกแล้ว ({unlockedMutationStages.length}/4)</span>
+                        <span className="text-[11px] font-mono text-purple-300">
+                          ระดับ {currentMutationStage.stageNumber}
                         </span>
                       </div>
-                      <div className="text-sm font-bold text-slate-100">
-                        อดีตก่อนตาย: อายุ {currentBio.age} ปี · เพศ{currentBio.gender} · {currentBio.occupation}
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {currentBio.preDeathDetail}
-                      </p>
-                      <p className="text-xs text-amber-200/90 leading-relaxed">
-                        {currentBio.autopsyObservation}
-                      </p>
+                      {unlockedMutationStages.map(st => {
+                        const isCurrent = st.stageNumber === currentMutationStage.stageNumber;
+                        return (
+                          <div
+                            key={st.stageNumber}
+                            className={`body-mutation-card ${isCurrent ? 'is-active-stage' : ''}`}
+                          >
+                            <div className="body-mutation-title">
+                              <span className={isCurrent ? 'text-sky-300 font-bold' : 'text-slate-300'}>
+                                {st.title}
+                              </span>
+                              <span className="body-mutation-badge">
+                                {isCurrent ? 'ระยะปัจจุบัน' : 'ผ่านพ้นแล้ว'}
+                              </span>
+                            </div>
+                            <div className="body-mutation-ability">
+                              <strong>ความสามารถของร่าง:</strong> {st.abilityText}
+                            </div>
+                            <div className="body-mutation-sideeffect">
+                              <strong>อาการข้างเคียง:</strong> {st.sideEffectText}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Expandable Pre-Death Dossier */}
+                    <details className="body-bio-disclosure mt-3">
+                      <summary className="body-bio-summary">
+                        <span>📜 ประวัติก่อนตาย & บันทึกการชันสูตร</span>
+                        <span className="text-[11px] font-mono opacity-80">[เปิดอ่านเพิ่ม]</span>
+                      </summary>
+                      <div className="body-bio-content">
+                        <div className="body-bio-entry">
+                          <strong className="text-lime-300">ภูมิหลังก่อนเสียชีวิต:</strong>
+                          <p className="text-slate-200">{currentBio.preDeathDetail}</p>
+                        </div>
+                        <div className="body-bio-entry">
+                          <strong className="text-amber-300">ข้อสังเกตการชันสูตรร่าง:</strong>
+                          <p className="text-amber-100/90">{currentBio.autopsyObservation}</p>
+                        </div>
+                      </div>
+                    </details>
                   </div>
 
                   {/* SECTION C: MID-GAME HORIZON CLUES */}
@@ -3514,599 +3651,1027 @@ export default function App() {
                 </div>
               )}
 
-              {/* PANEL 3: PER-NPC TRUST, LIVING NPC CRISES & ZONE POPULATION BREAKDOWN */}
+              {/* PANEL 3: TACTICAL SURVIVOR ROSTER (แท็บผู้คน - แฟ้มข้อมูลผู้รอดชีวิตภาคสนาม) */}
               {(mobileTab === 'people' ||
                 (mobileTab === 'play' && desktopSideTab === 'people')) && (
-                <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-5">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                        <Users className="w-4 h-4 text-lime-300" />
-                        <span>ผู้คนใน{rawViewModel.place?.name}</span>
-                      </h3>
-                      <span className="text-xs font-mono text-emerald-300 font-bold">
-                        รู้จัก {knownNpcCount} คน
-                      </span>
-                    </div>
-
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/95 border border-slate-800 space-y-4">
+                  {/* HEADER (Contains 'ผู้คนใน' for test suite compatibility) */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-lime-300 shrink-0" />
+                      <span>ผู้คนใน{rawViewModel.place?.name}</span>
+                    </h3>
+                    <span className="text-xs font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-md font-bold">
+                      รู้จัก {knownNpcCount} คน
+                    </span>
                   </div>
 
-                  {discoveredNpcs.length === 0 && <p className="text-sm text-slate-300">เจ้ายังไม่รู้จักใครในย่านนี้</p>}
+                  {/* Empty state when no NPCs are discovered yet in this district */}
+                  {discoveredNpcs.length === 0 && (
+                    <div className="p-4 rounded-xl border border-slate-800/80 bg-slate-950/60 text-center space-y-1">
+                      <p className="text-sm font-bold text-slate-200">เจ้ายังไม่รู้จักใครในย่านนี้</p>
+                      <p className="text-xs text-slate-400">บริเวณรอบตัวเงียบสงบ ยังไม่มีใครสบตาหรือทักทายเจ้าโดยตรง</p>
+                    </div>
+                  )}
+
+                  {/* Clue button: Follow leads to discover unmet survivors */}
                   {undiscoveredNpc && !gameState.ending && (
-                    <button type="button" disabled={Boolean(gameState.pending)}
-                      onClick={() => handleOpenFreeformNpcModal(activeZoneCrises.find(npc => !npc.met && !npc.seen)?.id ?? undiscoveredNpc.id)}
-                      className="story-action disabled:opacity-50">
-                      <span className="story-action-title">{activeZoneCrises.some(npc => !npc.met && !npc.seen) ? 'ตามเบาะแสคนที่ต้องการความช่วยเหลือ' : 'ออกไปพบผู้คนในย่าน'}</span>
+                    <button
+                      type="button"
+                      disabled={Boolean(gameState.pending)}
+                      onClick={() =>
+                        handleOpenFreeformNpcModal(
+                          activeZoneCrises.find(npc => !npc.met && !npc.seen)?.id ?? undiscoveredNpc.id
+                        )
+                      }
+                      className="story-action disabled:opacity-50 border-lime-800/40 hover:border-lime-500/50 bg-slate-950"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="story-action-title flex items-center gap-2 text-lime-300 text-xs sm:text-sm font-bold">
+                          <span>🔍</span>
+                          <span>
+                            {activeZoneCrises.some(npc => !npc.met && !npc.seen)
+                              ? 'ตามเบาะแสคนที่ต้องการความช่วยเหลือ'
+                              : 'ออกไปพบผู้คนในย่าน'}
+                          </span>
+                        </span>
+                        <span className="text-[11px] text-lime-400 font-mono shrink-0">1 วัน</span>
+                      </div>
                     </button>
                   )}
 
-                  {/* Collapsible Compact Scrollable Vertical List for Active Crises in Current Zone */}
-                  {activeZoneCrises.some(npc => npc.met) && (
-                    <div className="rounded-xl bg-slate-950 border border-amber-500/40 overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setIsPeopleCrisisSectionExpanded(prev => !prev)}
-                        className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-slate-900/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                          <span className="text-xs font-bold text-amber-200 truncate">
-                            ผู้รอดชีวิตที่กำลังเผชิญวิกฤตในเขตนี้ ({activeZoneCrises.filter(npc => npc.met).length} คน)
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-semibold text-amber-300 flex items-center gap-1 shrink-0">
-                          <span>{isPeopleCrisisSectionExpanded ? 'ย่อเก็บ' : 'ขยายดู'}</span>
-                          {isPeopleCrisisSectionExpanded ? (
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          )}
-                        </span>
-                      </button>
+                  {(() => {
+                    // Deduplicate discovered NPCs by ID so each person appears exactly once
+                    const dedupedDiscovered = discoveredNpcs.filter(
+                      (npc, index, self) => index === self.findIndex(n => n.id === npc.id)
+                    );
 
-                      {isPeopleCrisisSectionExpanded && (
-                        <div className="max-h-40 overflow-y-auto overscroll-contain divide-y divide-slate-800/80 border-t border-slate-800 px-3 py-1">
-                          {activeZoneCrises.filter(npc => npc.met).map(npc => (
-                            <div
-                              key={`crisis-compact-${npc.id}`}
-                              className="py-2 flex items-start justify-between gap-2.5 text-xs"
-                            >
-                              <div className="min-w-0 flex-1 space-y-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-bold text-slate-100">
-                                    {npc.name} (วัย {npc.age} ปี)
-                                  </span>
-                                  <span className="text-slate-500">·</span>
-                                  <span className="font-mono text-[11px] text-emerald-300">
-                                    {relationshipTier(npc.trust).label} · {npc.trust}/100
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-amber-200/90 leading-snug line-clamp-2">
-                                  {npc.crisisText}
-                                </p>
-                              </div>
-                              {!gameState.ending && !gameState.pending && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenFreeformNpcModal(npc.id)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-[11px] shrink-0 transition-colors"
-                                >
-                                  เข้าช่วย
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    const currentDay = gameState.day || 1;
 
-                  {/* List of Individual NPCs in Current Zone (Scrollable on Mobile) */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-300">
-                        คนที่เคยพบ
-                      </span>
-                    </div>
+                    // 1. Priority Crises: Known, alive, unresolved active crisis
+                    const livingCrisisNpcs = dedupedDiscovered.filter(
+                      npc =>
+                        npc.met &&
+                        npc.alive &&
+                        !npc.crisisResolved &&
+                        npc.crisisDay &&
+                        currentDay >= npc.crisisDay
+                    );
+                    const crisisIdSet = new Set(livingCrisisNpcs.map(npc => npc.id));
 
-                    <div className="max-h-[420px] sm:max-h-[540px] overflow-y-auto overscroll-contain pr-1 space-y-2.5">
-                      {discoveredNpcs.map(npc => {
-                        if (!npc.met) return (
-                          <div key={npc.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-                            <p className="text-sm font-bold text-slate-200">ผู้รอดชีวิตที่ยังไม่รู้ชื่อ</p>
-                            {npc.alive && !gameState.ending && !gameState.pending && (
-                              <button type="button" className="mt-2 text-xs font-semibold text-lime-300"
-                                onClick={() => handleOpenFreeformNpcModal(npc.id)}>กลับไปทัก</button>
-                            )}
-                          </div>
-                        );
-                        const hasCrisis = Boolean(
-                          npc.alive &&
-                            !npc.crisisResolved &&
-                            npc.crisisDay &&
-                            (gameState.day || 1) >= npc.crisisDay
-                        );
-                        const isCardCrisisOpen = Boolean(expandedNpcCardCrisisIds[npc.id]);
+                    // 2. Regular Living Roster: Living met or seen survivors, excluding active crisis NPCs already pinned at top
+                    const livingRosterNpcs = dedupedDiscovered.filter(
+                      npc => npc.alive && !crisisIdSet.has(npc.id)
+                    );
+
+                    // 3. Deceased Roster: Fallen survivors preserved in bottom memorial archive
+                    const deceasedNpcs = dedupedDiscovered.filter(npc => !npc.alive);
+
+                    // Pixel role archetype icon helper
+                    const renderPixelRoleBadge = (role?: string) => {
+                      const r = role || '';
+                      if (/ไฟ|ช่าง|เครื่อง|ซ่อม/.test(r)) {
                         return (
-                          <div
-                            key={npc.id}
-                            className={`p-3 rounded-xl border space-y-2 ${
-                              !npc.alive
-                                ? 'bg-rose-950/20 border-rose-900/50 opacity-60'
-                                : hasCrisis
-                                ? 'bg-amber-950/25 border-amber-400/60'
-                                : npc.trust >= 50
-                                ? 'bg-emerald-950/25 border-emerald-500/40'
-                                : 'bg-slate-950 border-slate-800'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="flex items-center flex-wrap gap-1.5">
-                                  <span className="text-sm font-bold text-slate-100">
-                                    {npc.name} (วัย {npc.age} ปี)
-                                  </span>
-                                  {npc.isStoryNpc && (
-                                    <span className="text-[11px] font-mono text-lime-300">
-                                      · ตัวละครหลัก
-                                    </span>
-                                  )}
-                                  {hasCrisis && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setExpandedNpcCardCrisisIds(prev => ({
-                                          ...prev,
-                                          [npc.id]: !prev[npc.id],
-                                        }))
-                                      }
-                                      className="text-[11px] font-mono text-amber-300 hover:text-amber-200 underline underline-offset-2 flex items-center gap-0.5"
-                                    >
-                                      <span>· วิกฤตด่วน ({isCardCrisisOpen ? 'ซ่อน' : 'ดูอาการ'})</span>
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="text-xs text-slate-400 truncate">
-                                  {npc.role} · {npc.trait}
-                                </div>
-                              </div>
+                          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M14 9V7h-2.1a4.9 4.9 0 00-.7-1.7l1.5-1.5-1.4-1.4-1.5 1.5a4.9 4.9 0 00-1.7-.7V1H7v2.1a4.9 4.9 0 00-1.7.7L3.8 2.3 2.4 3.7l1.5 1.5a4.9 4.9 0 00-.7 1.7H1v2h2.1c.2.6.4 1.2.7 1.7l-1.5 1.5 1.4 1.4 1.5-1.5c.5.3 1.1.5 1.7.7V15h2v-2.1c.6-.2 1.2-.4 1.7-.7l1.5 1.5 1.4-1.4-1.5-1.5c.3-.5.5-1.1.7-1.7H14zM8 10a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        );
+                      }
+                      if (/วิทยุ|สื่อสาร|เสา|คลื่น/.test(r)) {
+                        return (
+                          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M12 2H4a2 2 0 00-2 2v9a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2zM5 4h6v2H5V4zm3 9a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+                          </svg>
+                        );
+                      }
+                      if (/เฝ้า|รปภ|วิน|อาวุธ|การ์ด|ทหาร|ป้องกัน/.test(r)) {
+                        return (
+                          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M8 1L2 3v5c0 4 6 7 6 7s6-3 6-7V3L8 1zm0 2.2l4 1.3v3.5c0 2.7-3.4 5.1-4 5.6-.6-.5-4-2.9-4-5.6V4.5l4-1.3z" />
+                          </svg>
+                        );
+                      }
+                      if (/เสบียง|ตลาด|ข้าว|กาแฟ|คลัง|แพ็ก|พัสดุ|อาหาร|น้ำ|ยา|พยาบาล/.test(r)) {
+                        return (
+                          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <path d="M2 3h12v2H2V3zm1 3h10v8H3V6zm2 2v4h6V8H5z" />
+                          </svg>
+                        );
+                      }
+                      return (
+                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                          <path d="M8 8a3 3 0 100-6 3 3 0 000 6zm0 2c-4 0-6 2-6 4v1h12v-1c0-2-2-4-6-4z" />
+                        </svg>
+                      );
+                    };
 
-                              <div className="text-right shrink-0">
-                                {!npc.alive ? (
-                                  <span className="text-xs font-mono text-rose-400 font-bold">
-                                    เสียชีวิตแล้ว
-                                  </span>
-                                ) : (
-                                  <span className="text-xs font-mono tabular-nums font-bold text-emerald-300">
-                                    ไว้ใจ {npc.trust}/100
-                                  </span>
-                                )}
-                              </div>
+                    return (
+                      <>
+                        {/* 1. TOP PRIORITY: PEOPLE IN CRISIS (Full-width cards, pinned at top) */}
+                        {livingCrisisNpcs.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs px-0.5">
+                              <span className="font-bold text-amber-300 flex items-center gap-1.5 font-mono">
+                                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                <span>ต้องการความช่วยเหลือด่วน ({livingCrisisNpcs.length} คน)</span>
+                              </span>
+                              <span className="text-[11px] text-amber-400/80 font-mono">ลำดับความสำคัญสูงสุด</span>
                             </div>
 
-                            {npc.alive && (
-                              <>
-                                {hasCrisis && isCardCrisisOpen && (
-                                  <div className="p-2 rounded-lg bg-amber-950/60 border border-amber-500/40 text-xs text-amber-200 leading-relaxed">
-                                    <strong>สถานการณ์ด่วน:</strong> {npc.crisisText}
+                            {livingCrisisNpcs.map(npc => {
+                              const posture = npcPosture(npc, currentDay);
+                              return (
+                                <div
+                                  key={`crisis-priority-${npc.id}`}
+                                  className="rounded-xl border border-amber-500/70 bg-gradient-to-r from-amber-950/40 to-slate-900/90 p-3.5 space-y-2.5 shadow-lg shadow-amber-950/20"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2.5 min-w-0">
+                                      <div className="w-8 h-8 rounded-lg bg-amber-900/60 border border-amber-400/50 flex items-center justify-center text-amber-300 shrink-0 people-pixel-badge">
+                                        {renderPixelRoleBadge(npc.role)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="text-sm font-bold text-slate-100">{npc.name}</span>
+                                          <span className="text-xs text-slate-400">(วัย {npc.age} ปี)</span>
+                                          {npc.isStoryNpc && (
+                                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-lime-950 text-lime-300 border border-lime-500/40">
+                                              ตัวละครหลัก
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-amber-200/90 font-medium truncate">{npc.role}</div>
+                                      </div>
+                                    </div>
+                                    <span className="inline-flex items-center text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950 shrink-0">
+                                      วิกฤตด่วน
+                                    </span>
                                   </div>
-                                )}
-                                <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-emerald-400"
-                                    style={{ width: `${Math.min(100, Math.max(0, npc.trust))}%` }}
-                                  />
+
+                                  <div className="p-2.5 rounded-lg bg-amber-950/60 border border-amber-500/40 text-xs text-amber-200 leading-relaxed">
+                                    <strong className="text-amber-300">สถานการณ์:</strong> {npc.crisisText}
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                                    <div className="text-[11px] font-mono text-emerald-300">
+                                      ไว้ใจ {npc.trust}/100 · {posture.label}
+                                    </div>
+                                    {!gameState.ending && !gameState.pending && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenFreeformNpcModal(npc.id)}
+                                        className="px-3.5 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shrink-0 shadow transition-colors flex items-center gap-1"
+                                      >
+                                        <span>⚡</span>
+                                        <span>เข้าช่วย {npc.name} (1 วัน)</span>
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center justify-between gap-2 pt-0.5">
-                                  <span className="text-[11px] text-slate-400 truncate">
-                                    {hasCrisis && !isCardCrisisOpen
-                                      ? `วิกฤต: ${npc.crisisText}`
-                                      : npc.lastNote}
-                                  </span>
-                                  {!gameState.ending && !gameState.pending && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenFreeformNpcModal(npc.id)}
-                                      className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold shrink-0 transition-colors ${
-                                        hasCrisis
-                                          ? 'bg-amber-400 text-slate-950 border-amber-300 font-bold'
-                                          : 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-400/40 text-emerald-200'
-                                      }`}
-                                    >
-                                      {hasCrisis
-                                        ? `เข้าช่วย ${npc.name} (1 วัน)`
-                                        : `เข้าหา ${npc.name} (1 วัน)`}
-                                    </button>
-                                  )}
-                                </div>
-                              </>
-                            )}
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        )}
+
+                        {/* 2. MAIN ROSTER: 2 COLUMNS PER ROW ON MOBILE */}
+                        {livingRosterNpcs.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-xs px-0.5 pt-1">
+                              <span className="font-bold text-slate-300">
+                                ผู้รอดชีวิตที่เคยพบ ({livingRosterNpcs.length} คน)
+                              </span>
+                              <span className="text-[11px] text-slate-400">แตะการ์ดเพื่อดูรายละเอียด</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2.5">
+                              {livingRosterNpcs.map(npc => {
+                                const isUnnamed = !npc.met && npc.seen;
+                                const isExpanded = Boolean(expandedNpcCardCrisisIds[npc.id]);
+                                const posture = npcPosture(npc, currentDay);
+
+                                // Seen but unmet: Anonymous survivor card
+                                if (isUnnamed) {
+                                  return (
+                                    <div
+                                      key={`unnamed-${npc.id}`}
+                                      className="people-card-tactical col-span-1 p-2.5 rounded-xl border border-dashed border-slate-700 bg-slate-950/60 flex flex-col justify-between gap-2"
+                                    >
+                                      <div className="space-y-1.5">
+                                        <div className="w-6 h-6 rounded bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 people-pixel-badge">
+                                          {renderPixelRoleBadge('')}
+                                        </div>
+                                        <div>
+                                          <p className="text-xs font-bold text-slate-300 line-clamp-1">ผู้รอดชีวิตที่ยังไม่รู้ชื่อ</p>
+                                          <p className="text-[10px] text-slate-400 line-clamp-1">เคยเห็นในระยะสายตา</p>
+                                        </div>
+                                      </div>
+                                      {!gameState.ending && !gameState.pending && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenFreeformNpcModal(npc.id)}
+                                          className="w-full py-1 text-center text-[10px] font-semibold text-lime-300 bg-lime-950/40 hover:bg-lime-950/80 border border-lime-700/40 rounded transition-colors"
+                                        >
+                                          กลับไปทัก
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                const postureColorClass = posture.warning
+                                  ? 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+                                  : npc.trust >= 70
+                                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-slate-800/70 text-slate-300 border-slate-700';
+
+                                return (
+                                  <div
+                                    key={`npc-roster-${npc.id}`}
+                                    onClick={() =>
+                                      setExpandedNpcCardCrisisIds(prev => ({
+                                        ...prev,
+                                        [npc.id]: !prev[npc.id],
+                                      }))
+                                    }
+                                    className={`people-card-tactical col-span-1 p-2.5 rounded-xl border bg-slate-950/80 hover:border-slate-700 flex flex-col justify-between gap-2 cursor-pointer ${
+                                      isExpanded
+                                        ? 'border-lime-500/60 bg-slate-900/95 ring-1 ring-lime-500/40'
+                                        : 'border-slate-800'
+                                    }`}
+                                  >
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <div className="w-6 h-6 rounded bg-slate-900 border border-slate-700 flex items-center justify-center text-lime-400 shrink-0 people-pixel-badge">
+                                          {renderPixelRoleBadge(npc.role)}
+                                        </div>
+                                        <span
+                                          className={`text-[10px] font-mono px-1.5 py-0.5 rounded border truncate max-w-[85px] ${postureColorClass}`}
+                                          title={posture.label}
+                                        >
+                                          {posture.label}
+                                        </span>
+                                      </div>
+
+                                      <div>
+                                        <div className="text-xs font-bold text-slate-100 truncate" title={`${npc.name} (วัย ${npc.age} ปี)`}>
+                                          {npc.name} <span className="text-[10px] font-normal text-slate-400">({npc.age}ป)</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 truncate" title={npc.role}>
+                                          {npc.role}
+                                        </div>
+                                      </div>
+
+                                      {/* Mini trust progress bar */}
+                                      <div className="space-y-0.5 pt-0.5">
+                                        <div className="flex justify-between text-[9px] font-mono text-slate-400">
+                                          <span>ไว้ใจ</span>
+                                          <span className="text-emerald-400 font-bold">{npc.trust}/100</span>
+                                        </div>
+                                        <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
+                                          <div
+                                            className="h-full bg-emerald-400"
+                                            style={{ width: `${Math.min(100, Math.max(0, npc.trust))}%` }}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Expanded Details on tap */}
+                                      {isExpanded && (
+                                        <div className="pt-2 border-t border-slate-800/90 space-y-1.5 text-[10px]">
+                                          <p className="text-slate-300 leading-relaxed italic line-clamp-3">
+                                            “{posture.text}”
+                                          </p>
+                                          {npc.trait && (
+                                            <p className="text-slate-400 line-clamp-2">
+                                              <span className="text-slate-300 font-semibold">อุปนิสัย:</span> {npc.trait}
+                                            </p>
+                                          )}
+                                          {npc.lastNote && (
+                                            <p className="text-slate-400 line-clamp-2">
+                                              <span className="text-slate-300 font-semibold">บันทึก:</span> {npc.lastNote}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Action button */}
+                                    <div className="pt-1" onClick={e => e.stopPropagation()}>
+                                      {isExpanded && !gameState.ending && !gameState.pending ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenFreeformNpcModal(npc.id)}
+                                          className="w-full py-1 px-1.5 text-center text-[10px] font-bold rounded bg-lime-400 hover:bg-lime-300 text-slate-950 transition-colors shadow-sm"
+                                        >
+                                          เข้าหา {npc.name} (1 วัน)
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setExpandedNpcCardCrisisIds(prev => ({
+                                              ...prev,
+                                              [npc.id]: !prev[npc.id],
+                                            }))
+                                          }
+                                          className="w-full py-1 px-1.5 text-center text-[10px] font-medium rounded bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 transition-colors"
+                                        >
+                                          แตะดูรายละเอียด ▾
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3. DECEASED SECTION: Collapsible Memorial at Bottom */}
+                        {deceasedNpcs.length > 0 && (
+                          <div className="pt-2 border-t border-slate-800/80">
+                            <details className="group rounded-xl bg-slate-950 border border-rose-950/60 overflow-hidden">
+                              <summary className="px-3 py-2 flex items-center justify-between text-xs text-rose-300 font-medium cursor-pointer hover:bg-slate-900/60 transition-colors list-none">
+                                <span className="flex items-center gap-1.5 font-mono">
+                                  <span>🕊️</span>
+                                  <span>บันทึกผู้จากไปในย่านนี้ ({deceasedNpcs.length} คน)</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono group-open:rotate-180 transition-transform">
+                                  ▼
+                                </span>
+                              </summary>
+                              <div className="px-3 py-2 space-y-2 border-t border-slate-900 text-xs text-slate-400 bg-slate-950/90 divide-y divide-slate-900">
+                                {deceasedNpcs.map(npc => {
+                                  const isKnown = Boolean(npc.met);
+                                  return (
+                                    <div key={`deceased-${npc.id}`} className="flex items-center justify-between gap-2 pt-1.5 first:pt-0">
+                                      <div className="min-w-0">
+                                        <span className={`line-through font-bold ${isKnown ? 'text-slate-300' : 'text-slate-400'}`}>
+                                          {isKnown ? `${npc.name} (วัย ${npc.age} ปี)` : 'ผู้รอดชีวิตที่ยังไม่รู้ชื่อ'}
+                                        </span>
+                                        <span className="text-[11px] text-slate-400 block truncate">
+                                          {isKnown
+                                            ? `${npc.role}${npc.lastNote ? ` · ${npc.lastNote}` : ''}`
+                                            : npc.seen
+                                            ? 'เคยเห็นในระยะสายตาก่อนเสียชีวิต'
+                                            : 'ร่างผู้เสียชีวิตที่ยังไม่รู้ชื่อ'}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] font-mono text-rose-400 shrink-0">เสียชีวิต</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* PANEL 4: JOURNAL, PROGRESSION TRACKER, SOUNDSCAPE, SAVE/EXPORT/IMPORT & SURRENDER */}
               {(mobileTab === 'journal' ||
                 (mobileTab === 'play' && desktopSideTab === 'journal')) && (
-                <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-5">
-                  {/* SECTION 1: NON-SPOILERY ROUTE & HORIZON CHECKLIST (PROGRESSION TRACKER) */}
-                  {showRouteHints && <div data-route-checklist className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-lime-300" />
-                        <span>สมุดบันทึกเบาะแสเส้นทางสู่อนาคต (Route Checklist)</span>
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileTab('map');
-                          setDesktopSideTab('map');
-                        }}
-                        className="text-xs font-semibold text-lime-300 hover:text-lime-200 underline underline-offset-2"
-                      >
-                        เปิดแผนที่เดินทาง
-                      </button>
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/95 border border-slate-800 space-y-4 sm:space-y-5">
+                  {/* TOP HEADER & QUICK SHORTCUTS */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <BookOpen className="w-4 h-4 text-lime-400 shrink-0" />
+                      <h2 className="text-sm sm:text-base font-bold text-slate-100 truncate">
+                        บันทึกและจัดการข้อมูล (Journal & Save)
+                      </h2>
                     </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      ติดตามความคืบหน้าการเตรียมงานตามย่านต่าง ๆ และแนวโน้มชะตาชีวิตของร่างนี้โดยไม่สปอยล์เนื้อหาบทสรุป
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileTab('map');
+                        setDesktopSideTab('map');
+                      }}
+                      className="text-xs font-semibold text-lime-300 hover:text-lime-200 underline underline-offset-2 flex items-center gap-1 shrink-0"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      เปิดแผนที่เดินทาง
+                    </button>
+                  </div>
 
-                    {/* 3 Core Preparation Routes */}
-                    <div className="space-y-2.5">
-                      {PROGRESSION_ROUTES.map(route => {
-                        const completedCount = route.steps.filter((_, i) =>
-                          Boolean(gameState.story?.flags?.[`route.${route.id}.${i}`])
-                        ).length;
-                        const destPlace =
-                          production?.catalog.PLACES[route.destination]?.name ||
-                          route.destination;
-                        const reqEntries = Object.entries(route.requirements || {});
-                        const statLabelMap: Record<string, string> = {
-                          research: 'งานวิจัย',
-                          humanity: 'ความเป็นมนุษย์',
-                          sanity: 'สติ',
-                          trust: 'ความไว้ใจรวม',
-                          horde: 'อำนาจฝูง',
-                          mutation: 'การกลายพันธุ์',
-                        };
-                        return (
-                          <div
-                            key={route.id}
-                            className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs sm:text-sm font-bold text-amber-200">
-                                เส้นทาง: {route.label}
-                              </span>
-                              <span className="text-xs font-mono font-bold text-lime-300">
-                                เตรียมงาน {completedCount}/{route.steps.length} จุด
-                              </span>
-                            </div>
+                  {/* SUB-SEGMENTED TAB SWITCHER (3 MODES) */}
+                  <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold" role="tablist" aria-label="หมวดหมู่บันทึก">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={journalSubTab === 'story'}
+                      onClick={() => setJournalSubTab('story')}
+                      className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                        journalSubTab === 'story'
+                          ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
+                          : 'bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">เรื่องราวชีวิต</span>
+                      {(gameState?.log || []).length > 0 && (
+                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
+                          journalSubTab === 'story' ? 'bg-slate-950/20 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {(gameState?.log || []).length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={journalSubTab === 'clues'}
+                      onClick={() => setJournalSubTab('clues')}
+                      className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                        journalSubTab === 'clues'
+                          ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
+                          : 'bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <MapPin className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">เบาะแสเส้นทาง</span>
+                      {showRouteHints && (
+                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded shrink-0 ${
+                          journalSubTab === 'clues' ? 'bg-slate-950/20 text-slate-950 font-bold' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                        }`}>
+                          3 ทาง
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={journalSubTab === 'save'}
+                      onClick={() => setJournalSubTab('save')}
+                      className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                        journalSubTab === 'save'
+                          ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
+                          : 'bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">จัดการเซฟ & ตั้งค่า</span>
+                    </button>
+                  </div>
 
-                            <div className="space-y-1 text-xs">
-                              {route.steps.map((step, idx) => {
-                                const done = Boolean(
-                                  gameState.story?.flags?.[`route.${route.id}.${idx}`]
-                                );
-                                const isHere = gameState.place === step.place;
-                                return (
-                                  <div
-                                    key={step.place}
-                                    className={`flex items-center justify-between gap-2 py-1 px-2 rounded ${
-                                      done
-                                        ? 'bg-emerald-950/30 text-emerald-200'
-                                        : isHere
-                                        ? 'bg-amber-950/30 text-amber-200 font-semibold'
-                                        : 'text-slate-300'
-                                    }`}
-                                  >
-                                    <span>
-                                      {done ? '✓' : '○'} ขั้นที่ {idx + 1}: {step.name}
-                                    </span>
-                                    <span className="font-mono text-[11px] text-slate-400 shrink-0">
-                                      {step.placeName}
-                                      {isHere ? ' (อยู่ที่นี่)' : ''}
+                  {/* SUB-VIEW 1: STORY & CHRONICLE */}
+                  {journalSubTab === 'story' && (
+                    <div className="space-y-4 animate-fade-in">
+                      {/* Mutation Milestones if unlocked */}
+                      {recordedMutationMilestones.length > 0 && (
+                        <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-800/40 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                              <Dna className="w-4 h-4 text-purple-400" />
+                              ประวัติการกลายพันธุ์ระดับสำคัญ (Mutation Milestones)
+                            </span>
+                            <span className="text-[11px] font-mono text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800">
+                              ค้นพบแล้ว {recordedMutationMilestones.length}/3 ขั้น
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {([25, 50, 75] as const).map(th => {
+                              const reached = recordedMutationMilestones.includes(th);
+                              const meta = MUTATION_MILESTONES[th];
+                              if (!reached || !meta) return null;
+                              return (
+                                <div
+                                  key={th}
+                                  className={`p-2.5 rounded-xl border text-xs transition-all ${meta.badgeColor} shadow-sm`}
+                                >
+                                  <div className="flex items-center justify-between font-bold">
+                                    <span>{meta.title}</span>
+                                    <span className="font-mono text-[10px]">
+                                      ปลดล็อกแล้ว
                                     </span>
                                   </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="pt-1.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-mono text-slate-400">
-                              <span>
-                                {showNumericSpoilers
-                                  ? `ความพร้อม: ${reqEntries
-                                      .map(([k, target]) => {
-                                        const cur = Math.floor(gameState.stats?.[k] || 0);
-                                        return `${statLabelMap[k] || k} ${cur}/${target}`;
-                                      })
-                                      .join(' · ')}${
-                                      route.samples
-                                        ? ` · ตัวอย่างเชื้อ ${gameState.items?.samples || 0}/${route.samples}`
-                                        : ''
-                                    }`
-                                  : `ต้องการ: ${reqEntries
-                                      .map(([k, target]) => {
-                                        const cur = Math.floor(gameState.stats?.[k] || 0);
-                                        const ready = cur >= Number(target);
-                                        return `${statLabelMap[k] || k}${ready ? ' (พร้อมแล้ว)' : ' (ยังต้องสั่งสมเพิ่ม)'}`;
-                                      })
-                                      .join(' · ')}`}
-                              </span>
-                              <span className="text-sky-300">ย่านปลายทาง: {destPlace}</span>
-                            </div>
+                                  <p className="mt-1 text-slate-300 leading-relaxed text-[11px]">
+                                    {meta.awakeningText}
+                                  </p>
+                                  <div className="mt-1 text-[10px] text-slate-400 italic">
+                                    การเปลี่ยนแปลงทางกายภาพ: {meta.bodyChange}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Personal / Slice-of-Life & District Settle Clues */}
-                    <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
-                      <div className="font-bold text-sky-200">
-                        เบาะแสทางเลือกวิถีชีวิตและการตั้งหลักในกรุงเทพฯ
-                      </div>
-                      <div className="grid grid-cols-1 gap-1.5 text-slate-300">
-                        <div className="flex items-center justify-between gap-2 py-1 border-b border-slate-900">
-                          <span>ปกป้องผู้คนในเขต (ผู้เฝ้าประตูเงียบงัน)</span>
-                          <span className="font-mono text-[11px] text-emerald-300">
-                            {showNumericSpoilers
-                              ? `ช่วยคน ${Number(gameState.memory?.saved || 0)}/2 · ไว้ใจเขต ${currentZoneTrustStats.averageTrust}/20 · วันที่ ${gameState.day || 1}/14`
-                              : 'ต้องเคยช่วยชีวิตผู้คนและได้รับความเชื่อใจในย่านนั้น'}
-                          </span>
                         </div>
-                        <div className="flex items-center justify-between gap-2 py-1 border-b border-slate-900">
-                          <span>หนีพ้นเขตกักกันพร้อมคู่หูที่ไว้ใจเต็มหัวใจ</span>
-                          <span className="font-mono text-[11px] text-sky-300">
-                            {showNumericSpoilers
-                              ? `ไว้ใจสูงสุด ${Math.max(
-                                  0,
-                                  ...Object.values(syncedZonePopulations)
-                                    .flatMap(z => z.npcs)
-                                    .filter(n => n.alive)
-                                    .map(n => n.trust)
-                                )}/100 · สติ ${Math.floor(gameState.stats?.sanity || 0)}/40`
-                              : 'ต้องมีใครสักคนที่เชื่อใจเจ้าอย่างสุดหัวใจและยังมีสติมั่นคง'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 py-1 border-b border-slate-900">
-                          <span>ล่องเรือพ้นแม่น้ำเจ้าพระยาโดยไม่เคยฆ่าคน</span>
-                          <span className="font-mono text-[11px] text-teal-300">
-                            {showNumericSpoilers
-                              ? `วันที่ ${gameState.day || 1}/12 · สติ ${Math.floor(gameState.stats?.sanity || 0)}/55 · ฆ่า ${currentKillCount}/0`
-                              : 'มือต้องไม่เปื้อนเลือดคนเป็นและประคองสติไว้ให้มั่นคง'}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 py-1">
-                          <span>ปักหลักดูแลย่านอาชีพในกรุงเทพฯ</span>
-                          <span className="font-mono text-[11px] text-amber-300">
-                            ช่วยงานย่านแล้ว{' '}
-                            {
-                              Object.keys(gameState.story?.flags || {}).filter(
-                                k => k.startsWith('bkk_') && k.endsWith('.helped') && gameState.story.flags[k]
-                              ).length
-                            }
-                            /10 ย่าน
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>}
+                      )}
 
-                  {/* SECTION 1.5: AMBIENT SOUNDSCAPE CONTROLS */}
-                  <div className="space-y-2.5 pt-3 border-t border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                        <Volume2 className="w-4 h-4 text-emerald-400" />
-                        ระบบเสียงบรรยากาศเขตกักกันกรุงเทพฯ (Ambient Soundscape)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextAmb = !ambientEnabled;
-                          if (nextAmb && !soundEnabled) setSoundEnabled(true);
-                          setAmbientEnabled(nextAmb);
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
-                          ambientEnabled && soundEnabled
-                            ? 'bg-emerald-400 text-slate-950 border-emerald-300'
-                            : 'bg-slate-950 text-slate-300 border-slate-700 hover:bg-slate-800'
-                        }`}
-                      >
-                        {ambientEnabled && soundEnabled ? 'กำลังเล่นเสียงบรรยากาศ' : 'เปิดเสียงบรรยากาศ'}
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!soundEnabled) setSoundEnabled(true);
-                          soundFx.playDistantSiren();
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300"
-                      >
-                        ทดสอบเสียงไซเรนไกล ๆ
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!soundEnabled) setSoundEnabled(true);
-                          soundFx.playRadioStaticBurst();
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300"
-                      >
-                        ทดสอบคลื่นวิทยุซ่า ๆ
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!soundEnabled) setSoundEnabled(true);
-                          soundFx.playHeartbeatPulse();
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300"
-                      >
-                        ทดสอบเสียงหัวใจเต้น
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-3 border-t border-slate-800">
-                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-lime-300" />
-                      <span>ระบบเซฟ ส่งออก/นำเข้า & ยอมแพ้ต่อสัญชาตญาณ</span>
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      บันทึกอัตโนมัติลงเบราว์เซอร์ทุกการตัดสินใจ สามารถส่งออกไฟล์เซฟเก็บไว้หรือเลือกยอมจำนนต่อสัญชาตญาณซอมบี้ได้ที่หน้านี้
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleExportSaveJson}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
-                      >
-                        <Download className="w-3.5 h-3.5 text-lime-300" />
-                        ส่งออกเซฟ (.json)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowImportBox(!showImportBox)}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors"
-                      >
-                        <Upload className="w-3.5 h-3.5 text-sky-300" />
-                        นำเข้าเซฟ (.json)
-                      </button>
-                    </div>
-
-                    {showImportBox && (
-                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                        <textarea
-                          value={importJsonText}
-                          onChange={e => setImportJsonText(e.target.value)}
-                          placeholder="วางโค้ด JSON จากไฟล์เซฟที่นี่..."
-                          rows={4}
-                          className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-lime-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleImportSaveJson}
-                          className="px-4 py-2 rounded-lg bg-lime-400 text-slate-950 font-bold text-xs"
-                        >
-                          ยืนยันการนำเข้าเซฟ
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Surrender to Zombie Instinct Button (Placed right here on the Save page!) */}
-                    {!gameState.ending && (
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowSurrenderConfirmModal(true)}
-                          className="w-full py-3 px-4 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/50 text-xs font-bold text-rose-200 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Skull className="w-4 h-4 text-rose-400" />
-                          ยอมแพ้ต่อสัญชาตญาณซอมบี้ (สติถูกกลืนกินจนหมด)
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Distinct Mutation Milestones Section */}
-                  {recordedMutationMilestones.length > 0 && (
-                    <div className="space-y-2.5 pt-3 border-t border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                          <Dna className="w-4 h-4 text-purple-400" />
-                          ประวัติการกลายพันธุ์ระดับสำคัญ (Mutation Milestones)
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-400">
-                          {recordedMutationMilestones.length}/3 ขั้น
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {([25, 50, 75] as const).map(th => {
-                          const reached = recordedMutationMilestones.includes(th);
-                          const meta = MUTATION_MILESTONES[th];
-                          if (!meta) return null;
-                          return (
-                            <div
-                              key={th}
-                              className={`p-3 rounded-xl border text-xs transition-all ${
-                                reached
-                                  ? `${meta.badgeColor} shadow-sm`
-                                  : 'bg-slate-950/40 border-slate-800/60 text-slate-500 opacity-60'
+                      {/* Day Navigation & Chronology Filters */}
+                      {availableStoryDays.length > 1 && (
+                        <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-slate-300 flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-lime-400" />
+                              เลือกลำดับวันเพื่ออ่านย้อนหลัง
+                            </span>
+                            {selectedStoryDay !== 'all' && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedStoryDay('all')}
+                                className="text-lime-300 hover:underline text-[10px] font-mono"
+                              >
+                                แสดงทั้งหมด
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStoryDay('all')}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors ${
+                                selectedStoryDay === 'all'
+                                  ? 'bg-lime-400 text-slate-950'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
                               }`}
                             >
-                              <div className="flex items-center justify-between font-bold">
-                                <span>{meta.title}</span>
-                                <span className="font-mono text-[11px]">
-                                  {reached ? 'ปลดล็อกแล้ว' : `ยังไม่ถึง (${th}%)`}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-slate-300 leading-relaxed">
-                                {reached ? meta.awakeningText : meta.bodyChange}
-                              </p>
-                              {reached && (
-                                <div className="mt-1.5 text-[11px] text-slate-400 italic">
-                                  การเปลี่ยนแปลงทางกายภาพ: {meta.bodyChange}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                              ทั้งหมด
+                            </button>
+                            {availableStoryDays.map(d => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => setSelectedStoryDay(d)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors ${
+                                  selectedStoryDay === d
+                                    ? 'bg-lime-400 text-slate-950'
+                                    : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                                }`}
+                              >
+                                วันที่ {d}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* StoryFeed Component with selector */}
+                      <div id="life-story-history" className="scroll-mt-40">
+                        <StoryFeed
+                          fullHistory
+                          log={displayedJournalLog}
+                          latest={latestStory?.runId === gameState?.runId ? latestStory : null}
+                          formatEffect={formatStoryEffect}
+                          onHistory={openStoryHistory}
+                        />
                       </div>
                     </div>
                   )}
 
-                  {/* Recent Life Log */}
-                  <div id="life-story-history" className="scroll-mt-40">
-                    <StoryFeed fullHistory log={gameState?.log || []}
-                      latest={latestStory?.runId === gameState?.runId ? latestStory : null}
-                      formatEffect={formatStoryEffect} onHistory={openStoryHistory} />
-                  </div>
+                  {/* SUB-VIEW 2: CLUES & HORIZONS */}
+                  {journalSubTab === 'clues' && (
+                    <div className="space-y-4 animate-fade-in">
+                      {/* Route Hints Checklist if enabled */}
+                      {showRouteHints ? (
+                        <div data-route-checklist className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-lime-300" />
+                              <span>สมุดบันทึกเบาะแสเส้นทางสู่อนาคต (Route Checklist)</span>
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={() => setShowNumericSpoilers(prev => !prev)}
+                              className={`px-2 py-1 rounded border text-[10px] font-mono shrink-0 transition-colors ${
+                                showNumericSpoilers
+                                  ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
+                                  : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {showNumericSpoilers ? 'กำลังเปิดตัวเลขตรงๆ' : 'ปิดตัวเลข (ใช้บทบรรยาย)'}
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            ติดตามความคืบหน้าการเตรียมงานตามย่านต่าง ๆ และแนวโน้มชะตาชีวิตของร่างนี้โดยไม่สปอยล์เนื้อหาบทสรุป
+                          </p>
 
-                  {/* Deep Hidden Option: Toggle Numeric Action Spoilers vs Roleplay Narrative Hints */}
-                  <details data-advanced-settings className="pt-2 border-t border-slate-800/40 text-[11px] text-slate-500">
-                    <summary className="cursor-pointer py-1 hover:text-slate-400 select-none">
-                      ปรับแต่งขั้นสูง
-                    </summary>
-                    <label className="route-setting">
-                      <span><strong>แสดงเบาะแสและเงื่อนไขเส้นทาง</strong><small>เปิดคู่มือเตรียมเส้นทางและเบาะแสบทจบล่วงหน้า · ปิดไว้เพื่อค้นพบด้วยตัวเอง</small></span>
-                      <input type="checkbox" role="switch" aria-checked={showRouteHints} data-setting="route-hints" checked={showRouteHints} onChange={event => setShowRouteHints(event.target.checked)} />
-                    </label>
-                    <label className="route-setting">
-                      <span><strong>ช่วยแนะนำและปักหมุดเส้นทางช่วงท้าย</strong><small>เสนอให้ติดตามงานเมื่อเตรียมเส้นทางมาไกลแล้ว · ไม่เปิดคู่มือเฉลย</small></span>
-                      <input type="checkbox" role="switch" aria-checked={routeAssistanceEnabled} data-setting="route-assistance" checked={routeAssistanceEnabled} onChange={event => {
-                        setRouteAssistanceEnabled(event.target.checked);
-                        if (!event.target.checked) setRouteGuidanceSession({runId: gameState?.runId || '', pinnedRouteId: null, dismissedRouteIds: []});
-                      }} />
-                    </label>
-                    <div className="mt-2 p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/70 flex items-center justify-between gap-2">
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="text-slate-300 font-medium text-[11px]">
-                          คำอธิบายใต้ตัวเลือกแบบตัวเลขตรงๆ
+                          {/* 3 Core Preparation Routes */}
+                          <div className="space-y-2.5">
+                            {PROGRESSION_ROUTES.map(route => {
+                              const completedCount = route.steps.filter((_, i) =>
+                                Boolean(gameState.story?.flags?.[`route.${route.id}.${i}`])
+                              ).length;
+                              const destPlace =
+                                production?.catalog.PLACES[route.destination]?.name ||
+                                route.destination;
+                              const reqEntries = Object.entries(route.requirements || {});
+                              const statLabelMap: Record<string, string> = {
+                                research: 'งานวิจัย',
+                                humanity: 'ความเป็นมนุษย์',
+                                sanity: 'สติ',
+                                trust: 'ความไว้ใจรวม',
+                                horde: 'อำนาจฝูง',
+                                mutation: 'การกลายพันธุ์',
+                              };
+                              return (
+                                <div
+                                  key={route.id}
+                                  className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs sm:text-sm font-bold text-amber-200">
+                                      เส้นทาง: {route.label}
+                                    </span>
+                                    <span className="text-xs font-mono font-bold text-lime-300">
+                                      เตรียมงาน {completedCount}/{route.steps.length} จุด
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-1 text-xs">
+                                    {route.steps.map((step, idx) => {
+                                      const done = Boolean(
+                                        gameState.story?.flags?.[`route.${route.id}.${idx}`]
+                                      );
+                                      const isHere = gameState.place === step.place;
+                                      return (
+                                        <div
+                                          key={step.place}
+                                          className={`flex items-center justify-between gap-2 py-1 px-2 rounded ${
+                                            done
+                                              ? 'bg-emerald-950/30 text-emerald-200'
+                                              : isHere
+                                              ? 'bg-amber-950/30 text-amber-200 font-semibold'
+                                              : 'text-slate-300'
+                                          }`}
+                                        >
+                                          <span>
+                                            {done ? '✓' : '○'} ขั้นที่ {idx + 1}: {step.name}
+                                          </span>
+                                          <span className="font-mono text-[11px] text-slate-400 shrink-0">
+                                            {step.placeName}
+                                            {isHere ? ' (อยู่ที่นี่)' : ''}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  <div className="pt-1.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-1.5 text-[11px] font-mono text-slate-400">
+                                    <span>
+                                      {showNumericSpoilers
+                                        ? `ความพร้อม: ${reqEntries
+                                            .map(([k, target]) => {
+                                              const cur = Math.floor(gameState.stats?.[k] || 0);
+                                              return `${statLabelMap[k] || k} ${cur}/${target}`;
+                                            })
+                                            .join(' · ')}${
+                                            route.samples
+                                              ? ` · ตัวอย่างเชื้อ ${gameState.items?.samples || 0}/${route.samples}`
+                                              : ''
+                                          }`
+                                        : `ต้องการ: ${reqEntries
+                                            .map(([k, target]) => {
+                                              const cur = Math.floor(gameState.stats?.[k] || 0);
+                                              const ready = cur >= Number(target);
+                                              return `${statLabelMap[k] || k}${ready ? ' (พร้อมแล้ว)' : ' (ยังต้องสั่งสมเพิ่ม)'}`;
+                                            })
+                                            .join(' · ')}`}
+                                    </span>
+                                    <span className="text-sky-300">ย่านปลายทาง: {destPlace}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Personal / Slice-of-Life & District Settle Clues */}
+                          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                            <div className="font-bold text-sky-200">
+                              เบาะแสทางเลือกวิถีชีวิตและการตั้งหลักในกรุงเทพฯ
+                            </div>
+                            <div className="grid grid-cols-1 gap-1.5 text-slate-300">
+                              <div className="flex items-center justify-between gap-2 py-1 border-b border-slate-900">
+                                <span>ปกป้องผู้คนในเขต (ผู้เฝ้าประตูเงียบงัน)</span>
+                                <span className="font-mono text-[11px] text-emerald-300">
+                                  {showNumericSpoilers
+                                    ? `ช่วยคน ${Number(gameState.memory?.saved || 0)}/2 · ไว้ใจเขต ${currentZoneTrustStats.averageTrust}/20 · วันที่ ${gameState.day || 1}/14`
+                                    : 'ต้องเคยช่วยชีวิตผู้คนและได้รับความเชื่อใจในย่านนั้น'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 py-1 border-b border-slate-900">
+                                <span>หนีพ้นเขตกักกันพร้อมคู่หูที่ไว้ใจเต็มหัวใจ</span>
+                                <span className="font-mono text-[11px] text-sky-300">
+                                  {showNumericSpoilers
+                                    ? `ไว้ใจสูงสุด ${Math.max(
+                                        0,
+                                        ...Object.values(syncedZonePopulations)
+                                          .flatMap(z => z.npcs)
+                                          .filter(n => n.alive)
+                                          .map(n => n.trust)
+                                      )}/100 · สติ ${Math.floor(gameState.stats?.sanity || 0)}/40`
+                                    : 'ต้องมีใครสักคนที่เชื่อใจเจ้าอย่างสุดหัวใจและยังมีสติมั่นคง'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 py-1 border-b border-slate-900">
+                                <span>ล่องเรือพ้นแม่น้ำเจ้าพระยาโดยไม่เคยฆ่าคน</span>
+                                <span className="font-mono text-[11px] text-teal-300">
+                                  {showNumericSpoilers
+                                    ? `วันที่ ${gameState.day || 1}/12 · สติ ${Math.floor(gameState.stats?.sanity || 0)}/55 · ฆ่า ${currentKillCount}/0`
+                                    : 'มือต้องไม่เปื้อนเลือดคนเป็นและประคองสติไว้ให้มั่นคง'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 py-1">
+                                <span>ปักหลักดูแลย่านอาชีพในกรุงเทพฯ</span>
+                                <span className="font-mono text-[11px] text-amber-300">
+                                  ช่วยงานย่านแล้ว{' '}
+                                  {
+                                    Object.keys(gameState.story?.flags || {}).filter(
+                                      k => k.startsWith('bkk_') && k.endsWith('.helped') && gameState.story.flags[k]
+                                    ).length
+                                  }
+                                  /10 ย่าน
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-500 leading-snug">
-                          {showNumericSpoilers
-                            ? 'กำลังแสดงตัวเลขผลลัพธ์ตรงๆ (อาจลดความอินในการสวมบทบาท)'
-                            : 'กำลังใช้คำบรรยายสั้นๆ ตามบทบาทแทนตัวเลข (ค่าเริ่มต้น)'}
+                      ) : (
+                        /* Sealed Clues Notice when showRouteHints is disabled */
+                        <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3 text-center">
+                          <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-slate-400">
+                            <BookOpen className="w-5 h-5 text-slate-400" />
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-200">
+                            สมุดบันทึกเบาะแสถูกปิดไว้เพื่อสวมบทบาทค้นพบด้วยตัวเอง
+                          </h4>
+                          <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                            การตั้งค่าปัจจุบันซ่อนคู่มือเตรียมเส้นทางและเงื่อนไขบทจบล่วงหน้าไว้ เพื่อให้ท่านออกสำรวจและเผชิญหน้ากับเรื่องราวตามธรรมชาติ
+                          </p>
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowRouteHints(true)}
+                              className="px-4 py-2 rounded-xl bg-lime-400 text-slate-950 font-bold text-xs hover:bg-lime-300 transition-colors shadow-md"
+                            >
+                              เปิดแสดงสมุดบันทึกเบาะแส (Enable Route Hints)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SUB-VIEW 3: SAVE MANAGEMENT, AUDIO & SETTINGS */}
+                  {journalSubTab === 'save' && (
+                    <div className="space-y-5 animate-fade-in">
+                      {/* CARD A: SAVE MANAGEMENT (EXPORT / IMPORT) */}
+                      <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+                              <Download className="w-4 h-4 text-lime-300" />
+                              <span>จัดการและสำรองข้อมูลเซฟ (Save & Backup)</span>
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              เกมบันทึกอัตโนมัติลงเบราว์เซอร์ทุกครั้ง สามารถดาวน์โหลดเก็บไว้หรือนำเข้าเล่นต่อได้
+                            </p>
+                          </div>
+                          <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-800">
+                            เซฟอัตโนมัติ: วันที่ {gameState?.day || 1}
+                          </span>
+                        </div>
+
+                        {/* INLINE STATUS BANNER (SUCCESS / ERROR) */}
+                        {saveStatusFeedback && (
+                          <div
+                            className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-fade-in ${
+                              saveStatusFeedback.type === 'success'
+                                ? 'bg-emerald-950/70 border-emerald-500/60 text-emerald-200'
+                                : 'bg-rose-950/70 border-rose-500/60 text-rose-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {saveStatusFeedback.type === 'success' ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              ) : (
+                                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                              )}
+                              <span className="font-semibold break-words">{saveStatusFeedback.message}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSaveStatusFeedback(null)}
+                              className="text-xs p-1 rounded hover:bg-slate-900/60 shrink-0"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+
+                        {/* EXPORT & IMPORT BUTTONS SIDE-BY-SIDE */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={handleExportSaveJson}
+                            className="py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-lime-300 flex items-center justify-center gap-2 transition-colors shadow-sm"
+                          >
+                            <Download className="w-4 h-4 text-lime-400" />
+                            <span>ส่งออกเซฟ (.json)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowImportBox(!showImportBox);
+                              setSaveStatusFeedback(null);
+                            }}
+                            className="py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-sky-300 flex items-center justify-center gap-2 transition-colors shadow-sm"
+                          >
+                            <Upload className="w-4 h-4 text-sky-400" />
+                            <span>{showImportBox ? 'ปิดกล่องนำเข้า' : 'นำเข้าเซฟ (.json)'}</span>
+                          </button>
+                        </div>
+
+                        {/* IMPORT BOX */}
+                        {showImportBox && (
+                          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5 animate-fade-in">
+                            <label className="block text-[11px] font-semibold text-slate-300">
+                              วางโค้ด JSON จากไฟล์เซฟที่ส่งออกไว้:
+                            </label>
+                            <textarea
+                              value={importJsonText}
+                              onChange={e => {
+                                setImportJsonText(e.target.value);
+                                if (saveStatusFeedback) setSaveStatusFeedback(null);
+                              }}
+                              placeholder="วางโค้ด JSON จากไฟล์เซฟที่นี่..."
+                              rows={4}
+                              className="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-mono text-slate-200 focus:outline-none focus:border-lime-400"
+                            />
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={handleImportSaveJson}
+                                className="px-4 py-2 rounded-lg bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs transition-colors shadow-md"
+                              >
+                                ยืนยันการนำเข้าเซฟ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setImportJsonText('');
+                                  setShowImportBox(false);
+                                  setSaveStatusFeedback(null);
+                                }}
+                                className="text-xs text-slate-400 hover:text-slate-200 underline"
+                              >
+                                ยกเลิก
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CARD B: AMBIENT SOUNDSCAPE */}
+                      <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                            <Volume2 className="w-4 h-4 text-emerald-400" />
+                            ระบบเสียงบรรยากาศเขตกักกันกรุงเทพฯ (Ambient Soundscape)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextAmb = !ambientEnabled;
+                              if (nextAmb && !soundEnabled) setSoundEnabled(true);
+                              setAmbientEnabled(nextAmb);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                              ambientEnabled && soundEnabled
+                                ? 'bg-emerald-400 text-slate-950 border-emerald-300'
+                                : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {ambientEnabled && soundEnabled ? 'กำลังเล่นเสียงบรรยากาศ' : 'เปิดเสียงบรรยากาศ'}
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!soundEnabled) setSoundEnabled(true);
+                              soundFx.playDistantSiren();
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
+                          >
+                            ทดสอบเสียงไซเรนไกล ๆ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!soundEnabled) setSoundEnabled(true);
+                              soundFx.playRadioStaticBurst();
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
+                          >
+                            ทดสอบคลื่นวิทยุซ่า ๆ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!soundEnabled) setSoundEnabled(true);
+                              soundFx.playHeartbeatPulse();
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
+                          >
+                            ทดสอบเสียงหัวใจเต้น
+                          </button>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowNumericSpoilers(prev => !prev)}
-                        className={`px-2 py-1 rounded border text-[10px] font-mono shrink-0 transition-colors ${
-                          showNumericSpoilers
-                            ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
-                            : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        {showNumericSpoilers ? 'เปิดตัวเลขอยู่' : 'ปิดตัวเลข (ปกติ)'}
-                      </button>
+
+                      {/* CARD C: ISOLATED DANGER ZONE (SURRENDER) */}
+                      {!gameState.ending && (
+                        <div className="p-4 rounded-xl bg-rose-950/20 border border-rose-900/40 space-y-2.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-rose-300">
+                            <span className="flex items-center gap-1.5">
+                              <Skull className="w-4 h-4 text-rose-400" />
+                              โซนอันตราย: ยอมจำนนต่อสัญชาตญาณซอมบี้ (Surrender)
+                            </span>
+                            <span className="text-[10px] font-mono text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800 uppercase">
+                              แยกต่างหากจากเซฟ
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            ⚠️ การตัดสินใจนี้ไม่สามารถย้อนกลับได้: หากสติถูกกลืนกินหรือไม่อยากฝืนทน สามารถยอมจำนนต่อเชื้อไวรัสและจบชีวิตตัวละครทันที (คงหน้าต่างยืนยันเดิม)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowSurrenderConfirmModal(true)}
+                            className="w-full py-2.5 px-4 rounded-xl bg-rose-950/80 hover:bg-rose-900/90 border border-rose-500/60 text-xs font-bold text-rose-200 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                          >
+                            <Skull className="w-4 h-4 text-rose-400" />
+                            ยอมแพ้ต่อสัญชาตญาณ (สติถูกกลืนกินจนหมด)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* FOOTER: ADVANCED SETTINGS DRAWER (ALWAYS ACCESSIBLE) */}
+                  <details data-advanced-settings className="pt-3 border-t border-slate-800/80 text-[11px] text-slate-500">
+                    <summary className="cursor-pointer py-1 hover:text-slate-400 select-none font-bold text-xs text-slate-400">
+                      ปรับแต่งขั้นสูง
+                    </summary>
+                    <div className="space-y-2 pt-2">
+                      <label className="route-setting">
+                        <span>
+                          <strong>แสดงเบาะแสและเงื่อนไขเส้นทาง</strong>
+                          <small>เปิดคู่มือเตรียมเส้นทางและเบาะแสบทจบล่วงหน้า · ปิดไว้เพื่อค้นพบด้วยตัวเอง</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          aria-checked={showRouteHints}
+                          data-setting="route-hints"
+                          checked={showRouteHints}
+                          onChange={event => {
+                            setShowRouteHints(event.target.checked);
+                            if (event.target.checked) setJournalSubTab('clues');
+                          }}
+                        />
+                      </label>
+                      <label className="route-setting">
+                        <span>
+                          <strong>ช่วยแนะนำและปักหมุดเส้นทางช่วงท้าย</strong>
+                          <small>เสนอให้ติดตามงานเมื่อเตรียมเส้นทางมาไกลแล้ว · ไม่เปิดคู่มือเฉลย</small>
+                        </span>
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          aria-checked={routeAssistanceEnabled}
+                          data-setting="route-assistance"
+                          checked={routeAssistanceEnabled}
+                          onChange={event => {
+                            setRouteAssistanceEnabled(event.target.checked);
+                            if (!event.target.checked) setRouteGuidanceSession({runId: gameState?.runId || '', pinnedRouteId: null, dismissedRouteIds: []});
+                          }}
+                        />
+                      </label>
+                      <div className="mt-2 p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/70 flex items-center justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="text-slate-300 font-medium text-[11px]">
+                            คำอธิบายใต้ตัวเลือกแบบตัวเลขตรงๆ
+                          </div>
+                          <div className="text-[10px] text-slate-500 leading-snug">
+                            {showNumericSpoilers
+                              ? 'กำลังแสดงตัวเลขผลลัพธ์ตรงๆ (อาจลดความอินในการสวมบทบาท)'
+                              : 'กำลังใช้คำบรรยายสั้นๆ ตามบทบาทแทนตัวเลข (ค่าเริ่มต้น)'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowNumericSpoilers(prev => !prev)}
+                          className={`px-2 py-1 rounded border text-[10px] font-mono shrink-0 transition-colors ${
+                            showNumericSpoilers
+                              ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
+                              : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {showNumericSpoilers ? 'เปิดตัวเลขอยู่' : 'ปิดตัวเลข (ปกติ)'}
+                        </button>
+                      </div>
                     </div>
                   </details>
                 </div>

@@ -65,6 +65,44 @@
 .pixel-map-place-name { position:absolute; top:33px; left:50%; transform:translateX(-50%); width:max-content; max-width:86px; text-align:center; font-size:10px; line-height:1.25; text-shadow:0 1px 3px #0c1813,1px 0 2px #0c1813; pointer-events:none; }
 .pixel-map-north { position:absolute; top:6px; right:7px; font:10px monospace; color:#8da487; }
 .game-dialog.pixel-map-dialog > div { display:flex; flex-direction:column; overflow:hidden; padding:0; }
+.pixel-map-dialog-panel {
+  box-shadow: 0 0 0 1px #233526, 0 20px 45px rgba(4, 8, 5, 0.95);
+}
+.pixel-map-dialog-banner {
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid transparent;
+}
+.pixel-map-dialog-banner.is-current {
+  background: #19301f;
+  color: #bef264;
+  border-bottom-color: #38593f;
+}
+.pixel-map-dialog-banner.is-neighbor {
+  background: #1b2e1f;
+  color: #d6e89f;
+  border-bottom-color: #3f593b;
+}
+.pixel-map-dialog-banner.is-distant {
+  background: #0f2733;
+  color: #7dd3fc;
+  border-bottom-color: #1f4f63;
+}
+.pixel-banner-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: currentColor;
+}
+.pixel-map-dialog-close-btn:focus-visible {
+  outline: 2px solid #bef264;
+  outline-offset: 2px;
+}
 .pixel-map-dialog-body { overflow-y:auto; min-height:0; overscroll-behavior:contain; }
 .pixel-map-dialog-actions { flex-shrink:0; }
 .map-tab-notice { position:absolute; right:2px; top:0; min-width:17px; height:17px; padding:0 4px; display:grid; place-items:center; border-radius:5px; background:#e8bc6d; color:#352d21; font:700 10px/1 monospace; border:1px solid #142b25; }
@@ -190,6 +228,19 @@ body:has(.game-dialog) { overflow: hidden; }
 .route-pin-label { display:block; color:#bae6fd; font-size:10px; line-height:1.6; }
 .pixel-map-marker.is-pinned .pixel-map-dot, .pixel-map-marker.is-travel-goal .pixel-map-dot { outline:2px solid #7dd3fc; outline-offset:6px; }
 .pixel-map-marker.is-pinned .pixel-map-place-name, .pixel-map-marker.is-travel-goal .pixel-map-place-name { color:#bae6fd; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@media (max-width: 640px) {
+  [role="tablist"] button {
+    min-height: 44px;
+  }
+}
 
 @media (max-width: 1023px) {
   .game-shell { padding-bottom: calc(68px + env(safe-area-inset-bottom)); overflow-x: clip; }
@@ -365,4 +416,471 @@ body:has(.game-dialog) { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .screen-shake { animation: none; }
+}
+
+/* ==========================================================================
+   BAG / BODY TAB (แท็บกระเป๋าและร่างกาย - PIXEL SURVIVOR DOSSIER)
+   ========================================================================== */
+.bag-body-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px;
+  background: #14231a;
+  border: 2px solid #2e4335;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+@media (min-width: 640px) {
+  .bag-body-panel {
+    padding: 20px;
+    gap: 22px;
+  }
+}
+
+.bag-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #2b3d30;
+}
+.bag-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #e6d8b5;
+  letter-spacing: 0.02em;
+}
+.bag-badge-counter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #bfd773;
+  background: #192b20;
+  border: 1px solid #324738;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* 2-Column Inventory Grid */
+.bag-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (min-width: 640px) {
+  .bag-grid {
+    gap: 12px;
+  }
+}
+.bag-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 12px 8px;
+  min-height: 104px;
+  background: #101c15;
+  border: 2px solid #283a2e;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+.bag-slot:hover {
+  background: #16281e;
+  border-color: #4b6751;
+}
+.bag-slot.is-selected {
+  background: #1a3023;
+  border-color: #bfd773;
+  box-shadow: inset 0 0 0 1px #bfd773, 0 0 12px rgba(191, 215, 115, 0.25);
+}
+.bag-slot-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #bfd773;
+  background: #09120d;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #283a2e;
+  line-height: 1.2;
+}
+.bag-slot.is-selected .bag-slot-count {
+  border-color: #bfd773;
+  color: #d8ee8f;
+}
+.bag-slot-icon-box {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+.bag-slot-icon-box svg {
+  width: 32px;
+  height: 32px;
+  shape-rendering: crispEdges;
+}
+.bag-slot-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f1ede1;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bag-slot-tag {
+  font-size: 10px;
+  color: #8c9e88;
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: auto;
+}
+
+/* Inspection Drawer */
+.bag-inspection-drawer {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #0f1c15;
+  border: 2px solid #3c5142;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.bag-inspection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #243529;
+  padding-bottom: 6px;
+}
+.bag-inspection-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bag-inspection-unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #bfd773;
+}
+.bag-inspection-desc {
+  font-size: 12px;
+  color: #c8cbb1;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.bag-use-btn {
+  margin-top: 4px;
+  min-height: 46px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #45101a;
+  border: 2px solid #be123c;
+  border-radius: 6px;
+  color: #fecdd3;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #23080e;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+.bag-use-btn:hover {
+  background: #5c1423;
+  border-color: #f43f5e;
+  color: #fff;
+}
+.bag-use-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #23080e;
+}
+
+/* Body Section */
+.body-section-divider {
+  border-top: 1px dashed #2b3d30;
+  margin-top: 6px;
+}
+.body-hero-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: #111f17;
+  border: 2px solid #283a2e;
+  border-radius: 8px;
+}
+@media (min-width: 480px) {
+  .body-hero-card {
+    flex-direction: row;
+    gap: 16px;
+    align-items: flex-start;
+  }
+}
+.body-portrait-frame {
+  width: 110px;
+  height: 130px;
+  margin: 0 auto;
+  background: #09120d;
+  border: 2px solid #bfd773;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #192a1f, 0 4px 10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 6px;
+}
+.body-portrait-frame svg {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+.body-bio-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.body-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+}
+.body-meta {
+  font-size: 12px;
+  color: #bfd773;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.body-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+}
+.body-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  background: #18281e;
+  border: 1px solid #334939;
+  color: #e6d8b5;
+  padding: 2px 7px;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+.body-tag-danger {
+  background: #2a1215;
+  border-color: #881337;
+  color: #fca5a5;
+  font-weight: 700;
+}
+.body-symptom-box {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: #16241b;
+  border: 1px solid #283c2e;
+  border-left: 3px solid #e2a660;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+.body-symptom-box strong {
+  color: #e2a660;
+}
+
+/* Vitals Grid */
+.body-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 360px) {
+  .body-vitals-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.body-vital-card {
+  padding: 10px;
+  background: #111e17;
+  border: 1px solid #283a2e;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.body-vital-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.body-vital-bar {
+  height: 6px;
+  background: #09120d;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 3px 0 2px;
+}
+.body-vital-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.body-vital-desc {
+  font-size: 10px;
+  color: #798b76;
+  line-height: 1.3;
+}
+
+/* Unlocked Mutation Stages */
+.body-mutation-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.body-mutation-card {
+  padding: 12px;
+  background: #111f19;
+  border: 2px solid #283a2e;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.body-mutation-card.is-active-stage {
+  border-color: #38bdf8;
+  background: #13222d;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+.body-mutation-title {
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.body-mutation-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #082f49;
+  border: 1px solid #0284c7;
+  color: #7dd3fc;
+}
+.body-mutation-ability {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
+}
+.body-mutation-sideeffect {
+  font-size: 11px;
+  color: #fde047;
+  line-height: 1.45;
+}
+
+/* Expandable Bio Disclosure */
+.body-bio-disclosure {
+  border: 1px solid #283a2e;
+  border-radius: 8px;
+  background: #111e17;
+  overflow: hidden;
+}
+.body-bio-summary {
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #bfd773;
+  cursor: pointer;
+  background: #16261d;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+.body-bio-summary::-webkit-details-marker {
+  display: none;
+}
+.body-bio-summary::after {
+  content: "▼";
+  font-size: 10px;
+  color: #8c9e88;
+  transition: transform 0.2s;
+}
+.body-bio-disclosure[open] .body-bio-summary::after {
+  content: "▲";
+  color: #bfd773;
+}
+.body-bio-content {
+  padding: 14px;
+  font-size: 12px;
+  color: #c8cbb1;
+  line-height: 1.7;
+  border-top: 1px dashed #283a2e;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.body-bio-entry strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+
+/* ==========================================================================
+   PEOPLE TAB: TACTICAL SURVIVOR ROSTER (แท็บผู้คน - แฟ้มผู้รอดชีวิตภาคสนาม)
+   ========================================================================== */
+.people-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.people-card-tactical {
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+  touch-action: manipulation;
+}
+
+.people-card-tactical:active {
+  transform: scale(0.985);
+}
+
+.people-pixel-badge {
+  image-rendering: pixelated;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
