@@ -1,17 +1,17 @@
-# Graph Report - after-zero-zombie-main  (2026-11-07)
+# Graph Report - after-zero-zombie-main  (2026-11-08)
 
 ## Corpus Check
-- 65 files · ~1,118,202 words
+- 72 files · ~1,182,962 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .cmd 2, .css 1)
+- Unclassified: 7 file(s) not represented in the graph (top: (none) 3, .cmd 2, .patch 1)
 
 ## Summary
-- 822 nodes · 1465 edges · 66 communities (41 shown, 25 thin omitted)
+- 873 nodes · 1549 edges · 78 communities (52 shown, 26 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 80 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `1057e7dd`
+- Built from commit: `547e7a21`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -45,7 +45,7 @@
 - "../../tmp/after-zero-zombie/next/start-profiles.js"
 - "../../tmp/after-zero-zombie/systems/survival.js"
 - "../../tmp/after-zero-zombie/systems/world.js"
-- createInitialZonePopulations
+- generate-people-roster-mockups.mjs
 - "../../tmp/after-zero-zombie/core/contract.js"
 - "../../tmp/after-zero-zombie/core/state-utils.js"
 - "../../tmp/after-zero-zombie/next/ui/consequence-summary.js"
@@ -71,22 +71,34 @@
 - "../../tmp/after-zero-zombie/next/systems/director.js"
 - "../../tmp/after-zero-zombie/systems/origins.js"
 - "../../tmp/after-zero-zombie/ui/scene.js"
-- dependencies
+- export-narrative-pack.ts
 - pastLifeEchoes.ts
 - test-route-guidance-browser.mjs
-- vite.config.ts
-- scripts
+- externalEventsPack.ts
+- ref_node_path
 - manifest.json
+- eventEngine.ts
 - sync-bangkok-content.mjs
+- communityEvents.ts
+- scenario
+- update-pixel-map-dialog.mjs
+- CharacterBioDossier
+- capture-map-dialog-after.mjs
+- test-route-guidance.ts
+- build-export-bundles.mjs
+- verify-journal-redesign.mjs
+- test-ui-tabs.mjs
+- capture-map-dialog-baseline.mjs
+- createInitialZonePopulations
 
 ## God Nodes (most connected - your core abstractions)
-1. `App()` - 55 edges
+1. `App()` - 54 edges
 2. `build()` - 29 edges
 3. `AFTER ZERO — รีวิวฉากจบเดิมทั้งหมด (23 ID)` - 25 edges
-4. `generateCharacter()` - 21 edges
+4. `generateCharacter()` - 23 edges
 5. `SoundManager` - 18 edges
-6. `compilerOptions` - 16 edges
-7. `createCharacterState()` - 15 edges
+6. `createCharacterState()` - 17 edges
+7. `compilerOptions` - 16 edges
 8. `ZonePopulationState` - 13 edges
 9. `deriveDeathEndingPresentation()` - 13 edges
 10. `relationshipState()` - 12 edges
@@ -96,33 +108,33 @@
   docs/superpowers/plans/2026-11-05-optional-route-guidance.md → public/after-zero-bundle.js
 - `cardsHtml` --calls--> `computePortraitPixels()`  [EXTRACTED]
   scripts/verify-mobile-portraits.mjs → src/components/ZombiePortrait.tsx
-- `characters` --calls--> `createCharacterState()`  [EXTRACTED]
-  scripts/export-narrative-pack.ts → src/data/characterPool.ts
 - `characters` --calls--> `generateCharacter()`  [EXTRACTED]
   scripts/export-narrative-pack.ts → src/data/characterPool.ts
+- `createMultiDayState()` --calls--> `generateCharacter()`  [EXTRACTED]
+  scripts/verify-journal-redesign.mjs → src/data/characterPool.ts
 - `cardsHtml` --calls--> `generateCharacter()`  [EXTRACTED]
   scripts/verify-mobile-portraits.mjs → src/data/characterPool.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (66 total, 25 thin omitted)
+## Communities (78 total, 26 thin omitted)
 
 ### Community 0 - "App.tsx"
 Cohesion: 0.10
-Nodes (27): App(), classifyActionLayer(), computeStateDeltas(), CONDITIONAL_CARE_ACTION_IDS, DesktopSideTab, GameScreenStage, LEGACY_02_STORY_ACTION_IDS, MobileDrawerTab (+19 more)
+Nodes (31): App(), classifyActionLayer(), computeStateDeltas(), CONDITIONAL_CARE_ACTION_IDS, DesktopSideTab, GameScreenStage, LEGACY_02_STORY_ACTION_IDS, MobileDrawerTab (+23 more)
 
 ### Community 1 - "test-batch2-continuation-events.ts"
-Cohesion: 0.05
-Nodes (48): batch2Ids, ctx1_no, ctx1_ok, ctx2_no, ctx2_ok, ctxAwningLeft, ctxAwningSignaled, ctxAwningWaited (+40 more)
+Cohesion: 0.07
+Nodes (28): batch2Ids, ctx1_no, ctx1_ok, ctx2_no, ctx2_ok, ctxAwningLeft, ctxAwningSignaled, ctxAwningWaited (+20 more)
 
 ### Community 2 - "characterPool.ts"
-Cohesion: 0.05
-Nodes (43): distDir, publicDir, rootDir, characters, context, engineText, out, replacer() (+35 more)
+Cohesion: 0.15
+Nodes (17): eligibleOccupations(), generateCharacter(), getCharacterAgeGroup(), hairColors, hairStyles, Occupation, primary, profileId() (+9 more)
 
 ### Community 3 - "export-ending-review.ts"
-Cohesion: 0.11
-Nodes (19): bundle, context, endings, forced, out, sources, stringify(), write() (+11 more)
+Cohesion: 0.22
+Nodes (10): bundle, context, endings, forced, out, sources, stringify(), write() (+2 more)
 
 ### Community 4 - "after-zero-bundle.js"
 Cohesion: 0.07
@@ -134,15 +146,15 @@ Nodes (30): runs-on, steps, concurrency, cancel-in-progress, group, environment,
 
 ### Community 6 - "test-tailored-pilot-endings.ts"
 Cohesion: 0.08
-Nodes (39): react, react-dom, sampleBio, bio, context, reviewDir, zones, context (+31 more)
+Nodes (37): react@^19.0.1, react-dom@^19.0.1, react, react-dom, bio, context, reviewDir, zones (+29 more)
 
 ### Community 7 - "build"
 Cohesion: 0.19
 Nodes (28): build(), act(), actions(), adjusted(), afterDecision(), choicePressure(), choiceReasons(), choose() (+20 more)
 
 ### Community 8 - "package.json"
-Cohesion: 0.12
-Nodes (23): devDependencies, autoprefixer@^10.4.21, puppeteer-core@^25.16.0, tailwindcss@^4.3.3, tsx@^4.21.0, @types/express@^4.17.21, @types/node@^22.14.0, @types/react@^19.3.0 (+15 more)
+Cohesion: 0.05
+Nodes (47): dependencies, dotenv@^17.2.3, express@^4.21.2, @google/genai@^2.4.0, lucide-react@^0.546.0, motion@^12.23.24, @tailwindcss/vite@^4.3.3, vite@^8.3.0 (+39 more)
 
 ### Community 9 - "AFTER ZERO — รีวิวฉากจบเดิมทั้งหมด (23 ID)"
 Cohesion: 0.04
@@ -166,15 +178,15 @@ Nodes (12): Compatibility and activation, Follow-up installation: Graphify, UI/U
 
 ### Community 15 - "test-zombie-portrait.ts"
 Cohesion: 0.05
-Nodes (43): adultLayout, allHairStyles, childLayout, elderlyLayout, elderlyMales, hairTypesSeen, hasClawsS1, hasClawsS2 (+35 more)
+Nodes (42): adultLayout, allHairStyles, childLayout, elderlyLayout, elderlyMales, hairTypesSeen, hasClawsS1, hasClawsS2 (+34 more)
 
 ### Community 16 - "บทสนทนาและปฏิกิริยาตามวัย — ข้อเสนอสำหรับตรวจแบบ"
 Cohesion: 0.18
 Nodes (10): กติกางานเขียนร่วมกัน, การตรวจรับ, ขนาดที่ตรวจวัดได้, ความเสี่ยงที่ต้องแก้ก่อนเขียนเนื้อหาจำนวนมาก, บทสนทนาและปฏิกิริยาตามวัย — ข้อเสนอสำหรับตรวจแบบ, ลำดับงานหลังอนุมัติ, เป้าหมาย, แนวทางที่เลือกเสนอ (+2 more)
 
 ### Community 17 - "StoryFeed.tsx"
-Cohesion: 0.33
-Nodes (9): history, log, buildStoryHistory(), LifeLogEntry, StoryFeed(), storyLogKey(), StoryMoment, storyText() (+1 more)
+Cohesion: 0.16
+Nodes (15): history, log, cssContent, cssFiles, getRoleIcon(), PIXEL_ROLE_ICONS, renderScenarioHtml(), scenarios (+7 more)
 
 ### Community 18 - "Optional route guidance"
 Cohesion: 0.25
@@ -185,8 +197,8 @@ Cohesion: 0.18
 Nodes (24): applyNpcRelationships(), kindOf(), migrateSavedRelationships(), npcChoiceReason(), npcEncounterWitnesses(), prepareNpcModal(), RelationshipChoice, validateZoneRelationships() (+16 more)
 
 ### Community 20 - "measure-progression.ts"
-Cohesion: 0.14
-Nodes (12): c, marathonRuns, results, buildActionClimaxDecisionModal(), CHARACTER_BIO_DOSSIERS, getFixedWorldTimelineEvent(), getMidGameHorizonClues(), getSliceOfLifeAndEscapeEndings() (+4 more)
+Cohesion: 0.13
+Nodes (11): c, marathonRuns, results, LATE_GAME_CITY_CRISIS_EVENTS, LATE_GAME_ROAM_FOLLOWUP_EVENTS, buildActionClimaxDecisionModal(), CHARACTER_BIO_DOSSIERS, getMidGameHorizonClues() (+3 more)
 
 ### Community 21 - ""../../tmp/after-zero-zombie/core/schema.js""
 Cohesion: 0.50
@@ -216,9 +228,9 @@ Nodes (4): "../../tmp/after-zero-zombie/systems/survival.js"(), adjustAction(), 
 Cohesion: 0.60
 Nodes (4): "../../tmp/after-zero-zombie/systems/world.js"(), afterDecision(), choiceReasons(), encounter()
 
-### Community 30 - "createInitialZonePopulations"
-Cohesion: 0.40
-Nodes (5): createInitialZonePopulations(), syncZonePopulationsWithEngineState(), materializeZoneResidents(), names, roles
+### Community 30 - "generate-people-roster-mockups.mjs"
+Cohesion: 0.27
+Nodes (10): cssPath, getRoleIcon(), PIXEL_ROLE_ICONS, renderBeforeHtml(), renderComparisonHtml(), renderOption1Html(), renderOption2Html(), run() (+2 more)
 
 ### Community 31 - ""../../tmp/after-zero-zombie/core/contract.js""
 Cohesion: 0.67
@@ -241,54 +253,98 @@ Cohesion: 1.00
 Nodes (3): "../../tmp/after-zero-zombie/systems/evolution.js"(), behaviorDays(), evaluate()
 
 ### Community 50 - "mapLocations.ts"
-Cohesion: 0.12
-Nodes (21): allPlaceIds, hidden, mapState, sandbox, shown, state, zones, arterialSpurs (+13 more)
+Cohesion: 0.23
+Nodes (11): arterialSpurs, edgePath(), PixelCityMap(), ROAD_PATHS, canonicalRouteKey(), findMapRoute(), MAP_LABELS, MAP_POSITIONS (+3 more)
 
-### Community 58 - "dependencies"
-Cohesion: 0.15
-Nodes (13): dependencies, dotenv@^17.2.3, express@^4.21.2, @google/genai@^2.4.0, lucide-react@^0.546.0, motion@^12.23.24, react@^19.0.1, react-dom@^19.0.1 (+5 more)
+### Community 58 - "export-narrative-pack.ts"
+Cohesion: 0.23
+Nodes (11): characters, context, engineText, out, replacer(), sources, write(), createMultiDayState() (+3 more)
 
 ### Community 59 - "pastLifeEchoes.ts"
-Cohesion: 0.10
-Nodes (25): BANGKOK_2026_BIOS, NewBio, residents, applyEngineSurvivalEndDayToState(), applyFinalEndingToState(), applyLifeSimModalEffectsToState(), CauseOfDeathInfo, collectEngineSurvivalModifiers() (+17 more)
+Cohesion: 0.11
+Nodes (25): sampleBio, applyEngineSurvivalEndDayToState(), applyLifeSimModalEffectsToState(), CauseOfDeathInfo, collectEngineSurvivalModifiers(), computeEngineSurvivalDayPolicy(), DailyWeatherAndZoneHazardInfo, DANGER_HUMAN_ATTACK_SCENARIOS (+17 more)
 
 ### Community 60 - "test-route-guidance-browser.mjs"
 Cohesion: 0.23
 Nodes (9): click(), count(), engine, enter(), keys, resolveMorningEvents(), state, tab() (+1 more)
 
-### Community 61 - "vite.config.ts"
-Cohesion: 0.25
-Nodes (6): @tailwindcss/vite@^4.3.3, vite@^8.3.0, @vitejs/plugin-react@^6.1.1, @tailwindcss/vite, vite, @vitejs/plugin-react
+### Community 61 - "externalEventsPack.ts"
+Cohesion: 0.24
+Nodes (9): context, AI_COLLABORATION_PROMPTS, BangkokZoneId, EXTERNAL_AI_NPCS, EXTERNAL_AI_ROAM_EVENTS, ExternalEventEffects, ExternalGameEventTemplate, ExternalNpcTemplate (+1 more)
 
-### Community 62 - "scripts"
-Cohesion: 0.25
-Nodes (8): scripts, build, clean, dev, lint, prebuild, predev, preview
+### Community 62 - "ref_node_path"
+Cohesion: 0.22
+Nodes (7): puppeteer-core, afterImageBase64, beforeImageBase64, cardsHtml, htmlPath, renderSvgString(), testCases
 
 ### Community 63 - "manifest.json"
 Cohesion: 0.40
 Nodes (4): endingCount, endingIds, exportedAt, sources
 
+### Community 64 - "eventEngine.ts"
+Cohesion: 0.17
+Nodes (17): baseBio, buildLifeSimModalFromDynamicTemplate(), DYNAMIC_NARRATIVE_EVENTS, DynamicEventCategory, DynamicEventChoiceTemplate, DynamicNarrativeEventTemplate, evaluateEventCondition(), EventConditionEvaluationResult (+9 more)
+
 ### Community 65 - "sync-bangkok-content.mjs"
 Cohesion: 0.18
 Nodes (9): community, currentIndex, dialogues, engineVersion, nextIndex, relationshipSource, routes, rows (+1 more)
 
+### Community 68 - "scenario"
+Cohesion: 0.53
+Nodes (5): scenario(), check(), click(), snapshot(), tab()
+
+### Community 69 - "update-pixel-map-dialog.mjs"
+Cohesion: 0.33
+Nodes (4): altEndIndex, content, endIndex, startIndex
+
+### Community 70 - "CharacterBioDossier"
+Cohesion: 0.25
+Nodes (7): BANGKOK_2026_BIOS, NewBio, residents, EventEvaluationContext, CharacterBioDossier, PastLifeRecord, ZonePopulationState
+
+### Community 71 - "capture-map-dialog-after.mjs"
+Cohesion: 0.25
+Nodes (8): assetFiles, cssContent, cssFile, cssPath, MAP_LABELS, renderAfterDialogHtml(), run(), scenarios
+
+### Community 72 - "test-route-guidance.ts"
+Cohesion: 0.22
+Nodes (7): allPlaceIds, hidden, mapState, sandbox, shown, state, zones
+
+### Community 73 - "build-export-bundles.mjs"
+Cohesion: 0.29
+Nodes (3): distDir, publicDir, rootDir
+
+### Community 74 - "verify-journal-redesign.mjs"
+Cohesion: 0.29
+Nodes (3): engine, report, zones
+
+### Community 75 - "test-ui-tabs.mjs"
+Cohesion: 0.33
+Nodes (4): engine, results, state, zones
+
+### Community 76 - "capture-map-dialog-baseline.mjs"
+Cohesion: 0.40
+Nodes (5): cssContent, cssPath, renderCurrentDialogHtml(), run(), scenarios
+
+### Community 77 - "createInitialZonePopulations"
+Cohesion: 0.40
+Nodes (5): createInitialZonePopulations(), syncZonePopulationsWithEngineState(), materializeZoneResidents(), names, roles
+
 ## Knowledge Gaps
-- **25 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **26 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `test-tailored-pilot-endings.ts` to `App.tsx`, `package.json`, `StoryFeed.tsx`, `mapLocations.ts`, `dependencies`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
+- **Why does `puppeteer-core` connect `ref_node_path` to `capture-map-dialog-after.mjs`, `package.json`, `verify-journal-redesign.mjs`, `test-ui-tabs.mjs`, `capture-map-dialog-baseline.mjs`, `StoryFeed.tsx`, `test-route-guidance-browser.mjs`, `generate-people-roster-mockups.mjs`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
 - **Are the 12 inferred relationships involving `build()` (e.g. with `act()` and `actions()`) actually correct?**
   _`build()` has 12 INFERRED edges - model-reasoned connections that need verification._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.0989247311827957 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10252100840336134 - nodes in this community are weakly interconnected._
+- **Why does `react` connect `test-tailored-pilot-endings.ts` to `package.json`, `App.tsx`, `mapLocations.ts`, `StoryFeed.tsx`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Should `test-batch2-continuation-events.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected._
 - **Why does `SoundManager` connect `SoundManager` to `test-tailored-pilot-endings.ts`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
-- **Should `test-batch2-continuation-events.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05241090146750524 - nodes in this community are weakly interconnected._
-- **Why does `generateCharacter()` connect `characterPool.ts` to `App.tsx`, `test-tailored-pilot-endings.ts`, `test-zombie-portrait.ts`, `mapLocations.ts`, `measure-progression.ts`, `test-route-guidance-browser.mjs`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
-- **Should `characterPool.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05241090146750524 - nodes in this community are weakly interconnected._
+- **Should `after-zero-bundle.js` be split into smaller, more focused modules?**
+  _Cohesion score 0.07196969696969698 - nodes in this community are weakly interconnected._
