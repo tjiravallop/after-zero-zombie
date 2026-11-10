@@ -29,6 +29,30 @@ for(const [id,ending] of Object.entries(P.catalog.ENDINGS)){
   state.npcZones=zones;const record=buildPastLifeRecordFromState(state,P.viewModel(state,{archive:[]}),1,bio);
   assert.equal(record.deeds.alliedHumans,1);
 }
+
+const ageContent = JSON.parse(fs.readFileSync('src/data/age-dialogue/expansion.json', 'utf8'));
+for (const id of ['bkk_market.ending', 'bkk_ward.ending']) {
+  const ending = { ...P.catalog.ENDINGS[id], id };
+  const state = createCharacterState(P, bio);
+  state.pending = null;
+  state.ending = ending;
+  for (const [age, tier] of [[11, 'child'], [35, 'adult'], [70, 'elder']] as const) {
+    state.characterProfile.age = age;
+    const finalChoice = {
+      runId: state.runId, day: state.day, place: state.place, title: ending.title,
+      text: 'ผลการเลือกทดสอบ', effects: [], logKeys: [], endingOutcomeId: id,
+    };
+    const html = renderToStaticMarkup(React.createElement(EndingExperience, {
+      state, ending, bio, zones, chronicle: null, finalChoice, onNewLife(){}, onHub(){},
+    }));
+    const expected = ageContent.ending[id].text.variants[tier] ?? ending.text;
+    assert(html.includes(expected), id);
+    assert(html.includes('อ่านผลการเลือกครั้งสุดท้าย') && html.includes(finalChoice.text));
+    assert.equal(state.ending.text, ending.text);
+  }
+}
+console.log('PASS: district epilogues and final choice details render without changing the saved ending.');
+
 const reviewDir=fs.mkdtempSync(path.join(os.tmpdir(),'after-zero-ending-review-'));
 let exportedCount=0;
 try {

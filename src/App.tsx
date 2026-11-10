@@ -1,4 +1,5 @@
 import EndingExperience from './components/EndingExperience';
+import { resolveAgeDialogue, resolveLifeSimOutcomeForAge } from './data/ageDialogue';
 import StoryFeed, { storyLogKey, type StoryMoment } from './components/StoryFeed';
 import { generateCharacter, resolveSavedCharacter, snapshotCharacter, getCharacterAgeGroup, createCharacterState } from './data/characterPool';
 import PixelCityMap from './components/PixelCityMap';
@@ -130,6 +131,7 @@ declare global {
             text: string;
             trigger?: string;
             day?: number;
+            travelDialogue?: boolean;
             followup?: string;
             tags?: string[];
             choices: Array<{
@@ -1373,7 +1375,7 @@ export default function App() {
   const recordStoryResult = (
     before: any,
     next: any,
-    moment: Pick<StoryMoment, 'title' | 'choice' | 'text'> & { extraLogKeys?: string[] }
+    moment: Pick<StoryMoment, 'title' | 'choice' | 'text' | 'endingOutcomeId'> & { extraLogKeys?: string[] }
   ) => {
     const previousKeys = new Set((before.log || []).map(storyLogKey));
     const effects = computeStateDeltas(before, next);
@@ -1572,6 +1574,7 @@ export default function App() {
       const target = zone?.npcs.find(npc => npc.id === modalEvent.targetNpcId);
       const knewTarget = target?.met;
       let outcomeText = choice.outcomeText;
+      let introduction = '';
 
       applyLifeSimModalEffectsToState(next, modalEvent, choiceIndex, {
         currentBio,
@@ -1598,10 +1601,10 @@ export default function App() {
               );
             }
           }
-          outcomeText =
-            target?.met && !knewTarget
-              ? selectedChoice.outcomeText + ' ก่อนแยกกัน อีกฝ่ายบอกให้เจ้าเรียกว่า ' + target.name
-              : selectedChoice.outcomeText;
+          introduction = target?.met && !knewTarget
+            ? ' ก่อนแยกกัน อีกฝ่ายบอกให้เจ้าเรียกว่า ' + target.name
+            : '';
+          outcomeText = selectedChoice.outcomeText + introduction;
           nextState.npcZones = nextZones;
         },
         onHazardResult: hazardRes => {
@@ -1643,7 +1646,15 @@ export default function App() {
       });
       setZonePopulations(nextZones);
       setActiveLifeSimModal(null);
-      recordStoryResult(before, next, { title: modalEvent.title, choice: choice.text, text: outcomeText });
+      const ageOutcome = resolveLifeSimOutcomeForAge(
+        modalEvent.id, choice.id, before.characterProfile?.age, target?.name, choice.outcomeSuffix
+      );
+      recordStoryResult(before, next, {
+        title: modalEvent.title,
+        choice: choice.text,
+        text: ageOutcome ? ageOutcome.replaceAll('{signatureItem}', () => currentBio.signatureItemName) + introduction : outcomeText,
+        endingOutcomeId: ageOutcome && eff.triggerEndingId === next.ending?.id ? next.ending?.id : undefined,
+      });
       setGameState(next);
       if (next.ending || eff.triggerEndingId) {
         setMobileTab('play');
@@ -2013,6 +2024,13 @@ export default function App() {
     }
 
     let outcomeText = chosen?.outcomeText || '';
+    if (event?.travelDialogue && chosen?.id) {
+      outcomeText = resolveAgeDialogue(
+        { sourceFamily: 'travel', eventId: event.id, choiceId: chosen.id, field: 'choices.outcomeText' },
+        before.characterProfile?.age,
+        outcomeText
+      );
+    }
     if (pendingHunt && huntTarget) {
       const nextZones = structuredClone(syncedZonePopulations);
       const zone = nextZones[before.place];
@@ -2065,7 +2083,7 @@ export default function App() {
     }
 
     if (soundEnabled) soundFx.success();
-    const isTravelEncounter = Boolean((event as any)?.travelDialogue || (before.pending?.context?.from && before.pending?.context?.to));
+    const isTravelEncounter = Boolean(event?.travelDialogue || (before.pending?.context?.from && before.pending?.context?.to));
     if (isTravelEncounter) {
       const arrivedPlaceName = production?.catalog?.PLACES?.[next.place]?.name || '';
       if (arrivedPlaceName && !outcomeText.includes(arrivedPlaceName)) {
@@ -2823,7 +2841,7 @@ export default function App() {
           STAGE 3: PLAYING SCREEN
          ===================================================================== */}
       {screenStage === 'playing' && rawViewModel?.ending && gameState && (
-        <EndingExperience state={effectiveGameState} ending={effectiveGameState.ending} bio={currentBio} zones={syncedZonePopulations} chronicle={endingChronicle} onNewLife={handleRollCharacterPreview} onHub={()=>setScreenStage('hub')} />
+        <EndingExperience state={effectiveGameState} ending={effectiveGameState.ending} bio={currentBio} zones={syncedZonePopulations} chronicle={endingChronicle} finalChoice={latestStory && latestStory.runId === effectiveGameState.runId && latestStory.endingOutcomeId === effectiveGameState.ending.id ? latestStory : undefined} onNewLife={handleRollCharacterPreview} onHub={()=>setScreenStage('hub')} />
       )}
       {screenStage === 'playing' && rawViewModel && !rawViewModel.ending && gameState && (
         <main className="flex-1 max-w-[1380px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
@@ -4837,7 +4855,11 @@ export default function App() {
                 {currentActiveLifeSimModal.title}
               </h2>
               <p className="text-sm sm:text-base text-slate-200 leading-relaxed whitespace-pre-line">
-                {currentActiveLifeSimModal.text}
+                {resolveAgeDialogue(
+                  { sourceFamily: 'dynamic', eventId: currentActiveLifeSimModal.id, field: 'text' },
+                  gameState?.characterProfile?.age,
+                  currentActiveLifeSimModal.text
+                )}
               </p>
               {currentActiveLifeSimModal.statusNote && <p className="text-xs text-emerald-200/80 border-t border-slate-700 pt-3 whitespace-pre-line">{currentActiveLifeSimModal.statusNote}</p>}
 
@@ -4984,7 +5006,11 @@ export default function App() {
 
                   <div className="bg-slate-950/75 p-4 rounded-xl border border-rose-950/80 space-y-3">
                     <p className="text-sm sm:text-base text-slate-200 leading-relaxed">
-                      {scen.description}
+                      {resolveAgeDialogue(
+                        { sourceFamily: 'hazard', eventId: scen.id, field: 'description' },
+                        gameState?.characterProfile?.age,
+                        scen.description
+                      )}
                     </p>
 
                     {(scen.weaponUsed || scen.injuryDetail) && (

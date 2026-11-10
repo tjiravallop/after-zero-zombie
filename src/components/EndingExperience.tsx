@@ -1,10 +1,13 @@
 import {useEffect,useRef,useState} from 'react';
 import ZombiePortrait from './ZombiePortrait';
+import type {StoryMoment} from './StoryFeed';
+import {resolveAgeDialogue} from '../data/ageDialogue';
+import districts from '../data/bangkokLocations.json';
 import {deriveCauseOfDeath,deriveDeathEndingPresentation,type CharacterBioDossier,type ZonePopulationState} from '../data/pastLifeEchoes';
 import {endingMetrics,endingReflections,isStaticEndingText} from '../data/endingPresentation';
 import {soundFx} from '../utils/soundFx';
 
-export default function EndingExperience({state,ending,bio,zones,chronicle,onNewLife,onHub}:{state:any;ending:any;bio:CharacterBioDossier;zones:Record<string,ZonePopulationState>;chronicle:any;onNewLife:()=>void;onHub:()=>void}) {
+export default function EndingExperience({state,ending,bio,zones,chronicle,finalChoice,onNewLife,onHub}:{state:any;ending:any;bio:CharacterBioDossier;zones:Record<string,ZonePopulationState>;chronicle:any;finalChoice?:StoryMoment;onNewLife:()=>void;onHub:()=>void}) {
   const scene=useRef<HTMLCanvasElement>(null),portrait=useRef<HTMLDivElement>(null);
   const [saveError,setSaveError]=useState('');
   const metrics=endingMetrics(state,zones);
@@ -15,7 +18,11 @@ export default function EndingExperience({state,ending,bio,zones,chronicle,onNew
   const isGenericText = (txt?: string) =>
     !txt || txt.includes('ครั้งแรกเจ้าเสียหัวใจ') || isStaticEndingText(ending?.id || state?.ending?.id, txt);
   const displayTitle = ending?.title && !isGenericTitle(ending.title) ? ending.title : derived.title;
-  const displayText = ending?.text && !isGenericText(ending.text) ? ending.text : derived.text;
+  const canonicalText = ending?.text && !isGenericText(ending.text) ? ending.text : derived.text;
+  const district = districts.find(row => row.id + '.ending' === ending?.id);
+  const displayText = district?.epilogue === canonicalText
+    ? resolveAgeDialogue({sourceFamily: 'ending', eventId: ending.id, field: 'text'}, state?.characterProfile?.age, canonicalText)
+    : canonicalText;
   const effectiveMutation = state?.ending?.id === 'human' ? 0 : Number(state?.stats?.mutation || 0);
   const stats=[['วันที่มาถึง',metrics.days,'วัน'],['ช่วยชีวิต',metrics.saved,'ครั้ง'],['สังหารมนุษย์',metrics.killed,'คน'],['พันธมิตร',metrics.allies,'คน']];
   useEffect(()=>{
@@ -63,6 +70,7 @@ export default function EndingExperience({state,ending,bio,zones,chronicle,onNew
       <p className="ending-eyebrow">ร่องรอยจากการเลือกของเจ้า</p>
       <h2>โลกที่เจ้าเปลี่ยนไว้</h2>
       <ul>{endingReflections(state, zones).map(line=><li key={line}>{line}</li>)}</ul>
+      {finalChoice && <details><summary>อ่านผลการเลือกครั้งสุดท้าย</summary><p>{finalChoice.text}</p></details>}
       <details><summary>อ่านบันทึกช่วงสุดท้าย</summary><p>{cause.title}</p><p>{cause.description}</p>
         {chronicle?.milestones?.map((m:any,i:number)=><p key={m.id||i}>{m.day?`วันที่ ${m.day} · `:''}{m.text}</p>)}</details>
       <a className="ending-scroll" href="#ending-card">เก็บชีวิตนี้ไว้ ↓</a>

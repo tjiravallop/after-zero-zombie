@@ -8,6 +8,7 @@ export type StoryMoment = {
   place: string;
   title: string;
   choice?: string;
+  endingOutcomeId?: string;
   text: string;
   effects: string[];
   logKeys: string[];

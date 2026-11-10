@@ -1,3 +1,4 @@
+import { resolveAgeDialogue } from './ageDialogue';
 import {endingMetrics, isPilotEnding, tailorPilotEndingPresentation} from './endingPresentation';
 import {
   ORGANIC_ENDING_CLIMAX_EVENTS,
@@ -206,6 +207,7 @@ export interface LifeSimModalEvent {
   onResolveSetFlags?: string[];
   allowRepeatUntilDepleted?: boolean;
   choices: Array<{
+    id?: string;
     relationshipKind?: string;
     pressure?: boolean;
     partKey?: string;
@@ -214,6 +216,7 @@ export interface LifeSimModalEvent {
     enabled: boolean;
     disabledReason?: string;
     outcomeText: string;
+    outcomeSuffix?: string;
     effects: {
       corpseMeals?: number;
       endured?: number;
@@ -3128,13 +3131,21 @@ export function getProactiveAllyNpcAidModal(
   return {
     id,
     title: `${devotedAlly.name} แอบนำความช่วยเหลือมาส่งให้เจ้า!`,
-    text: `เพราะ ${devotedAlly.name} (${devotedAlly.role}) มีความไว้ใจต่อเจ้าถึง ${devotedAlly.trust}/100 เมื่อเขาเห็นว่าเจ้ากำลังเดินโซเซจากอาการบาดเจ็บและความหิวโหยใน${zone.placeName} เขาจึงแอบเคาะสัญญาณเรียกเจ้าเข้ามุมมืด แล้ววางถุงเลือดสำรองและผ้าพันแผลไว้ให้ด้วยตัวเอง!`,
+    text: resolveAgeDialogue(
+      { sourceFamily: 'npc', eventId: 'proactiveAllyAid' },
+      gameState.characterProfile?.age,
+      `เพราะ ${devotedAlly.name} (${devotedAlly.role}) มีความไว้ใจต่อเจ้าถึง ${devotedAlly.trust}/100 เมื่อเขาเห็นว่าเจ้ากำลังเดินโซเซจากอาการบาดเจ็บและความหิวโหยใน${zone.placeName} เขาจึงแอบเคาะสัญญาณเรียกเจ้าเข้ามุมมืด แล้ววางถุงเลือดสำรองและผ้าพันแผลไว้ให้ด้วยตัวเอง!`
+    ).replaceAll('{name}', () => devotedAlly.name)
+      .replaceAll('{role}', () => devotedAlly.role)
+      .replaceAll('{trust}', String(devotedAlly.trust))
+      .replaceAll('{placeName}', () => zone.placeName),
     dayNote: 'ผู้รอดชีวิตที่ไว้ใจเจ้าเป็นฝ่ายเข้ามาช่วยเหลือ (ไม่เสียวัน)',
     targetNpcId: devotedAlly.id,
     placeId: zone.placeId,
     advanceDay: false,
     choices: [
       {
+        id: 'ally_aid_choice_accept',
         text: `รับถุงเลือดพกพาและการปฐมพยาบาลจาก ${devotedAlly.name} ด้วยความซาบซึ้ง`,
         note: 'สภาพร่าง +16 · ความหิว -22 · ถุงเลือดพกพา +1 · ความเห็นใจ +5',
         enabled: true,
@@ -3182,6 +3193,7 @@ export function buildFreeformNpcInteractionModal(
   if(crisis&&need==='rescue')choices.push({
     text:'ช่วยเปิดทางหนี โดยส่งสัญญาณให้เขารู้ก่อน',relationshipKind:'rescue',pressure:true,
     note:'สภาพร่าง -8 · ความหิว +8 · ความเป็นมนุษย์ +6 · ช่วยคน +1',enabled:true,
+    id:'lifesim_choice_rescue_target',
     outcomeText:'เจ้ารับแรงกระแทกไว้แล้วเปิดช่องให้อีกฝ่ายหนี เขาพ้นอันตรายเฉพาะหน้า แต่ยังถอยห่างเมื่อเจ้าหันกลับมา',
     effects:{hp:-8,hunger:8,humanity:6,targetNpcTrustDelta:14,resolveNpcCrisis:true,saveLife:true,bystanderTrustDelta:2},
   });
@@ -3199,7 +3211,9 @@ export function buildFreeformNpcInteractionModal(
     : (posture.warning
         ? 'เขามองตามจนเจ้าหยุดห่างออกไป แม้ยังไม่ยอมให้เข้าใกล้ แต่เห็นว่าเจ้าทำตามคำเตือนได้'
         : 'เขารับรู้สัญญาณของเจ้าแล้วคุยต่อจากอีกฝั่งของแนวกั้น');
-  choices.push({text:greetText,
+  choices.push({
+    ...(!isLowSanitySpeech && !isStarving && !posture.warning ? {id: 'lifesim_choice_greet'} : {}),
+    text:greetText,
     relationshipKind:posture.warning?'respect':'information',note:'สติ +2 · ความหิว +2 · ไม่ใช้สิ่งของ',enabled:true,
     outcomeText:greetOutcome,
     effects:{sanity:2,hunger:2,targetNpcTrustDelta:posture.warning?4:2}});
@@ -3211,7 +3225,7 @@ export function buildFreeformNpcInteractionModal(
     : tense
     ? 'เขายังไม่พร้อมเจรจา'
     : 'ต้องได้รับความยินยอมก่อน (ความไว้ใจ '+requiredTrust+')';
-  choices.push({text:bio.specialChoiceLabel,relationshipKind:'work',
+  choices.push({id:'lifesim_choice_signature_work',text:bio.specialChoiceLabel,relationshipKind:'work',
     note:'ความหิว +6 · สติ +2 · ทำเฉพาะจุดที่เขาอนุญาต',enabled:workAllowed,
     disabledReason:workDisabledReason,
     outcomeText:'เขาชี้จุดที่ยอมให้ช่วย เจ้าจึงใช้'+bio.signatureItemName+'ทำงานตามความคุ้นเคย โดยหยุดทันทีเมื่อเขาขอให้เว้นระยะ',
@@ -3223,18 +3237,25 @@ export function buildFreeformNpcInteractionModal(
     outcomeText:'เจ้าชี้จุดที่มีเสียงผิดปกติแล้วถอย เขารอดูด้วยตัวเองแทนที่จะเดินตามทันที',
     effects:{hunger:4,sanity:1,targetNpcTrustDelta:4}});
   const foodResolves=crisis&&need==='supplies',medResolves=crisis&&need==='medicine';
+  const foodOutcomeSuffix = foodResolves ? ' แต่คนข้างในมีอาหารประทังชีวิตแล้ว' : '';
+  const medicineOutcomeSuffix = medResolves ? ' อันตรายจากแผลได้รับการดูแลแล้ว แต่เขายังต้องพักฟื้น' : '';
   choices.push({text:'วางอาหารกระป๋องไว้บนพื้น แล้วถอยให้เขามารับ',relationshipKind:'supplies',
     note:'ใช้เสบียงมนุษย์ 1 · ความหิว +4 · ความเป็นมนุษย์ +2'+(foodResolves?' · คลี่คลายวิกฤตขาดอาหาร':''),
     enabled:supplies>=1,disabledReason:'ต้องมีเสบียงมนุษย์ 1 ชิ้น',
-    outcomeText:'เขารอจนเจ้าถอยพ้นระยะก่อนหยิบอาหารไปตรวจดู การรับของไม่ได้ทำให้เขายอมเปิดที่พักให้เจ้า'+(foodResolves?' แต่คนข้างในมีอาหารประทังชีวิตแล้ว':''),
+    id:'lifesim_choice_give_supplies',
+    outcomeSuffix:foodOutcomeSuffix,
+    outcomeText:'เขารอจนเจ้าถอยพ้นระยะก่อนหยิบอาหารไปตรวจดู การรับของไม่ได้ทำให้เขายอมเปิดที่พักให้เจ้า'+foodOutcomeSuffix,
     effects:{supplies:-1,hunger:4,humanity:2,targetNpcTrustDelta:6,resolveNpcCrisis:foodResolves,saveLife:foodResolves&&/อดอาหาร|อดอยาก/.test(target.crisisText||'')}});
   choices.push({text:'วางชุดเวชภัณฑ์ให้ โดยไม่พยายามแตะตัวเขา',relationshipKind:'medicine',
     note:'ใช้ชุดเย็บแผล 1 · ความหิว +4 · ความเป็นมนุษย์ +3'+(medResolves?' · คลี่คลายวิกฤตบาดเจ็บ':''),
     enabled:medicine>=1,disabledReason:'ต้องมีชุดเย็บแผล 1 ชิ้น',
-    outcomeText:'เขาดึงกล่องเวชภัณฑ์ไปจากอีกฝั่งของที่กำบัง แล้วเรียกคนข้างในให้ช่วยดูแผล เจ้าหยุดรอห่าง ๆ ไม่ยื่นมือเข้าไป'+(medResolves?' อันตรายจากแผลได้รับการดูแลแล้ว แต่เขายังต้องพักฟื้น':''),
+    id:'lifesim_choice_give_medicine',
+    outcomeSuffix:medicineOutcomeSuffix,
+    outcomeText:'เขาดึงกล่องเวชภัณฑ์ไปจากอีกฝั่งของที่กำบัง แล้วเรียกคนข้างในให้ช่วยดูแผล เจ้าหยุดรอห่าง ๆ ไม่ยื่นมือเข้าไป'+medicineOutcomeSuffix,
     effects:{medicine:-1,hunger:4,humanity:3,targetNpcTrustDelta:10,resolveNpcCrisis:medResolves,saveLife:medResolves&&/เลือดไหล|ติดเชื้อ|ไข้สูง/.test(target.crisisText||'')}});
   // Fair exchange remains a viable friendship route, using existing inventory only (locked when sanity < 30).
   if(target.trust>=45&&!tense&&/ค้า|ร้าน|เสบียง|ตลาด/.test(target.role))choices.push({
+    id:'lifesim_choice_barter_supplies',
     text:'เสนอแลกเวชภัณฑ์ 1 ชุดกับเสบียง 2 ชิ้น ผ่านจุดวางของ',relationshipKind:'work',
     note:'ใช้ชุดเย็บแผล 1 · เสบียงมนุษย์ +2 · ความหิว +4',
     enabled:medicine>=1&&!isCognitivelyLocked,
@@ -3243,16 +3264,16 @@ export function buildFreeformNpcInteractionModal(
       : 'ต้องมีชุดเย็บแผล 1 ชิ้น',
     outcomeText:'ต่างฝ่ายวางของแล้วผลัดกันถอย ไม่มีใครต้องยื่นมือเข้าไปหาอีกฝ่าย การแลกครั้งนี้จบตามที่ตกลง',
     effects:{medicine:-1,supplies:2,hunger:4,targetNpcTrustDelta:4}});
-  choices.push({text:'เดินเข้าไปประชิดโดยไม่รอให้เขาอนุญาต',relationshipKind:'breach',
+  choices.push({id:posture.armed?'lifesim_choice_breach_approach_armed':'lifesim_choice_breach_approach_unarmed',text:'เดินเข้าไปประชิดโดยไม่รอให้เขาอนุญาต',relationshipKind:'breach',
     note:'ฝืนขอบเขต · สภาพร่าง -'+(posture.armed?5:2)+' · สติ -1 · เขาจะไม่ให้เข้าใกล้ '+(tense?3:2)+' วัน',enabled:true,
     outcomeText:posture.armed?'เขาฟาดสกัดเมื่อเจ้าล้ำระยะที่เตือนไว้ แล้วถอยเข้าที่กำบังพร้อมปิดการเจรจา':'เขาผลักสกัดจนเจ้ากระแทกขอบทาง แล้วรีบหลบเข้าที่กำบังโดยไม่ยอมคุยต่อ',
     effects:{hp:posture.armed?-5:-2,sanity:-1,targetNpcTrustDelta:target.trust>=70?-8:-18,tensionDays:tense?3:2,bystanderTrustDelta:-4}});
   // Hunting remains optional. Eating does not directly reduce sanity; armed prey can hurt the attacker.
-  choices.push({text:isStarving?'[สัญชาตญาณดิบพลุ่งพล่าน] กระโจนเข้าขย้ำลำคอที่เต้นตุบ ๆ เพื่อดื่มเลือดสด':'[ล่าเหยื่อ] กระโจนเข้าทำร้ายเพื่อกินเลือดเนื้อ',relationshipKind:'breach',
+  choices.push({id:'lifesim_choice_hunt_target',text:isStarving?'[สัญชาตญาณดิบพลุ่งพล่าน] กระโจนเข้าขย้ำลำคอที่เต้นตุบ ๆ เพื่อดื่มเลือดสด':'[ล่าเหยื่อ] กระโจนเข้าทำร้ายเพื่อกินเลือดเนื้อ',relationshipKind:'breach',
     note:'ฆ่าคน +1 · ความหิว -45 · ความเป็นมนุษย์ -18 · กลายพันธุ์ +6 · สภาพร่าง -'+(posture.armed?12:5)+' · คนที่เห็นจะหวาดกลัว',enabled:true,
     outcomeText:'อีกฝ่ายต่อสู้เพื่อเอาชีวิตรอดก่อนถูกเจ้าสังหาร ความหิวสงบลง แต่มีรอยแผลจากการต่อสู้และคนที่เห็นเหตุการณ์หลบหนี',
     effects:npcHuntEffects(posture.armed)});
-  choices.push({text:'เดินจากไปโดยไม่เข้าใกล้และไม่รบกวน',relationshipKind:'information',
+  choices.push({id:'lifesim_choice_leave_peacefully',text:'เดินจากไปโดยไม่เข้าใกล้และไม่รบกวน',relationshipKind:'information',
     note:'ความหิว +2 · ไม่เพิ่มหรือลดความไว้ใจ',enabled:true,outcomeText:'เจ้าถอยกลับสู่ทางเดิม อีกฝ่ายยังมองตาม แต่ไม่มีการเผชิญหน้าต่อ',effects:{hunger:2}});
   const rawZoneLoc =
     gameState?.world?.locations?.[zone.placeId] ||
@@ -3279,9 +3300,17 @@ export function buildFreeformNpcInteractionModal(
         ? '\n\nแม้ร่างของเจ้าจะมีร่องรอยกลายพันธุ์และดวงตาเปลี่ยนสี แต่เพราะความไว้ใจที่สั่งสมมา ' + name + ' จึงยังจำแววตาของเจ้าได้และไม่ยกอาวุธขึ้นขู่'
         : '\n\nเขาเหลือบมองร่องรอยกลายพันธุ์และดวงตาที่เปลี่ยนไปบนร่างของเจ้าด้วยความหวาดหวั่น ก่อนย้ำระยะที่ขอให้เจ้าหยุดอย่างเคร่งครัด')
     : '';
+  const age = gameState.characterProfile?.age;
+  const postureDialogueId = posture.dialogueId === 'posture_tier1_armed_or_unarmed_behavior'
+    ? posture.dialogueId + (posture.armed ? '_armed' : '_unarmed')
+    : posture.dialogueId;
+  const postureText = resolveAgeDialogue({ sourceFamily: 'npc', eventId: postureDialogueId }, age, posture.text);
+  const ageReaction = postureText === posture.text
+    ? resolveAgeDialogue({ sourceFamily: 'npc', eventId: 'freeformEncounter' }, age)
+    : '';
   return prepareNpcModal({id:'lifesim-npc-'+target.id+'-day-'+day,
     title:crisis?name+'ต้องการความช่วยเหลือ':'พบกับ'+name,
-    text:'เจ้าพบ'+name+'ใน'+zone.placeName+'\n\n'+(target.localResident ? target.role+'คนนี้'+target.trait+'\n\n' : '')+posture.text+(crisis?'\n\n'+target.crisisText:'')+
+    text:'เจ้าพบ'+name+'ใน'+zone.placeName+'\n\n'+(target.localResident ? target.role+'คนนี้'+target.trait+'\n\n' : '')+(ageReaction ? ageReaction+'\n\n' : '')+postureText+(crisis?'\n\n'+target.crisisText:'')+
       (witnesses.length?'\n\n'+witnesses.map(n=>n.name).join(' และ ')+'เฝ้ามองจากแนวกำบังใกล้ ๆ':'')+
       dangerParagraph+
       hungerParagraph+
@@ -4998,15 +5027,20 @@ export function getTriggeredEndingClimaxModal(
       dynamicText = `ฝูงผู้ติดเชื้อคลั่งจำนวนมากกำลังทะลักเข้ามาใกล้แนวป้องกันของ${placeName} ในขณะที่ผู้รอดชีวิตทั้ง ${zoneStats.livingCount} คนที่เจ้าเคยช่วยเหลือและคอยแบ่งปันเสบียงให้กำลังเร่งถอยลงสู่หลุมหลบภัยใต้ดินลึก ทว่ากลไกล็อกประตูเหล็กนิรภัยจากด้านในชำรุด — ต้องมีใครสักคนยืนดึงสลักปิดตายประตูจาก "ด้านนอก" และใช้ตัวเองขวางฝูงซอมบี้คลั่งเอาไว้จนกว่าคนข้างในจะปลอดภัย`;
     }
 
+    const ageReaction = resolveAgeDialogue(
+      { sourceFamily: 'ending', eventId: template.id, field: 'text' },
+      gameState.characterProfile?.age
+    );
     return {
       id: cooldownId,
       title: dynamicTitle,
-      text: dynamicText,
+      text: ageReaction ? dynamicText + ' ' + ageReaction : dynamicText,
       dayNote: template.dayNote,
       placeId: place,
       advanceDay: template.advanceDay !== false,
       isEndingClimax: true,
       choices: template.choices.map(c => ({
+        ...(c.id ? { id: c.id } : {}),
         text:
           template.id === 'climax-escape-companion' &&
           anyZoneMaxTrustNpc &&

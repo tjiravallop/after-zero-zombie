@@ -133,6 +133,7 @@ export interface EventEvaluationContext {
 }
 
 export interface DynamicEventChoiceTemplate {
+  id?: string;
   text: string;
   note: string;
   outcomeText: string | ((ctx: EventEvaluationContext, matchedNpc?: ZoneNpc) => string);
@@ -477,6 +478,7 @@ export function buildLifeSimModalFromDynamicTemplate(
           : ch.outcomeText;
 
       return {
+        ...(ch.id ? { id: ch.id } : {}),
         text: ch.text,
         note: availability.enabled
           ? ch.note

@@ -73,11 +73,11 @@ export function previewTrust(npc, action) {
 export function npcPosture(npc,day) {
   const r=relationshipState(npc);
   const armed=/ทหาร|รปภ|รักษาความปลอดภัย|ติดอาวุธ|ปืน|อาวุธ|การ์ด/.test(npc.role+' '+npc.trait);
-  if(r.tensionUntil>day) return {label:'ยังไม่พร้อมเจรจา',armed,warning:true,text:'เขาหลบอยู่หลังแนวกั้นและย้ำว่าอย่าตามเข้ามา ยังรับของที่วางห่าง ๆ ได้ แต่ไม่ยอมให้เข้าใกล้'};
-  if(npc.trust<20) return {label:'ระแวงคนแปลกหน้า',armed,warning:true,text:armed?'เขายกอาวุธคุมเชิง “หยุดตรงนั้น อย่าเข้ามา!” สายตาจับอยู่ที่มือของเจ้า':'เขาสะดุ้งแล้วถอยหาที่กำบัง “อย่าเข้ามานะ” แม้ยังไม่มีอาวุธในมือ แต่เขากำลังมองหาทางหนี'};
-  if(npc.trust<45) return {label:'คุมเชิงรักษาระยะ',armed,warning:true,text:'เขาจำเจ้าได้ แต่ยังชี้ให้หยุดห่างจากตัว “วางของตรงนั้นแล้วถอยก่อน”'};
-  if(npc.trust<70) return {label:'ยอมฟังจากระยะห่าง',armed,warning:false,text:'เขายอมฟังสิ่งที่เจ้าส่งสัญญาณ แต่ยังเว้นช่องทางหนีและขอให้บอกก่อนขยับเข้าใกล้'};
-  return {label:'ยอมร่วมมือ',armed,warning:false,text:'เขาจำการกระทำที่ผ่านมาของเจ้าได้ จึงยอมคุยและช่วยงานกัน โดยยังตกลงระยะปลอดภัยก่อนเข้าใกล้'};
+  if(r.tensionUntil>day) return {dialogueId:'posture_tier0_tense_behavior',label:'ยังไม่พร้อมเจรจา',armed,warning:true,text:'เขาหลบอยู่หลังแนวกั้นและย้ำว่าอย่าตามเข้ามา ยังรับของที่วางห่าง ๆ ได้ แต่ไม่ยอมให้เข้าใกล้'};
+  if(npc.trust<20) return {dialogueId:'posture_tier1_armed_or_unarmed_behavior',label:'ระแวงคนแปลกหน้า',armed,warning:true,text:armed?'เขายกอาวุธคุมเชิง “หยุดตรงนั้น อย่าเข้ามา!” สายตาจับอยู่ที่มือของเจ้า':'เขาสะดุ้งแล้วถอยหาที่กำบัง “อย่าเข้ามานะ” แม้ยังไม่มีอาวุธในมือ แต่เขากำลังมองหาทางหนี'};
+  if(npc.trust<45) return {dialogueId:'posture_tier2_cautious_behavior',label:'คุมเชิงรักษาระยะ',armed,warning:true,text:'เขาจำเจ้าได้ แต่ยังชี้ให้หยุดห่างจากตัว “วางของตรงนั้นแล้วถอยก่อน”'};
+  if(npc.trust<70) return {dialogueId:'posture_tier3_receptive_behavior',label:'ยอมฟังจากระยะห่าง',armed,warning:false,text:'เขายอมฟังสิ่งที่เจ้าส่งสัญญาณ แต่ยังเว้นช่องทางหนีและขอให้บอกก่อนขยับเข้าใกล้'};
+  return {dialogueId:'posture_tier4_cooperative_behavior',label:'ยอมร่วมมือ',armed,warning:false,text:'เขาจำการกระทำที่ผ่านมาของเจ้าได้ จึงยอมคุยและช่วยงานกัน โดยยังตกลงระยะปลอดภัยก่อนเข้าใกล้'};
 }
 
 export function npcHuntEffects(armed) {

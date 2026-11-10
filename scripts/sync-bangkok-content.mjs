@@ -12,6 +12,82 @@ const relationshipStart = '// BEGIN NPC RELATIONSHIP RULES', relationshipEnd = '
 const relationshipCode = `${relationshipStart}\n  const NpcRelationships = (() => {\n${relationshipSource}\nreturn {relationshipState,changeTrust,previewTrust,npcPosture,npcHuntEffects,relationshipTier,recordRescue,scaledTrust,rebalanceRelationshipCatalog,validateSavedEncounter};\n})();\n  ${relationshipEnd}`;
 if(source.includes(relationshipStart)) source=source.slice(0,source.indexOf(relationshipStart))+relationshipCode+source.slice(source.indexOf(relationshipEnd)+relationshipEnd.length);
 else source=source.replace('(() => {','(() => {\n  '+relationshipCode);
+
+const ageDialogueNpc = JSON.parse(fs.readFileSync('src/data/age-dialogue/npc.json', 'utf8'));
+const ageDialogueExpansion = JSON.parse(fs.readFileSync('src/data/age-dialogue/expansion.json', 'utf8'));
+const ageDialogueEvents = { ...ageDialogueNpc.events, ...ageDialogueExpansion.engine, ...ageDialogueExpansion.travel, ...ageDialogueExpansion.route };
+const ageDialogueStart = '// BEGIN AGE-AWARE DIALOGUE RULES', ageDialogueEnd = '// END AGE-AWARE DIALOGUE RULES';
+const ageDialogueCode = `${ageDialogueStart}
+  const AgeDialogue = (() => {
+    const events = ${JSON.stringify(ageDialogueEvents)};
+    function resolveAgeTier(age) {
+      if (typeof age !== 'number' || !Number.isFinite(age)) return 'adult';
+      if (age <= 12) return 'child';
+      if (age <= 19) return 'teen';
+      if (age <= 59) return 'adult';
+      return 'elder';
+    }
+    function resolve(event, age, context) {
+      if (!event || !event.id) return event;
+      const cfg = events[event.id];
+      if (!cfg || !cfg.text) return event;
+      const tier = resolveAgeTier(age);
+      const variant = cfg.text.variants?.[tier];
+      let text = variant || cfg.text.default || event.text;
+      if (text && text.includes('{scene}')) {
+        const scene = (context && context.scenePrefix) || 'ผู้บาดเจ็บคนหนึ่งหลบอยู่ริมถนน';
+        text = text.replace(/\\{scene\\}/g, scene);
+      }
+      return { ...event, text };
+    }
+    return { resolveAgeTier, resolve };
+  })();
+  ${ageDialogueEnd}`;
+if(source.includes(ageDialogueStart)) source=source.slice(0,source.indexOf(ageDialogueStart))+ageDialogueCode+source.slice(source.indexOf(ageDialogueEnd)+ageDialogueEnd.length);
+else source=source.replace(relationshipEnd, relationshipEnd + '\n  ' + ageDialogueCode);
+
+// The travel branch adds the route prefix and returns before the general pending hook.
+const travelReturn = "return {...event,text:(from ? 'ระหว่างทางจาก'+from+' มุ่งหน้าสู่'+to+' — ' : 'ระหว่างทางเข้าสู่'+to+' — ')+event.text};";
+const ageAwareTravelReturn = travelReturn.replace(
+  '+event.text',
+  '+AgeDialogue.resolve(event, s.characterProfile?.age).text'
+);
+if (source.includes(travelReturn)) source = source.replace(travelReturn, ageAwareTravelReturn);
+else if (!source.includes(ageAwareTravelReturn)) throw new Error('Could not locate travel dialogue rendering');
+
+const pendingHookStart = '// BEGIN AGE-AWARE PENDING HOOK';
+const pendingHookEnd = '// END AGE-AWARE PENDING HOOK';
+const pendingHookCode = `${pendingHookStart}
+            if (!event) return null;
+            if (typeof AgeDialogue !== "undefined") {
+              const age = s.characterProfile?.age;
+              if (event.id === "prey") {
+                const scenes = {
+                  "world.prey": "ชายบาดเจ็บติดอยู่ในร้านขายยา",
+                  "world.prey.2": "ชายอีกคนกุมแผลอยู่หลังซากรถเมล์",
+                  "world.prey.3": "ชายสวมเสื้อช่างนั่งพิงกำแพงในซอยแคบ เลือดซึมจากขาของเขา",
+                  "world.prey.4": "ชายส่งของบาดเจ็บหลบอยู่ข้างรถเข็นที่พลิกคว่ำ",
+                  "world.prey.5": "ชายวัยกลางคนลากขาที่บาดเจ็บอยู่ใต้ทางเดินยกระดับ",
+                  "world.prey.6": "ชายหนุ่มกดผ้าห้ามเลือดอยู่หลังแผงขายของร้าง"
+                };
+                const scene = scenes[s.pending.context?.resourceId] || "ผู้บาดเจ็บคนหนึ่งหลบอยู่ริมถนน";
+                return AgeDialogue.resolve(event, age, { scenePrefix: scene });
+              }
+              return AgeDialogue.resolve(event, age, s.pending?.context);
+            }
+            return event;
+            ${pendingHookEnd}`;
+if (source.includes(pendingHookStart)) {
+  source = source.slice(0, source.indexOf(pendingHookStart)) + pendingHookCode + source.slice(source.indexOf(pendingHookEnd) + pendingHookEnd.length);
+} else {
+  const searchSnippet = 'if (!event || event.id !== "prey") return event;';
+  const endSnippet = 'return { ...event, text: scene + " เขาเห็นเจ้าแล้วพยายามลากตัวถอย กลิ่นเลือดบอกว่าเขาเป็นอาหาร แต่เขากำลังขอให้ช่วย" };';
+  const startIdx = source.indexOf(searchSnippet);
+  const endIdx = source.indexOf(endSnippet, startIdx);
+  if (startIdx !== -1 && endIdx !== -1) {
+    source = source.slice(0, startIdx) + pendingHookCode.trim() + source.slice(endIdx + endSnippet.length);
+  }
+}
 const start = '// BEGIN BANGKOK OCCUPATION CONTENT';
 const end = '// END BANGKOK OCCUPATION CONTENT';
 const code = `${start}
