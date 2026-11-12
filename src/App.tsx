@@ -604,8 +604,6 @@ export default function App() {
 
   // Surrender to Zombie Instinct confirmation modal
   const [showSurrenderConfirmModal, setShowSurrenderConfirmModal] = useState<boolean>(false);
-  const [showDownloadGameModal, setShowDownloadGameModal] = useState<boolean>(false);
-  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
 
   // Active Freeform Life-Sim Blocking Modal Event
   const [activeLifeSimModal, setActiveLifeSimModal] = useState<LifeSimModalEvent | null>(() => {
@@ -2139,34 +2137,6 @@ export default function App() {
     setSaveStatusFeedback({ type: 'success', message: exportMsg });
   };
 
-  const handleDownloadGameAsset = async (
-    fileName: string,
-    downloadName: string,
-    mimeType: string
-  ) => {
-    try {
-      setDownloadingFile(fileName);
-      if (soundEnabled) soundFx.click();
-      const res = await fetch(`./${fileName}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const typedBlob = new Blob([blob], { type: mimeType });
-      const url = URL.createObjectURL(typedBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = downloadName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      setActionToast(`ดาวน์โหลด ${downloadName} ลงเครื่องเรียบร้อยแล้ว`);
-    } catch {
-      setActionToast('ดาวน์โหลดเกมไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่');
-    } finally {
-      setDownloadingFile(null);
-    }
-  };
-
   const handleImportSaveJson = (providedText?: string) => {
     const saveText = providedText ?? importJsonText;
     if (!saveText.trim()) {
@@ -2522,16 +2492,7 @@ export default function App() {
                 </button>
               </>
 
-              <button
-                type="button"
-                onClick={() => setShowDownloadGameModal(true)}
-                className="px-2.5 py-1.5 rounded-lg bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/50 text-xs font-bold text-lime-300 flex items-center gap-1 transition-colors"
-                title="ดาวน์โหลดเกมลงเครื่อง (ดาวน์โหลดไฟล์เกมพร้อมเล่น)"
-              >
-                <Download className="w-3.5 h-3.5 text-lime-300 shrink-0" />
-                <span className="hidden sm:inline">โหลดเกมลงเครื่อง</span>
-                <span className="sm:hidden">โหลดเกม</span>
-              </button>
+
 
               <button
                 type="button"
@@ -2708,7 +2669,7 @@ export default function App() {
               <button type="button" className="title-text-button" onClick={() => setShowPlayerGuide(true)}>วิธีเล่น</button>
               <button type="button" className="title-text-button" onClick={() => setShowEndingCollection(true)}>บทจบที่ค้นพบ</button>
               <p className="text-xs text-slate-400">เล่นแบบ Guest · เซฟอยู่ในเบราว์เซอร์นี้ สำรองไฟล์ไว้เพื่อย้ายเครื่อง</p>
-              <button type="button" className="title-text-button title-download" onClick={() => setShowDownloadGameModal(true)}><Download size={14} aria-hidden="true" />ดาวน์โหลดเกมลงเครื่อง</button>
+
             </form>
             <details className="title-about">
               <summary>เรื่องราวก่อนเริ่มชีวิต</summary>
@@ -2735,14 +2696,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDownloadGameModal(true)}
-                className="px-3 py-2 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/50 text-xs font-bold text-lime-300 flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                ดาวน์โหลดตัวเกมลงเครื่อง
-              </button>
+
               <button
                 type="button"
                 onClick={() => setScreenStage('login')}
@@ -5434,90 +5388,6 @@ export default function App() {
         </div>
       )}
 
-      {/* =====================================================================
-          POPUP MODAL 6: DOWNLOAD / EXPORT GAME TO LOCAL MACHINE
-         ===================================================================== */}
-      {showDownloadGameModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="game-dialog fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
-        >
-          <div className="max-w-lg w-full p-6 rounded-2xl bg-slate-900 border-2 border-lime-400/70 space-y-5 shadow-2xl my-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 text-lime-300 font-extrabold text-base">
-                <Download className="w-5 h-5" />
-                <span>ดาวน์โหลดเกมลงเครื่อง</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDownloadGameModal(false)}
-                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-800"
-              >
-                ปิดหน้าต่าง
-              </button>
-            </div>
-
-            <div className="space-y-3.5 text-xs sm:text-sm">
-              {/* OPTION 1: STANDALONE PLAYABLE SINGLE HTML FILE */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-lime-400/50 space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-extrabold text-lime-300 text-sm">
-                    ไฟล์เกมพร้อมเล่นทันที (เปิดเล่นออฟไลน์ได้)
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-lime-400/15 text-lime-300 font-mono text-[11px]">
-                    .HTML ไฟล์เดียวจบ
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  รวมตัวเกมและภาพทั้งหมดไว้ในไฟล์เดียว ดาวน์โหลดเสร็จแล้ว{' '}
-                  <strong className="text-white">
-                    ดับเบิลคลิกเปิดในเบราว์เซอร์ (Chrome / Edge / Safari) เล่นบนเครื่องได้ทันที
-                  </strong>{' '}
-                  โดยไม่ต้องติดตั้งโปรแกรมหรือรันเซิร์ฟเวอร์ใดๆ
-                </p>
-                <p className="text-xs text-slate-400">ไฟล์นี้บันทึกเซฟในเครื่อง ใช้เว็บเกมเมื่อต้องการ Google Login เซฟคลาวด์ หรือส่งความคิดเห็น</p>
-                <button
-                  type="button"
-                  disabled={downloadingFile !== null}
-                  onClick={() =>
-                    handleDownloadGameAsset(
-                      'after-zero-bangkok-standalone.html',
-                      'AFTER-ZERO-Bangkok-Playable.html',
-                      'text/html;charset=utf-8'
-                    )
-                  }
-                  className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 disabled:opacity-60 text-slate-950 font-extrabold text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 shadow-lg"
-                >
-                  <Download className="w-4 h-4" />
-                  {downloadingFile === 'after-zero-bangkok-standalone.html'
-                    ? 'กำลังเตรียมไฟล์ดาวน์โหลด...'
-                    : 'ดาวน์โหลดไฟล์เกมพร้อมเล่น (.HTML)'}
-                </button>
-              </div>
-
-              {/* OPTION 3: SAVE FILE JSON */}
-              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-3">
-                <div className="text-xs text-slate-300">
-                  <div className="font-bold text-slate-200">สำรองเฉพาะไฟล์เซฟปัจจุบัน (.JSON)</div>
-                  <div className="text-[11px] text-slate-400">
-                    ใช้สำหรับนำเข้าเซฟกลับเข้ามาเล่นต่อในภายหลัง
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleExportSaveJson}
-                  className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs shrink-0 flex items-center gap-1.5"
-                  disabled={!hasStartedRun}
-                >
-                  <Download className="w-3.5 h-3.5 text-lime-300" />
-                  เซฟ (.json)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

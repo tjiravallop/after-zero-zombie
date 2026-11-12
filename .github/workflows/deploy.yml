@@ -40,6 +40,10 @@ jobs:
       - name: Build static site
         run: pnpm run build
 
+      - name: Reject downloadable game packages
+        run: |
+          node -e "const fs = require('node:fs'); for (const name of ['after-zero-bangkok-standalone.html', 'after-zero-bangkok-project.zip']) { if (fs.existsSync('dist/' + name)) throw new Error('Game packages must not be published: ' + name); }"
+
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 

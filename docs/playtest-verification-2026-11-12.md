@@ -2,6 +2,8 @@
 
 Scope: player onboarding/copy, saves/downloads, Firebase accounts and private cloud saves, feedback/counters, and spoiler-free ending collection. These are targeted release checks, not a full narrative-content audit.
 
+The initial-release checks below are historical. The owner follow-up dated 2026-11-13 supersedes the standalone-distribution policy and records the subsequent real Google-session confirmation.
+
 | Check | Evidence/result |
 | --- | --- |
 | Production build | Passed; regenerated the standalone HTML from the current JavaScript/CSS/engine bundle |
@@ -39,3 +41,13 @@ Windows intermittently locked different shared `lucide-react` dependency files d
 Counters identify Firebase accounts, not unique human beings, and do not prove honest gameplay. Guest browser resets can create new identities. Unknown imported runs do not create starts. Large-scale write contention on the aggregate document has not been load-tested.
 
 No Google password, authorization code, CLI token, or service-account key was added to source or configuration. Public Web SDK configuration is intentionally committed.
+
+## Owner follow-up — 2026-11-13
+
+The owner rejected full-game download distribution and reported unclear Google sign-in feedback. The earlier standalone checks describe the initial release, not the updated distribution policy.
+
+- Removed all three game-download entry points, their modal/handler, the committed standalone file and the export script/postbuild hook. Save JSON backup/import remains. CI now rejects the former game-package filenames in the deployment directory.
+- Added a persistent explicit Google signed-in label, separate success confirmation and account name/email in the account panel. A successful credential result updates the displayed user directly; cloud-save status no longer has to double as sign-in feedback. Account changes are visibly disabled during uploads.
+- The open real user session was inspected read-only. Its account panel had the Google logout control and an owned cloud-save conflict. This confirms a real Google session; no save choice or credentials were changed by the assistant.
+- Before the fixes, the new no-distribution assertion failed and the explicit-sign-in-indicator assertion timed out. After the fixes, typecheck, build, fresh-player/no-distribution UI checks and the Google new/existing-account/cloud UI checks passed.
+- The source repo is still Public. Preparing the separately requested Private + Firebase Hosting plan does not authorize or claim a visibility/hosting change. Browser-required game assets and previously obtained copies are a separate limitation.

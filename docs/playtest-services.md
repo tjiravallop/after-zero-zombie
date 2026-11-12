@@ -17,11 +17,15 @@ Local gameplay and the existing save keys remain available without a network con
 
 Guest authentication is automatic when the online backend is available. Linking a new Google account keeps the Guest identity. Signing into a Google account that already exists offers a cloud/local choice when the saves differ. Both versions can be downloaded before choosing. The selection replaces the other version; histories are not silently merged.
 
+Successful Google sign-in has its own confirmation, separate from cloud-save status. A persistent signed-in label remains after reload, and the account panel shows the Firebase account name/email. The player nickname is a separate value. Account-switch buttons are disabled while a save is uploading.
+
 Cloud saves use gzip, are limited to 900,000 base64 characters and 10 MiB before compression, and include the current character, world state, archive, echo IDs, and mutation milestones. Revision checks reject writes based on an older cloud revision. Unsent progress remains in the local save. Online reconnection or the account panel's retry button reads the current cloud revision again.
 
 Logging out retains the local game. Players sharing a browser should understand that another person using that browser can continue the local life. The Google session is signed out; a former anonymous identity may be retained by the Firebase SDK solely to finish counting a Guest life carried into an existing Google account.
 
-Standalone HTML is regenerated from each production build. Opening it using `file://` supports local play and JSON saves. Google Login, cloud saves, online feedback and global statistics require the hosted web game.
+The owner chose browser-only distribution. There are no player-facing full-game download controls, no published standalone HTML, and no automatic game/archive export after builds. JSON save backups/imports remain available. CI rejects the former standalone/project-package filenames in the deployment output.
+
+The GitHub source repository is still Public. Removing the packaged download does not hide the original source or the browser's required JavaScript/story assets. A separate source-privacy/hosting decision is needed. Changing a GitHub Free repository to Private automatically unpublishes its Pages site; review the hosting plan before changing visibility. [GitHub visibility documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility)
 
 ## Data and counters
 

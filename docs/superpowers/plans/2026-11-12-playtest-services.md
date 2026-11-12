@@ -16,10 +16,10 @@ Keep the GitHub Pages frontend. Firebase Authentication provides anonymous accou
 - [x] Configure Firebase and implement Guest, Google linking, account switching, and cloud save conflicts.
 - [x] Implement feedback delivery with optional diagnostic consent and server-backed unique-player, run-start, and ending counters.
 - [x] Verify Firestore ownership and counter rules, offline/retry behavior, existing saves, and new-player flows in Chrome.
-- [ ] Verify the published frontend and have a real account complete Google OAuth. Automated Google flows use the emulator; real Anonymous/cloud-save/feedback connectivity has passed.
+- [x] Verify the published frontend and a real Google account session. On 2026-11-13 the owner's open game session showed the Google logout control and an owned cloud-save conflict; no save choice or credentials were changed during inspection.
 
 ## Verification requirements
 
 Exercise storage failure, malformed and old saves, repeated reloads, Google accounts with existing cloud saves, interrupted uploads, duplicate run events, locked ending accessibility text, and ending-gallery recovery after import. Preserve gameplay effects and conditions.
 
-Firebase project `after-zero-zombie-261112`, Google/Anonymous providers, Standard Firestore in Singapore, and prototype rules have been provisioned. See `docs/playtest-services.md` for operations and `docs/playtest-verification-2026-11-12.md` for evidence and limitations. The publish step is a playtest candidate; a real Google account still needs to confirm OAuth on the published domain.
+Firebase project `after-zero-zombie-261112`, Google/Anonymous providers, Standard Firestore in Singapore, and prototype rules have been provisioned. See `docs/playtest-services.md` for operations and `docs/playtest-verification-2026-11-12.md` for evidence and limitations. The owner later rejected full-game downloads; the follow-up removes distribution and clarifies Google status. The separate Private + Firebase Hosting migration is a proposed plan awaiting approval.

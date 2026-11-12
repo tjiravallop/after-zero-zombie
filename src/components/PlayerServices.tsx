@@ -21,6 +21,8 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
   const [remote, setRemote] = useState<CloudSave | null>(null);
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [syncTick, setSyncTick] = useState(0);
   const [connectionTick, setConnectionTick] = useState(0);
   const [feedback, setFeedback] = useState(() => {
@@ -53,7 +55,7 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
         const changed = currentUid.current !== (account?.uid ?? null);
         currentUid.current = account?.uid ?? null;
         setUser(account);
-        if (changed) {setSyncEnabled(false); setRemote(null);}
+        if (changed) {setSyncEnabled(false); setRemote(null); setAuthNotice(null);}
       });
       await enterGuest(service);
     }).catch(() => {if (alive) setMessage('เชื่อมต่อบัญชีไม่ได้ เล่นต่อและสำรองเซฟในเครื่องได้');});
@@ -120,6 +122,7 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
     const timer = setTimeout(async () => {
       if (uploading.current || currentUid.current !== uid) return;
       uploading.current = true;
+      setIsUploading(true);
       setMessage('กำลังบันทึกบนคลาวด์');
       try {
         const payload = await encodeCloudSave(snapshot);
@@ -138,6 +141,7 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
         setMessage(playerError(error, 'บันทึกคลาวด์ไม่สำเร็จ เซฟในเครื่องยังใช้เล่นต่อได้'));
       } finally {
         uploading.current = false;
+        setIsUploading(false);
         if (currentUid.current === uid && saved.current === snapshot && latestSnapshot.current !== snapshot) setSyncTick(value => value + 1);
       }
     }, 2500);
@@ -179,7 +183,11 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
   async function google() {
     if (!backend || busy || uploading.current) return;
     setBusy(true);
-    try {await enterGoogle(backend);}
+    try {
+      const credential = await enterGoogle(backend);
+      setUser(credential.user);
+      setAuthNotice('เข้าสู่ระบบ Google สำเร็จ');
+    }
     catch (error) {
       console.warn('Google sign-in failed:', (error as {code?: string}).code ?? 'unknown');
       setMessage('เข้าสู่ระบบ Google ไม่สำเร็จ กรุณาลองใหม่');
@@ -189,6 +197,7 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
   async function logout() {
     if (!backend || busy || uploading.current) return;
     setBusy(true);
+    setAuthNotice(null);
     setSyncEnabled(false);
     try {await leaveAccount(backend);}
     catch {setMessage('ออกจากบัญชีไม่สำเร็จ กรุณาลองใหม่');}
@@ -214,20 +223,30 @@ export default function PlayerServices({snapshot, onRestore, onBackup}: {
 
   return <>
     <aside className="player-services" aria-label="บัญชีและบริการผู้เล่น">
-      <span>{user && !user.isAnonymous ? user.displayName || 'บัญชี Google' : 'Guest'} · {message}</span>
+      <strong data-auth-state={user && !user.isAnonymous ? 'google' : 'guest'} className={user && !user.isAnonymous ? 'text-lime-300' : 'text-slate-300'}>
+        {user && !user.isAnonymous ? '✓ เข้าสู่ระบบ Google แล้ว' : 'Guest · ยังไม่ได้เชื่อม Google'}
+      </strong>
+      {user && !user.isAnonymous && user.displayName && <span>{user.displayName}</span>}
+      <span>{message}</span>
       <button type="button" onClick={() => setPanel('account')}>บัญชีและเซฟ</button>
       <button type="button" onClick={() => setPanel('feedback')}>ส่งความคิดเห็น</button>
       {stats && <span>ผู้ติดเชื้อที่ตื่นขึ้น {stats.lives.toLocaleString()} ชีวิต · ผู้เล่น {stats.players.toLocaleString()} คน</span>}
     </aside>
     {panel === 'account' && <PlayerModal title="บัญชีและเซฟคลาวด์" onClose={() => setPanel(null)}>
       <div className="space-y-4 text-sm">
+        {user && !user.isAnonymous && <div data-account-identity className="rounded-xl border border-lime-500/60 bg-lime-950/50 p-4">
+          <p className="font-bold text-lime-200">เข้าสู่ระบบ Google แล้ว</p>
+          <p className="mt-2 break-words">{user.displayName || 'บัญชี Google'}</p>
+          {user.email && <p className="break-all text-slate-300">{user.email}</p>}
+        </div>}
+        {authNotice && <p data-auth-notice role="status" className="font-semibold text-lime-300">{authNotice}</p>}
         <p role="status">{message}</p>
         <button type="button" onClick={onBackup} disabled={!snapshot} className="player-secondary">ดาวน์โหลดเซฟสำรองในเครื่อง</button>
         <button type="button" onClick={() => {if (!uploading.current) setConnectionTick(value => value + 1);}} disabled={!backend || busy} className="player-secondary">ลองเชื่อมต่ออีกครั้ง</button>
-        <p>Guest เล่นได้ทันทีในเบราว์เซอร์นี้ เชื่อม Google เพื่อกลับมาเล่นเซฟเดิมจากเครื่องอื่น</p>
-        {!backend && <p>บัญชี เซฟคลาวด์ และส่งความคิดเห็นใช้งานผ่านเว็บเกมที่เชื่อมต่ออินเทอร์เน็ต ไฟล์เกมลงเครื่องเล่นและสำรองเซฟในเครื่องได้</p>}
-        <button type="button" disabled={!backend || busy} onClick={google} className="player-primary">{user?.isAnonymous ? 'เชื่อมบัญชี Google' : 'เข้าสู่ระบบ Google'}</button>
-        {user && !user.isAnonymous && <><button type="button" disabled={busy} onClick={logout} className="player-secondary">ออกจากบัญชี แล้วเล่นเป็น Guest</button><p>การออกจากบัญชียังคงเซฟและร่างความคิดเห็นในเครื่องไว้ ผู้ใช้เบราว์เซอร์นี้ยังเปิดข้อมูลเหล่านี้ได้</p></>}
+        <p>{user && !user.isAnonymous ? 'บัญชี Google นี้ใช้สำรองเซฟและกลับมาเล่นต่อจากเครื่องอื่นได้' : 'Guest เล่นได้ทันทีในเบราว์เซอร์นี้ เชื่อม Google เพื่อกลับมาเล่นเซฟเดิมจากเครื่องอื่น'}</p>
+        {!backend && <p>ยังเชื่อมต่อบัญชีไม่ได้ เล่นต่อและสำรองเซฟในเครื่องได้</p>}
+        <button type="button" disabled={!backend || busy || isUploading} onClick={google} className="player-primary">{isUploading ? 'กำลังบันทึกเซฟ รอสักครู่' : user && !user.isAnonymous ? 'เปลี่ยนบัญชี Google' : 'เชื่อมบัญชี Google'}</button>
+        {user && !user.isAnonymous && <><button type="button" disabled={busy || isUploading} onClick={logout} className="player-secondary">ออกจากบัญชี แล้วเล่นเป็น Guest</button><p>การออกจากบัญชียังคงเซฟและร่างความคิดเห็นในเครื่องไว้ ผู้ใช้เบราว์เซอร์นี้ยังเปิดข้อมูลเหล่านี้ได้</p></>}
         {remote && <div className="rounded-xl border border-amber-600 p-4 space-y-3">
           <p>เซฟในเครื่องกับคลาวด์ต่างกัน เซฟที่เลือกจะใช้เล่นต่อและแทนที่เซฟอีกฝั่ง สำรองทั้งสองชีวิตได้ก่อนเลือก</p>
           <p>คลาวด์บันทึกล่าสุด {remote.updatedAt ? new Date(remote.updatedAt).toLocaleString('th-TH') : 'ไม่ทราบเวลา'}</p>

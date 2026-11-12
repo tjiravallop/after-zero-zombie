@@ -3,7 +3,6 @@ import puppeteer from 'puppeteer-core';
 import {mkdtemp, writeFile, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve, sep} from 'node:path';
-import {pathToFileURL} from 'node:url';
 
 const browser = await puppeteer.launch({
   executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -20,6 +19,7 @@ try {
   page.on('pageerror', error => errors.push(String(error)));
   await page.goto(process.env.GAME_TEST_URL || 'http://127.0.0.1:4173/', {waitUntil: 'domcontentloaded'});
   await page.waitForSelector('button');
+  assert(!/ดาวน์โหลด(?:ตัว)?เกม|โหลดเกมลงเครื่อง/.test(await page.$eval('body', element => element.innerText)), 'Player screens must not offer a game download');
   const click = async (label: string) => {console.log('UI:', label); await page.locator('::-p-xpath(//button[normalize-space(.)=' + JSON.stringify(label) + '])').click();};
   await click('บทจบที่ค้นพบ');
   await page.waitForSelector('dialog[open] [data-ending-collection]');
@@ -92,12 +92,9 @@ try {
   await blocked.waitForSelector('[role="alert"]');
   assert((await blocked.$eval('[role="alert"]', element => element.textContent))?.includes('บันทึกลงเครื่องไม่สำเร็จ'));
   assert.deepEqual(errors, []);
-  const standalone = await context.newPage();
-  assert.equal(await readFile('public/after-zero-bangkok-standalone.html', 'utf8'), await readFile('dist/after-zero-bangkok-standalone.html', 'utf8'), 'The source download and deployed download must contain the same build');
-  await standalone.goto(pathToFileURL(join(process.cwd(), 'dist/after-zero-bangkok-standalone.html')).href, {waitUntil: 'domcontentloaded'});
-  await standalone.waitForSelector('button');
-  assert((await standalone.$eval('body', element => element.textContent))?.includes('เริ่มชีวิตใหม่'));
-  console.log('Fresh-player UI: locked endings, guide, preview counts, persistence, mobile layout, file import/rejection, ending recovery, blocked storage, and standalone passed.');
+  await assert.rejects(() => readFile('public/after-zero-bangkok-standalone.html'), {code: 'ENOENT'});
+  await assert.rejects(() => readFile('dist/after-zero-bangkok-standalone.html'), {code: 'ENOENT'});
+  console.log('Fresh-player UI: locked endings, guide, preview counts, persistence, mobile layout, file import/rejection, ending recovery, blocked storage, and no game distribution passed.');
 } catch(error) {
   for(const open of await browser.pages()) console.error((await open.$eval('body', element => element.innerText).catch(() => '')).slice(0,5000));
   throw error;

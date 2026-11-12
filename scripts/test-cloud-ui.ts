@@ -69,6 +69,11 @@ async function google(page: Page, email: string) {
     }
   }
   await page.waitForSelector('button::-p-text(ออกจากบัญชี แล้วเล่นเป็น Guest)');
+  await page.waitForSelector('[data-auth-state="google"]');
+  await page.waitForSelector('[data-auth-notice]');
+  assert((await page.$eval('[data-auth-state="google"]', element => element.textContent))?.includes('เข้าสู่ระบบ Google แล้ว'));
+  assert((await page.$eval('[data-account-identity]', element => element.textContent))?.includes(email));
+  assert((await page.$eval('[data-auth-notice]', element => element.textContent))?.includes('เข้าสู่ระบบ Google สำเร็จ'));
 }
 try {
   const email = 'cloud-test-' + Date.now() + '@example.invalid';
