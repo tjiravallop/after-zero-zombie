@@ -1,0 +1,32 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "database": "(default)",
+    "location": "asia-southeast1"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true
+    }
+  },
+  "auth": {
+    "providers": {
+      "anonymous": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "AFTER ZERO",
+        "supportEmail": "t.jiravallop@gmail.com",
+        "authorizedRedirectUris": [
+          "https://after-zero-zombie-261112.firebaseapp.com/__/auth/handler",
+          "https://tjiravallop.github.io/after-zero-zombie/",
+          "http://localhost"
+        ]
+      }
+    }
+  }
+}

@@ -114,6 +114,48 @@
 .character-scene > .relative { isolation: isolate; }
 .character-portrait { position: absolute; width: 156px; right: 20px; bottom: 2px; pointer-events: none; transition: transform 0.35s ease, filter 0.35s ease; transform-origin: bottom center; }
 .zombie-portrait { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+/* Sparse gestures use SVG coordinates; the floor shadow stays still. */
+.zombie-idle { overflow: visible; }
+.zombie-idle-sway, .zombie-idle-twitch { transform-origin: var(--idle-ground); }
+.zombie-idle-sway { animation: zombie-weight-shift 18s steps(3, end) infinite; }
+.zombie-idle-twitch { animation: zombie-shoulder-twitch 23s steps(1, end) infinite; }
+.zombie-idle-head { animation: zombie-head-tilt 17s steps(2, end) infinite; }
+.zombie-idle-torso { animation: zombie-settle 21s steps(2, end) infinite; }
+.zombie-idle-left-arm { animation: zombie-arm-drift 11s steps(3, end) infinite; }
+.zombie-idle-right-arm { animation: zombie-arm-drift 13s steps(3, end) infinite reverse; }
+.zombie-idle-left-foot { animation: zombie-foot-shuffle 19s steps(1, end) infinite; }
+.zombie-idle-right-foot { animation: zombie-foot-shuffle 29s steps(1, end) infinite reverse; }
+.zombie-idle g[class^="zombie-idle-"] { animation-delay: var(--idle-delay); }
+@keyframes zombie-weight-shift {
+  0%, 20%, 60%, 100% { transform: rotate(0deg); }
+  30%, 42% { transform: rotate(-1.5deg); }
+  72%, 84% { transform: rotate(1.5deg); }
+}
+@keyframes zombie-shoulder-twitch {
+  0%, 66%, 70%, 100% { transform: translate(0, 0); }
+  67%, 69% { transform: translate(-0.35px, -0.35px) rotate(-1deg); }
+  68% { transform: translate(0.35px, 0) rotate(1deg); }
+}
+@keyframes zombie-head-tilt {
+  0%, 15%, 48%, 100% { transform: rotate(0deg); }
+  25%, 38% { transform: rotate(-3deg) translateY(0.2px); }
+  67%, 76% { transform: rotate(2deg); }
+}
+@keyframes zombie-settle {
+  0%, 42%, 72%, 100% { transform: translateY(0); }
+  52%, 62% { transform: translateY(0.3px); }
+}
+@keyframes zombie-arm-drift {
+  0%, 18%, 78%, 100% { transform: rotate(0deg); }
+  35%, 55% { transform: rotate(4deg); }
+}
+@keyframes zombie-foot-shuffle {
+  0%, 75%, 82%, 100% { transform: translate(0, 0); }
+  77%, 80% { transform: translate(0.45px, -0.2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zombie-idle g[class^="zombie-idle-"] { animation: none; }
+}
 .zombie-portrait.mutation-stage-2 { filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.35)); }
 .zombie-portrait.mutation-stage-3 { filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 4px rgba(244, 63, 94, 0.45)); transform: scale(1.06); transform-origin: bottom center; }
 .zombie-portrait.mutation-stage-4 { filter: drop-shadow(0 0 14px rgba(168, 85, 247, 0.7)) drop-shadow(0 0 6px rgba(52, 211, 153, 0.6)); transform: scale(1.12); transform-origin: bottom center; }
@@ -884,3 +926,13 @@ body:has(.game-dialog) { overflow: hidden; }
   image-rendering: pixelated;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
+
+/* Player services and native dialogs. */
+.player-modal {margin:auto; width:min(92vw,760px); max-height:88dvh; overflow:auto; border:1px solid #38503d; border-radius:18px; padding:24px; background:#111c16; color:#e2e8f0; box-shadow:0 20px 80px #0009;}
+.player-modal::backdrop {background:#020a08d9;}
+.player-services {display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px 16px; padding:8px 16px; font-size:12px; color:#a6b6a8; border-bottom:1px solid #26392d;}
+.player-services button {text-decoration:underline; text-underline-offset:3px; padding:6px 0;}
+.player-primary,.player-secondary {display:inline-block; padding:10px 14px; margin:4px 8px 4px 0; border-radius:10px; border:1px solid #53654d;}
+.player-primary {background:#bef264; color:#14210b; font-weight:700;}
+.player-input {display:block; width:100%; margin-top:6px; padding:10px; border:1px solid #53654d; border-radius:8px; background:#090f0b; color:#e2e8f0;}
+.player-modal button:disabled {opacity:.45; cursor:not-allowed;}

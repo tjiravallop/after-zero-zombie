@@ -1,3 +1,4 @@
+import { useId, type CSSProperties } from 'react';
 import type { CharacterAppearance } from '../data/pastLifeEchoes';
 
 export type Bio = {
@@ -956,7 +957,20 @@ export function computePortraitPixels(bio: Bio, mutation = 0): Pixel[] {
   return pixels;
 }
 
-export default function ZombiePortrait({ bio, mutation = 0 }: { bio: Bio; mutation?: number }) {
+export default function ZombiePortrait({
+  bio, mutation = 0, animated = false,
+}: { bio: Bio; mutation?: number; animated?: boolean }) {
+  const portraitId = useId().replaceAll(':', '');
+  const layout = getAgeLayout(bio.age ?? 30);
+  // Clip the finished portrait so clothes and mutations move with each region.
+  const regions = [
+    { name: 'head', x: 0, y: 0, width: 32, height: layout.torsoY, origin: `16px ${layout.torsoY}px` },
+    { name: 'left-arm', x: 0, y: layout.torsoY, width: layout.torsoX, height: layout.legY - layout.torsoY, origin: `${layout.torsoX}px ${layout.armY}px` },
+    { name: 'torso', x: layout.torsoX, y: layout.torsoY, width: layout.torsoW, height: layout.legY - layout.torsoY, origin: `16px ${layout.legY}px` },
+    { name: 'right-arm', x: layout.torsoX + layout.torsoW, y: layout.torsoY, width: 32 - layout.torsoX - layout.torsoW, height: layout.legY - layout.torsoY, origin: `${layout.torsoX + layout.torsoW}px ${layout.armY}px` },
+    { name: 'left-foot', x: 0, y: layout.legY, width: 16, height: layout.groundY - layout.legY, origin: `13px ${layout.groundY}px` },
+    { name: 'right-foot', x: 16, y: layout.legY, width: 16, height: layout.groundY - layout.legY, origin: `20px ${layout.groundY}px` },
+  ];
   const mutStage = mutation >= 75 ? 4 : mutation >= 50 ? 3 : mutation >= 25 ? 2 : 1;
   const pixels = computePortraitPixels(bio, mutation);
 
@@ -968,9 +982,45 @@ export default function ZombiePortrait({ bio, mutation = 0 }: { bio: Bio; mutati
       aria-label={`ซอมบี้ 8-bit เพศ${bio.gender}${bio.age ? ` อายุ ${bio.age} ปี` : ''} อดีต${bio.occupation}${
         mutStage > 1 ? ` กลายพันธุ์ระยะที่ ${mutStage}` : ''
       }`}
-      className={`zombie-portrait mutation-stage-${mutStage}`}
+      className={`zombie-portrait mutation-stage-${mutStage}${animated ? ' zombie-idle' : ''}`}
+      style={animated ? {
+        '--idle-delay': `-${getSeedHash(bio.id, bio.generationSeed) % 17}s`,
+        '--idle-ground': `16px ${layout.groundY}px`,
+      } as CSSProperties : undefined}
     >
-      {pixels.map(([x, y, width, height, fill], i) => (
+      {animated ? (
+        <>
+          <defs>
+            <g id={portraitId + '-pixels'}>
+              {pixels.map(([x, y, width, height, fill], i) => (
+                <rect key={i} {...{ x, y, width, height, fill }} />
+              ))}
+            </g>
+            <clipPath id={portraitId + '-ground'}>
+              <rect x={0} y={layout.groundY} width={32} height={33 - layout.groundY} />
+            </clipPath>
+            {regions.map(({name, x, y, width, height}) => (
+              <clipPath key={name} id={portraitId + '-' + name}>
+                <rect {...{x, y, width, height}} />
+              </clipPath>
+            ))}
+          </defs>
+          <g clipPath={`url(#${portraitId}-ground)`}>
+            <use href={'#' + portraitId + '-pixels'} />
+          </g>
+          <g className="zombie-idle-sway">
+            <g className="zombie-idle-twitch">
+              {regions.map(({name, origin}) => (
+                <g key={name} className={'zombie-idle-' + name} style={{transformOrigin: origin}}>
+                  <g clipPath={`url(#${portraitId}-${name})`}>
+                    <use href={'#' + portraitId + '-pixels'} />
+                  </g>
+                </g>
+              ))}
+            </g>
+          </g>
+        </>
+      ) : pixels.map(([x, y, width, height, fill], i) => (
         <rect key={i} {...{ x, y, width, height, fill }} />
       ))}
     </svg>

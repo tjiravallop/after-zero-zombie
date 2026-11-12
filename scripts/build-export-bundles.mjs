@@ -22,7 +22,10 @@ function buildStandaloneHtml() {
 
   const assetFiles = fs.readdirSync(assetsDir);
   const cssFile = assetFiles.find(f => f.endsWith('.css'));
-  const jsFile = assetFiles.find(f => f.endsWith('.js'));
+  const entryUrl = html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/i)?.[1];
+  const jsFile = entryUrl ? path.basename(entryUrl) : undefined;
+  if (!jsFile || !assetFiles.includes(jsFile)) throw new Error('Built module entry is missing');
+  if (assetFiles.filter(file => file.endsWith('.js')).length !== 1) throw new Error('Standalone export requires a single JavaScript bundle');
 
   const cssContent = cssFile
     ? fs.readFileSync(path.join(assetsDir, cssFile), 'utf8')
@@ -46,7 +49,7 @@ function buildStandaloneHtml() {
   );
 
   // Remove stylesheet link and main module script tag, then inject inline <style> and <script type="module">
-  html = html.replace(/<link[^>]*rel="stylesheet"[^>]*>/gi, '');
+  html = html.replace(/<link[^>]*rel="stylesheet"[^>]*href="[^"]*\/assets\/[^"]*"[^>]*>/gi, '');
   html = html.replace(
     /<script[^>]*type="module"[^>]*src="[^"]*"[^>]*><\/script>/gi,
     ''
@@ -67,7 +70,7 @@ function buildStandaloneHtml() {
   fs.writeFileSync(outPublic, html, 'utf8');
   fs.writeFileSync(outDist, html, 'utf8');
   console.log(
-    `Created standalone HTML: ${(fs.statSync(outPublic).size / 1024).toFixed(1)} KB`
+    `Created standalone HTML: ${(fs.statSync(outDist).size / 1024).toFixed(1)} KB`
   );
 }
 
@@ -136,4 +139,4 @@ with zipfile.ZipFile(out_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
 }
 
 buildStandaloneHtml();
-buildProjectZip();
+if (!process.argv.includes('--standalone-only')) buildProjectZip();

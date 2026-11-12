@@ -1,0 +1,136 @@
+rules_version = '2';
+// Prototype schema. No user email or display name is stored in aggregate documents.
+// players/{uid}: createdAt timestamp; immutable, created with first counted run.
+// cloud/current: encoding='gzip', payload<=900000 chars, revision increasing int, updatedAt timestamp.
+// runs/{id}: startedAt timestamp, endingId null; endingId and finishedAt set exactly once.
+// endings/{id}: firstRunId string, unlockedAt timestamp; immutable personal achievement.
+// statistics/global: nonnegative integer players/lives/completed, proofRunId, operation start/end.
+// endingStatistics/{id}: nonnegative integer players/lives, proofRunId. No identities.
+// feedback/{id}: ownerUid, category, message 5..4000 chars, bounded diagnostics, optional compressed save, createdAt.
+// feedbackLimits/{uid}: sentAt timestamp, feedbackId; one accepted submission per 30 seconds.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function own(uid) { return request.auth != null && request.auth.uid == uid; }
+    function runPath(id) { return /databases/$(database)/documents/players/$(request.auth.uid)/runs/$(id); }
+    function playerPath() { return /databases/$(database)/documents/players/$(request.auth.uid); }
+    function globalPath() { return /databases/$(database)/documents/statistics/global; }
+    function oldGlobal() { return exists(globalPath()) ? get(globalPath()).data : {'players': 0, 'lives': 0, 'completed': 0}; }
+    function endingPath(id) { return /databases/$(database)/documents/endingStatistics/$(id); }
+    function personalPath(id) { return /databases/$(database)/documents/players/$(request.auth.uid)/endings/$(id); }
+    function boundedString(value, maximum) { return value is string && value.size() > 0 && value.size() <= maximum; }
+    function count(value) { return value is int && value >= 0 && value <= 9007199254740991; }
+    function validCloud(data) {
+      return data.keys().hasOnly(['encoding', 'payload', 'revision', 'updatedAt'])
+        && data.encoding == 'gzip' && boundedString(data.payload, 900000)
+        && data.updatedAt == request.time && count(data.revision) && data.revision > 0;
+    }
+    function validDiagnostics(data) {
+      return data is map && data.keys().hasOnly(['version', 'day', 'place', 'runId', 'browser'])
+        && boundedString(data.version, 40)
+        && (!('day' in data) || (data.day is int && data.day >= 0 && data.day <= 1000000))
+        && (!('place' in data) || (data.place is string && data.place.size() <= 180))
+        && (!('runId' in data) || (data.runId is string && data.runId.size() <= 180))
+        && (!('browser' in data) || (data.browser is string && data.browser.size() <= 300));
+    }
+    function validFeedbackLimit(data) {
+      return data.keys().hasOnly(['sentAt', 'feedbackId']) && data.sentAt == request.time
+        && boundedString(data.feedbackId, 100);
+    }
+    function validEnding(id) {
+      return id in ['death', 'feral', 'madness', 'king', 'evolved', 'human', 'extinction', 'survivor', 'bombed',
+        'silent_guardian', 'escape_companion', 'horde_breakout', 'conscious_exile', 'bkk_winstop.ending',
+        'bkk_market.ending', 'bkk_ward.ending', 'bkk_power.ending', 'bkk_depot.ending', 'bkk_cafe.ending',
+        'bkk_office.ending', 'bkk_pier.ending', 'bkk_stockroom.ending', 'bkk_busyard.ending'];
+    }
+    function startProof(id) {
+      return !exists(runPath(id)) && getAfter(runPath(id)).data.startedAt == request.time
+        && getAfter(runPath(id)).data.endingId == null;
+    }
+    function endProof(id) {
+      return exists(runPath(id)) && get(runPath(id)).data.endingId == null
+        && getAfter(runPath(id)).data.finishedAt == request.time
+        && validEnding(getAfter(runPath(id)).data.endingId);
+    }
+    function validGlobal(data) {
+      let old = oldGlobal();
+      return request.auth != null && data.keys().hasOnly(['players', 'lives', 'completed', 'proofRunId', 'operation'])
+        && boundedString(data.proofRunId, 180) && count(data.players) && count(data.lives) && count(data.completed)
+        && ((data.operation == 'start' && startProof(data.proofRunId)
+          && data.players == old.players + (exists(playerPath()) ? 0 : 1)
+          && data.lives == old.lives + 1 && data.completed == old.completed)
+        || (data.operation == 'end' && endProof(data.proofRunId)
+          && data.players == old.players && data.lives == old.lives && data.completed == old.completed + 1));
+    }
+    match /statistics/global {
+      allow get: if request.auth != null;
+      allow create, update: if validGlobal(request.resource.data);
+    }
+    match /players/{uid} {
+      allow get: if own(uid);
+      allow create: if own(uid) && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time
+        && getAfter(globalPath()).data.operation == 'start'
+        && startProof(getAfter(globalPath()).data.proofRunId);
+      match /cloud/current {
+        allow get: if own(uid);
+        allow create, update: if own(uid) && validCloud(request.resource.data)
+          && request.resource.data.revision == (resource == null ? 1 : resource.data.revision + 1);
+      }
+      match /runs/{runId} {
+        allow get: if own(uid);
+        allow create: if own(uid) && runId.size() <= 180
+          && request.resource.data.keys().hasOnly(['startedAt', 'endingId'])
+          && request.resource.data.startedAt == request.time && request.resource.data.endingId == null
+          && existsAfter(playerPath()) && getAfter(globalPath()).data.operation == 'start'
+          && getAfter(globalPath()).data.proofRunId == runId
+          && getAfter(globalPath()).data.lives == oldGlobal().lives + 1;
+        allow update: if own(uid) && resource.data.endingId == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endingId', 'finishedAt'])
+          && validEnding(request.resource.data.endingId) && request.resource.data.finishedAt == request.time
+          && getAfter(globalPath()).data.operation == 'end' && getAfter(globalPath()).data.proofRunId == runId
+          && getAfter(globalPath()).data.completed == oldGlobal().completed + 1
+          && getAfter(endingPath(request.resource.data.endingId)).data.proofRunId == runId
+          && existsAfter(personalPath(request.resource.data.endingId));
+      }
+      match /endings/{endingId} {
+        allow get, list: if own(uid);
+        allow create: if own(uid) && validEnding(endingId)
+          && request.resource.data.keys().hasOnly(['firstRunId', 'unlockedAt'])
+          && request.resource.data.unlockedAt == request.time && endProof(request.resource.data.firstRunId)
+          && getAfter(runPath(request.resource.data.firstRunId)).data.endingId == endingId;
+      }
+    }
+    match /endingStatistics/{endingId} {
+      // Completion transactions must read the previous total before the first personal unlock.
+      allow get: if request.auth != null && validEnding(endingId);
+      allow create, update: if request.auth != null && validEnding(endingId)
+        && request.resource.data.keys().hasOnly(['players', 'lives', 'proofRunId'])
+        && count(request.resource.data.players) && count(request.resource.data.lives)
+        && boundedString(request.resource.data.proofRunId, 180)
+        && endProof(request.resource.data.proofRunId)
+        && getAfter(runPath(request.resource.data.proofRunId)).data.endingId == endingId
+        && request.resource.data.lives == (resource == null ? 1 : resource.data.lives + 1)
+        && request.resource.data.players == (resource == null ? 0 : resource.data.players) + (exists(personalPath(endingId)) ? 0 : 1);
+    }
+    match /feedback/{feedbackId} {
+      allow get: if own(resource.data.ownerUid);
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['ownerUid', 'category', 'message', 'diagnostics', 'attachment', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.category in ['bug', 'idea', 'other']
+        && request.resource.data.message is string && request.resource.data.message.size() >= 5 && request.resource.data.message.size() <= 4000
+        && validDiagnostics(request.resource.data.diagnostics)
+        && request.resource.data.attachment is string && request.resource.data.attachment.size() <= 900000
+        && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/feedbackLimits/$(request.auth.uid)).data.feedbackId == feedbackId
+        && getAfter(/databases/$(database)/documents/feedbackLimits/$(request.auth.uid)).data.sentAt == request.time;
+    }
+    match /feedbackLimits/{uid} {
+      allow get: if own(uid);
+      allow create, update: if own(uid) && validFeedbackLimit(request.resource.data)
+        && (resource == null || request.time >= resource.data.sentAt + duration.value(30, 's'))
+        && getAfter(/databases/$(database)/documents/feedback/$(request.resource.data.feedbackId)).data.ownerUid == uid
+        && getAfter(/databases/$(database)/documents/feedback/$(request.resource.data.feedbackId)).data.createdAt == request.time;
+    }
+  }
+}

@@ -7,7 +7,7 @@ import {deriveCauseOfDeath,deriveDeathEndingPresentation,type CharacterBioDossie
 import {endingMetrics,endingReflections,isStaticEndingText} from '../data/endingPresentation';
 import {soundFx} from '../utils/soundFx';
 
-export default function EndingExperience({state,ending,bio,zones,chronicle,finalChoice,onNewLife,onHub}:{state:any;ending:any;bio:CharacterBioDossier;zones:Record<string,ZonePopulationState>;chronicle:any;finalChoice?:StoryMoment;onNewLife:()=>void;onHub:()=>void}) {
+export default function EndingExperience({state,ending,bio,zones,chronicle,finalChoice,onNewLife,onHub,onCollection}:{state:any;ending:any;bio:CharacterBioDossier;zones:Record<string,ZonePopulationState>;chronicle:any;finalChoice?:StoryMoment;onNewLife:()=>void;onHub:()=>void;onCollection?:()=>void}) {
   const scene=useRef<HTMLCanvasElement>(null),portrait=useRef<HTMLDivElement>(null);
   const [saveError,setSaveError]=useState('');
   const metrics=endingMetrics(state,zones);
@@ -80,13 +80,13 @@ export default function EndingExperience({state,ending,bio,zones,chronicle,final
       <article className="ending-life-card">
         <p className="ending-eyebrow">AFTER ZERO · LIFE RECORD</p>
         <div className="ending-card-portrait"><ZombiePortrait bio={bio} mutation={effectiveMutation}/></div>
-        <h2>{displayTitle}</h2><p>{bio.occupation} · อายุ ${bio.age} ปี · ${bio.gender}</p>
+        <h2>{displayTitle}</h2><p>{bio.occupation} · อายุ {bio.age} ปี · {bio.gender}</p>
         <p className="ending-place">{zones[state.place]?.placeName||state.place}</p>
         <dl>{stats.map(([label,value,unit])=><div key={label}><dt>{label}</dt><dd>{value}<small>{unit}</small></dd></div>)}</dl>
         <p className="ending-card-footnote">พันธมิตร: คนเป็นที่ยังมีชีวิตและไว้ใจเจ้าอย่างน้อย 85/100<br/>จำนวนครั้งที่ช่วยชีวิตอาจรวมการช่วยคนเดิม</p>
         <p className="ending-final-line">ชีวิตนี้มีความหมายมากกว่าตัวเลขเพียงค่าเดียว</p>
       </article>
-      <div className="ending-controls"><button onClick={saveCard}>บันทึกการ์ดเป็นภาพ</button><button className="ending-primary" onClick={onNewLife}>ตื่นขึ้นในชีวิตใหม่</button><button onClick={onHub}>กลับหน้าเลือกเซฟ</button></div>
+      <div className="ending-controls">{onCollection && <button onClick={onCollection}>บทจบที่ค้นพบ</button>}<button onClick={saveCard}>บันทึกการ์ดเป็นภาพ</button><button className="ending-primary" onClick={onNewLife}>ตื่นขึ้นในชีวิตใหม่</button><button onClick={onHub}>กลับหน้าเลือกเซฟ</button></div>
       {saveError&&<p role="alert">{saveError}</p>}
     </section>
   </main>;

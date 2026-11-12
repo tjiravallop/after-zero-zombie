@@ -1,4 +1,8 @@
 import EndingExperience from './components/EndingExperience';
+import EndingCollection from './components/EndingCollection';
+import PlayerModal from './components/PlayerModal';
+import PlayerServices from './components/PlayerServices';
+import {queueLifeStart} from './services/playerBackend';
 import { resolveAgeDialogue, resolveLifeSimOutcomeForAge } from './data/ageDialogue';
 import StoryFeed, { storyLogKey, type StoryMoment } from './components/StoryFeed';
 import { generateCharacter, resolveSavedCharacter, snapshotCharacter, getCharacterAgeGroup, createCharacterState } from './data/characterPool';
@@ -511,6 +515,27 @@ export default function App() {
     }
   });
   const [loginInput, setLoginInput] = useState<string>(playerName);
+  const [showEndingCollection, setShowEndingCollection] = useState(false);
+  const [showPlayerGuide, setShowPlayerGuide] = useState(false);
+  const [onboardingSeen, setOnboardingSeen] = useState(() => readPreference('after_zero_v10_onboarding_seen'));
+  const [localSaveStatus, setLocalSaveStatus] = useState<{savedAt: number | null; error: boolean}>({savedAt: null, error: false});
+  const storageFailures = useRef(new Set<string>());
+  const persistPlayerData = (key: string, value: unknown) => {
+    try {
+      localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+      storageFailures.current.delete(key);
+      setLocalSaveStatus({savedAt: Date.now(), error: storageFailures.current.size > 0});
+    } catch {
+      storageFailures.current.add(key);
+      setLocalSaveStatus(previous => ({...previous, error: true}));
+    }
+  };
+  const closePlayerGuide = () => {
+    setShowPlayerGuide(false);
+    setOnboardingSeen(true);
+    persistPlayerData('after_zero_v10_onboarding_seen', 'true');
+  };
+  useEffect(() => {persistPlayerData(STORAGE_KEY_USER, playerName);}, [playerName]);
 
   const [mobileTab, setMobileTab] = useState<MobileDrawerTab>('play');
   const [desktopSideTab, setDesktopSideTab] = useState<DesktopSideTab>('map');
@@ -799,11 +824,7 @@ export default function App() {
   // Persist state, past lives, bio, and zone populations to localStorage
   useEffect(() => {
     if (hasStartedRun && gameState) {
-      try {
-        localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({...gameState,npcZones:syncedZonePopulations}));
-      } catch {
-        // ignore
-      }
+      persistPlayerData(STORAGE_KEY_STATE, {...gameState, npcZones: syncedZonePopulations});
     }
   }, [hasStartedRun, gameState, syncedZonePopulations]);
 
@@ -857,47 +878,27 @@ export default function App() {
   }, [soundEnabled, ambientEnabled, screenStage, gameState?.place, gameState?.ending?.id]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_ARCHIVE, JSON.stringify(pastLives));
-    } catch {
-      // ignore
-    }
+    persistPlayerData(STORAGE_KEY_ARCHIVE, pastLives);
   }, [pastLives]);
 
   useEffect(() => {
     if (!hasStartedRun) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_BIO_ID, currentBioId);
-    } catch {
-      // ignore
-    }
+    persistPlayerData(STORAGE_KEY_BIO_ID, currentBioId);
   }, [hasStartedRun, currentBioId]);
 
   useEffect(() => {
     if (!hasStartedRun) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_TRIGGERED_ECHOES, JSON.stringify(triggeredEchoIds));
-    } catch {
-      // ignore
-    }
+    persistPlayerData(STORAGE_KEY_TRIGGERED_ECHOES, triggeredEchoIds);
   }, [hasStartedRun, triggeredEchoIds]);
 
   useEffect(() => {
     if (!hasStartedRun) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_MUTATION_MILESTONES, JSON.stringify(recordedMutationMilestones));
-    } catch {
-      // ignore
-    }
+    persistPlayerData(STORAGE_KEY_MUTATION_MILESTONES, recordedMutationMilestones);
   }, [hasStartedRun, recordedMutationMilestones]);
 
   useEffect(() => {
     if (!hasStartedRun) return;
-    try {
-      localStorage.setItem(STORAGE_KEY_ZONE_POPS, JSON.stringify(syncedZonePopulations));
-    } catch {
-      // ignore
-    }
+    persistPlayerData(STORAGE_KEY_ZONE_POPS, syncedZonePopulations);
   }, [hasStartedRun, syncedZonePopulations]);
 
   useEffect(() => {
@@ -1311,13 +1312,8 @@ export default function App() {
   // Step 1 -> Step 2: Login Submit
   const handleLoginSubmit = (e?: React.FormEvent, intent: 'hub' | 'continue' | 'new' = 'hub') => {
     e?.preventDefault();
-    const clean = loginInput.trim() || 'ผู้บันทึกเขตศูนย์ (Subject-00)';
+    const clean = loginInput.trim().slice(0, 80) || 'ผู้บันทึกเขตศูนย์ (Subject-00)';
     setPlayerName(clean);
-    try {
-      localStorage.setItem(STORAGE_KEY_USER, clean);
-    } catch {
-      // ignore
-    }
     if (soundEnabled) soundFx.success();
     if (intent === 'continue' && hasStartedRun) {
       setScreenStage('playing');
@@ -1367,6 +1363,8 @@ export default function App() {
     setGameState(freshState);
     setHasStartedRun(true);
     setRolledPreviewCandidate(null);
+    try {queueLifeStart(freshState.runId);} catch { /* Gameplay remains available if statistics cannot be queued. */ }
+    if (!onboardingSeen) setShowPlayerGuide(true);
     setScreenStage('playing');
     setMobileTab('play');
     setActionToast(null);
@@ -2116,6 +2114,7 @@ export default function App() {
       playerName,
       currentBioId,
       triggeredEchoIds,
+      mutationMilestones: recordedMutationMilestones,
       pastLives,
       zonePopulations: syncedZonePopulations,
       gameState: {
@@ -2162,28 +2161,25 @@ export default function App() {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       setActionToast(`ดาวน์โหลด ${downloadName} ลงเครื่องเรียบร้อยแล้ว`);
     } catch {
-      const a = document.createElement('a');
-      a.href = `./${fileName}`;
-      a.download = downloadName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      setActionToast('ดาวน์โหลดเกมไม่สำเร็จ กรุณาตรวจการเชื่อมต่อแล้วลองใหม่');
     } finally {
       setDownloadingFile(null);
     }
   };
 
-  const handleImportSaveJson = () => {
-    if (!importJsonText.trim()) {
+  const handleImportSaveJson = (providedText?: string) => {
+    const saveText = providedText ?? importJsonText;
+    if (!saveText.trim()) {
       if (soundEnabled) soundFx.warning();
       const emptyMsg = 'กรุณาวางโค้ด JSON จากไฟล์เซฟก่อนกดยืนยัน';
       setActionToast(emptyMsg);
       setSaveStatusFeedback({ type: 'error', message: emptyMsg });
-      return;
+      return false;
     }
-    if (!production) return;
+    if (!production) return false;
     try {
-      const parsed = JSON.parse(importJsonText.trim());
+      if (new TextEncoder().encode(saveText).length > 10 * 1024 * 1024) throw new Error('ไฟล์เซฟใหญ่เกิน 10 MB');
+      const parsed = JSON.parse(saveText.trim());
       const rawState = parsed.gameState || parsed;
       if (!rawState || typeof rawState !== 'object') {
         throw new Error('โครงสร้างไฟล์เซฟไม่ถูกต้อง (ไม่พบข้อมูลสถานะเกม)');
@@ -2203,7 +2199,12 @@ export default function App() {
       validated.characterProfile = snapshotCharacter(importedBio);
       validated.roamCooldowns = (rawState && typeof rawState.roamCooldowns === 'object' && rawState.roamCooldowns !== null && !Array.isArray(rawState.roamCooldowns)) ? rawState.roamCooldowns : {};
       validated.asokWreckDepletedParts = Array.isArray(rawState?.asokWreckDepletedParts) ? rawState.asokWreckDepletedParts.filter((p: any) => typeof p === 'string') : [];
+      if (Array.isArray(parsed.pastLives) && parsed.pastLives.some((life: any) => !life || typeof life !== 'object' || typeof life.endingId !== 'string')) throw new Error('ประวัติชีวิตในเซฟไม่ถูกต้อง');
       setCurrentBio(importedBio);
+      if (typeof parsed.playerName === 'string') {
+        setPlayerName(parsed.playerName.slice(0, 80));
+        setLoginInput(parsed.playerName.slice(0, 80));
+      }
       setRouteGuidanceSession({runId: validated.runId, pinnedRouteId: null, dismissedRouteIds: []});
       setGameState(validated);
       setHasStartedRun(true);
@@ -2212,6 +2213,7 @@ export default function App() {
       if (parsed.gameState) {
         if (Array.isArray(parsed.pastLives)) setPastLives(parsed.pastLives);
         if (Array.isArray(parsed.triggeredEchoIds)) setTriggeredEchoIds(parsed.triggeredEchoIds);
+        if (Array.isArray(parsed.mutationMilestones)) setRecordedMutationMilestones(parsed.mutationMilestones);
         // NPC snapshot and relationship history were validated before committing the import.
       }
       setShowImportBox(false);
@@ -2223,13 +2225,23 @@ export default function App() {
       const successMsg = 'นำเข้าเซฟสำเร็จ! เล่นต่อจากจุดเดิมได้ทันที';
       setActionToast(successMsg);
       setSaveStatusFeedback({ type: 'success', message: successMsg });
+      return true;
     } catch (err: any) {
       if (soundEnabled) soundFx.warning();
-      const errMsg = `ไฟล์เซฟไม่ถูกต้อง: ${err?.message || 'ไม่สามารถอ่าน JSON ได้'}`;
+      const detail = typeof err?.message === 'string' && /[\u0e00-\u0e7f]/.test(err.message) ? err.message : 'ไม่สามารถอ่านไฟล์ JSON นี้ได้';
+      const errMsg = `ไฟล์เซฟไม่ถูกต้อง: ${detail}`;
       setActionToast(errMsg);
       setSaveStatusFeedback({ type: 'error', message: errMsg });
+      return false;
     }
   };
+
+  const playerSnapshot = useMemo(() => hasStartedRun ? JSON.stringify({
+    version: 'after-zero-1.0-save-bundle', playerName, currentBioId, pastLives, triggeredEchoIds,
+    mutationMilestones: recordedMutationMilestones, zonePopulations: syncedZonePopulations,
+    gameState: {...gameState, npcZones: syncedZonePopulations, characterProfile: snapshotCharacter(currentBio)},
+  }) : null, [hasStartedRun, playerName, currentBioId, pastLives, triggeredEchoIds,
+    recordedMutationMilestones, syncedZonePopulations, gameState, currentBio]);
 
   // District settlement endings are explicit choices; core endings use climax events.
   const storyActionsList = filteredActions.filter(a => (a.group === 'story' && !a.ending) || a.id.startsWith('bkk_') || a.id.startsWith('route.'));
@@ -2424,6 +2436,24 @@ export default function App() {
   return (
     <div data-screen={screenStage} data-ending={Boolean(screenStage === 'playing' && rawViewModel?.ending)} data-mobile-tab={mobileTab} data-playing={screenStage === 'playing'} className={`game-shell min-h-screen bg-[#0c1310] text-slate-100 flex flex-col pb-16 lg:pb-0 selection:bg-lime-400 selection:text-slate-950 ${isScreenShaking ? 'screen-shake' : ''}`}>
       {isScreenShaking && <div className="damage-vignette" />}
+      <PlayerServices snapshot={playerSnapshot} onRestore={handleImportSaveJson} onBackup={handleExportSaveJson} />
+      {hasStartedRun && !localSaveStatus.error && localSaveStatus.savedAt && <p className="px-4 py-1 text-xs text-slate-400" role="status">บันทึกในเครื่องแล้ว {new Date(localSaveStatus.savedAt).toLocaleTimeString('th-TH')}</p>}
+      {localSaveStatus.error && <div role="alert" className="sticky top-0 z-50 border-b border-amber-500 bg-amber-950 px-4 py-3 text-sm text-amber-100">
+        บันทึกลงเครื่องไม่สำเร็จ กรุณาดาวน์โหลดเซฟสำรองก่อนปิดเกม
+        {hasStartedRun && <button type="button" className="ml-3 underline" onClick={handleExportSaveJson}>สำรองเซฟตอนนี้</button>}
+      </div>}
+      {showPlayerGuide && <PlayerModal title="ก่อนเริ่มชีวิตนี้" onClose={closePlayerGuide}>
+        <div className="space-y-4 text-sm leading-relaxed text-slate-200">
+          <p>เจ้าเป็นซอมบี้ที่ยังมีสติ เลือกสำรวจ ช่วยคนเป็น หรือหาทางเอาตัวรอดก่อนกองทัพกวาดล้างเมือง</p>
+          <p>ดูแลสภาพร่าง ความหิว และสติ เลือดช่วยดับความหิว ส่วนอาหารกระป๋องมีไว้แบ่งให้คนเป็น</p>
+          <p>อ่านผลและเวลาของแต่ละตัวเลือกก่อนกด บางกิจกรรมใช้หนึ่งวัน บางบทสนทนาไม่ใช้วัน คนเป็นยังกลัวเจ้า จงรักษาระยะและค่อย ๆ สร้างความไว้ใจ</p>
+          <p>เกมบันทึกอัตโนมัติในเบราว์เซอร์นี้ ดาวน์โหลดเซฟสำรองได้จากเมนูบันทึก เพื่อเก็บชีวิตที่เล่นไว้เมื่อย้ายเครื่อง</p>
+          <p>แต่ละชีวิตอาจจบเร็วหรือยาวต่างกัน บทจบที่ยังไม่เคยพบจะเก็บเป็นความลับในคลังบทจบ</p>
+          <button type="button" onClick={closePlayerGuide} className="rounded-xl bg-lime-300 px-4 py-3 font-bold text-slate-950">เข้าใจแล้ว</button>
+        </div>
+      </PlayerModal>}
+      {showEndingCollection && production && <EndingCollection catalog={production.catalog.ENDINGS} lives={pastLives}
+        currentEndingId={hasStartedRun ? effectiveGameState?.ending?.id : undefined} onClose={() => setShowEndingCollection(false)} />}
       {/* STICKY COMPACT TOP HUD */}
       {screenStage !== 'login' && <header className="game-hud sticky top-0 z-30 bg-[#0c1310]/95 backdrop-blur-md border-b border-emerald-950/80 px-3 sm:px-6 py-2.5">
         <div className="max-w-[1380px] mx-auto flex flex-col gap-2">
@@ -2496,7 +2526,7 @@ export default function App() {
                 type="button"
                 onClick={() => setShowDownloadGameModal(true)}
                 className="px-2.5 py-1.5 rounded-lg bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/50 text-xs font-bold text-lime-300 flex items-center gap-1 transition-colors"
-                title="ดาวน์โหลดเกมลงเครื่อง (Export ไฟล์ HTML พร้อมเล่น หรือ ZIP โปรเจกต์เต็ม)"
+                title="ดาวน์โหลดเกมลงเครื่อง (ดาวน์โหลดไฟล์เกมพร้อมเล่น)"
               >
                 <Download className="w-3.5 h-3.5 text-lime-300 shrink-0" />
                 <span className="hidden sm:inline">โหลดเกมลงเครื่อง</span>
@@ -2655,7 +2685,7 @@ export default function App() {
           )}
           <div className="title-content">
             <h1 className="title-wordmark"><span>AFTER</span><span>ZERO <small>1.0</small></span></h1>
-            <p className="title-subtitle">กรุงเทพฯ หลังวันศูนย์</p>
+            <p className="title-subtitle">กรุงเทพฯ หลังวันศูนย์ · รุ่นทดลอง</p>
             <form className="title-menu" onSubmit={e => handleLoginSubmit(e, hasStartedRun ? 'continue' : 'new')}>
               {hasStartedRun ? (
                 <>
@@ -2671,10 +2701,13 @@ export default function App() {
                 <summary>ตั้งค่าและชื่อผู้เล่น <ChevronDown size={14} aria-hidden="true" /></summary>
                 <div className="title-settings-content">
                   <label htmlFor="title-player-name"><UserCheck size={15} aria-hidden="true" />ชื่อผู้เล่น</label>
-                  <input id="title-player-name" type="text" value={loginInput} onChange={e => setLoginInput(e.target.value)} placeholder="กรอกชื่อผู้เล่น..." />
+                  <input id="title-player-name" type="text" maxLength={80} value={loginInput} onChange={e => setLoginInput(e.target.value)} placeholder="กรอกชื่อผู้เล่น..." />
                   <button type="button" className="title-text-button" aria-pressed={soundEnabled} onClick={() => setSoundEnabled(enabled => !enabled)}>เสียงเกม {soundEnabled ? 'เปิด' : 'ปิด'}</button>
                 </div>
               </details>
+              <button type="button" className="title-text-button" onClick={() => setShowPlayerGuide(true)}>วิธีเล่น</button>
+              <button type="button" className="title-text-button" onClick={() => setShowEndingCollection(true)}>บทจบที่ค้นพบ</button>
+              <p className="text-xs text-slate-400">เล่นแบบ Guest · เซฟอยู่ในเบราว์เซอร์นี้ สำรองไฟล์ไว้เพื่อย้ายเครื่อง</p>
               <button type="button" className="title-text-button title-download" onClick={() => setShowDownloadGameModal(true)}><Download size={14} aria-hidden="true" />ดาวน์โหลดเกมลงเครื่อง</button>
             </form>
             <details className="title-about">
@@ -2708,7 +2741,7 @@ export default function App() {
                 className="px-3 py-2 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/50 text-xs font-bold text-lime-300 flex items-center gap-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
-                ดาวน์โหลดตัวเกมลงเครื่อง (Export)
+                ดาวน์โหลดตัวเกมลงเครื่อง
               </button>
               <button
                 type="button"
@@ -2716,7 +2749,7 @@ export default function App() {
                 className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 flex items-center gap-1.5"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                สลับบัญชี
+                กลับหน้าหลัก
               </button>
             </div>
           </div>
@@ -2788,8 +2821,23 @@ export default function App() {
                   </button>
                 </div>
 
+                {saveStatusFeedback && <p role={saveStatusFeedback.type === 'error' ? 'alert' : 'status'} className={`rounded-xl border p-3 text-sm ${saveStatusFeedback.type === 'error' ? 'border-red-500 text-red-200' : 'border-lime-500 text-lime-200'}`}>{saveStatusFeedback.message}</p>}
                 {showImportBox && (
                   <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                    <label className="block text-sm">เลือกไฟล์เซฟจากเครื่อง
+                      <input type="file" accept=".json,application/json" className="mt-2 block w-full"
+                        onChange={async event => {
+                          const file = event.target.files?.[0];
+                          event.target.value = '';
+                          if (!file) return;
+                          try {
+                            if (file.size > 10 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกินไป');
+                            handleImportSaveJson(await file.text());
+                          } catch {
+                            setSaveStatusFeedback({type: 'error', message: 'อ่านไฟล์เซฟไม่สำเร็จ กรุณาเลือกไฟล์ที่ส่งออกจากเกม'});
+                          }
+                        }} />
+                    </label>
                     <textarea
                       value={importJsonText}
                       onChange={e => setImportJsonText(e.target.value)}
@@ -2799,7 +2847,7 @@ export default function App() {
                     />
                     <button
                       type="button"
-                      onClick={handleImportSaveJson}
+                      onClick={() => handleImportSaveJson()}
                       className="w-full py-2 rounded-lg bg-lime-400 text-slate-950 font-bold text-xs"
                     >
                       ยืนยันนำเข้าเซฟ
@@ -2841,7 +2889,7 @@ export default function App() {
           STAGE 3: PLAYING SCREEN
          ===================================================================== */}
       {screenStage === 'playing' && rawViewModel?.ending && gameState && (
-        <EndingExperience state={effectiveGameState} ending={effectiveGameState.ending} bio={currentBio} zones={syncedZonePopulations} chronicle={endingChronicle} finalChoice={latestStory && latestStory.runId === effectiveGameState.runId && latestStory.endingOutcomeId === effectiveGameState.ending.id ? latestStory : undefined} onNewLife={handleRollCharacterPreview} onHub={()=>setScreenStage('hub')} />
+        <EndingExperience state={effectiveGameState} ending={effectiveGameState.ending} bio={currentBio} zones={syncedZonePopulations} chronicle={endingChronicle} finalChoice={latestStory && latestStory.runId === effectiveGameState.runId && latestStory.endingOutcomeId === effectiveGameState.ending.id ? latestStory : undefined} onNewLife={handleRollCharacterPreview} onHub={()=>setScreenStage('hub')} onCollection={() => setShowEndingCollection(true)} />
       )}
       {screenStage === 'playing' && rawViewModel && !rawViewModel.ending && gameState && (
         <main className="flex-1 max-w-[1380px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
@@ -2985,6 +3033,7 @@ export default function App() {
 
                   <div className="character-portrait">
                     <ZombiePortrait
+                      animated
                       bio={currentBio}
                       mutation={Math.floor(gameState?.stats?.mutation || 0)}
                     />
@@ -4058,8 +4107,9 @@ export default function App() {
                     <div className="flex items-center gap-2 min-w-0">
                       <BookOpen className="w-4 h-4 text-lime-400 shrink-0" />
                       <h2 className="text-sm sm:text-base font-bold text-slate-100 truncate">
-                        บันทึกและจัดการข้อมูล (Journal & Save)
+                        บันทึกและจัดการข้อมูล
                       </h2>
+                      <button type="button" onClick={() => setShowEndingCollection(true)} className="text-xs text-lime-300 underline">บทจบที่ค้นพบ</button>
                     </div>
                     <button
                       type="button"
@@ -4248,7 +4298,7 @@ export default function App() {
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
                               <MapPin className="w-4 h-4 text-lime-300" />
-                              <span>สมุดบันทึกเบาะแสเส้นทางสู่อนาคต (Route Checklist)</span>
+                              <span>สมุดบันทึกเบาะแสเส้นทางสู่อนาคต</span>
                             </h3>
                             <button
                               type="button"
@@ -4424,7 +4474,7 @@ export default function App() {
                               onClick={() => setShowRouteHints(true)}
                               className="px-4 py-2 rounded-xl bg-lime-400 text-slate-950 font-bold text-xs hover:bg-lime-300 transition-colors shadow-md"
                             >
-                              เปิดแสดงสมุดบันทึกเบาะแส (Enable Route Hints)
+                              เปิดแสดงสมุดบันทึกเบาะแส
                             </button>
                           </div>
                         </div>
@@ -4521,7 +4571,7 @@ export default function App() {
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <button
                                 type="button"
-                                onClick={handleImportSaveJson}
+                                onClick={() => handleImportSaveJson()}
                                 className="px-4 py-2 rounded-lg bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs transition-colors shadow-md"
                               >
                                 ยืนยันการนำเข้าเซฟ
@@ -4574,7 +4624,7 @@ export default function App() {
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
                           >
-                            ทดสอบเสียงไซเรนไกล ๆ
+                            ฟังตัวอย่างเสียงไซเรนไกล ๆ
                           </button>
                           <button
                             type="button"
@@ -4584,7 +4634,7 @@ export default function App() {
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
                           >
-                            ทดสอบคลื่นวิทยุซ่า ๆ
+                            ฟังตัวอย่างคลื่นวิทยุซ่า ๆ
                           </button>
                           <button
                             type="button"
@@ -4594,7 +4644,7 @@ export default function App() {
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
                           >
-                            ทดสอบเสียงหัวใจเต้น
+                            ฟังตัวอย่างเสียงหัวใจเต้น
                           </button>
                         </div>
                       </div>
@@ -4612,7 +4662,7 @@ export default function App() {
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 leading-relaxed">
-                            ⚠️ การตัดสินใจนี้ไม่สามารถย้อนกลับได้: หากสติถูกกลืนกินหรือไม่อยากฝืนทน สามารถยอมจำนนต่อเชื้อไวรัสและจบชีวิตตัวละครทันที (คงหน้าต่างยืนยันเดิม)
+                            ⚠️ การตัดสินใจนี้ไม่สามารถย้อนกลับได้: หากสติถูกกลืนกินหรือไม่อยากฝืนทน สามารถยอมจำนนต่อเชื้อไวรัสและจบชีวิตตัวละครทันที
                           </p>
                           <button
                             type="button"
@@ -5397,7 +5447,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-lime-300 font-extrabold text-base">
                 <Download className="w-5 h-5" />
-                <span>ดาวน์โหลดเกมลงเครื่อง (Export Game)</span>
+                <span>ดาวน์โหลดเกมลงเครื่อง</span>
               </div>
               <button
                 type="button"
@@ -5413,19 +5463,20 @@ export default function App() {
               <div className="p-4 rounded-xl bg-slate-950 border border-lime-400/50 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-extrabold text-lime-300 text-sm">
-                    1. ไฟล์เกมพร้อมเล่นทันที (แนะนำ · เปิดเล่นออฟไลน์ได้เลย)
+                    ไฟล์เกมพร้อมเล่นทันที (เปิดเล่นออฟไลน์ได้)
                   </span>
                   <span className="px-2 py-0.5 rounded bg-lime-400/15 text-lime-300 font-mono text-[11px]">
                     .HTML ไฟล์เดียวจบ
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  รวมตัวเกม เอนจิน และกราฟิกทั้งหมดไว้ในไฟล์เดียว ดาวน์โหลดเสร็จแล้ว{' '}
+                  รวมตัวเกมและภาพทั้งหมดไว้ในไฟล์เดียว ดาวน์โหลดเสร็จแล้ว{' '}
                   <strong className="text-white">
                     ดับเบิลคลิกเปิดในเบราว์เซอร์ (Chrome / Edge / Safari) เล่นบนเครื่องได้ทันที
                   </strong>{' '}
                   โดยไม่ต้องติดตั้งโปรแกรมหรือรันเซิร์ฟเวอร์ใดๆ
                 </p>
+                <p className="text-xs text-slate-400">ไฟล์นี้บันทึกเซฟในเครื่อง ใช้เว็บเกมเมื่อต้องการ Google Login เซฟคลาวด์ หรือส่งความคิดเห็น</p>
                 <button
                   type="button"
                   disabled={downloadingFile !== null}
@@ -5445,41 +5496,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* OPTION 2: FULL PROJECT SOURCE + DIST ZIP */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-extrabold text-sky-300 text-sm">
-                    2. ไฟล์โปรเจกต์เต็ม + โค้ดต้นฉบับ (สำหรับแก้โค้ด / ขึ้น GitHub)
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-sky-400/15 text-sky-300 font-mono text-[11px]">
-                    .ZIP ทั้งโปรเจกต์
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  รวมซอร์สโค้ดทั้งหมด (<code className="text-amber-200">src/</code>,{' '}
-                  <code className="text-amber-200">public/</code>,{' '}
-                  <code className="text-amber-200">package.json</code>, GitHub Actions) และโฟลเดอร์{' '}
-                  <code className="text-amber-200">dist/</code> ที่ Build แล้ว สำหรับนำไปแตกไฟล์ลงเครื่องหรืออัปโหลดขึ้น GitHub
-                </p>
-                <button
-                  type="button"
-                  disabled={downloadingFile !== null}
-                  onClick={() =>
-                    handleDownloadGameAsset(
-                      'after-zero-bangkok-project.zip',
-                      'after-zero-bangkok-project.zip',
-                      'application/zip'
-                    )
-                  }
-                  className="w-full py-2.5 rounded-xl bg-sky-400 hover:bg-sky-300 disabled:opacity-60 text-slate-950 font-extrabold text-xs sm:text-sm transition-colors flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  {downloadingFile === 'after-zero-bangkok-project.zip'
-                    ? 'กำลังเตรียมไฟล์ ZIP...'
-                    : 'ดาวน์โหลดโปรเจกต์เต็ม (.ZIP)'}
-                </button>
-              </div>
-
               {/* OPTION 3: SAVE FILE JSON */}
               <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-3">
                 <div className="text-xs text-slate-300">
@@ -5492,6 +5508,7 @@ export default function App() {
                   type="button"
                   onClick={handleExportSaveJson}
                   className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs shrink-0 flex items-center gap-1.5"
+                  disabled={!hasStartedRun}
                 >
                   <Download className="w-3.5 h-3.5 text-lime-300" />
                   เซฟ (.json)
